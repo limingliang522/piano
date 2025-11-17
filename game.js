@@ -311,8 +311,10 @@ function createAllNoteBlocks() {
 
 // 创建音符方块
 function createNoteBlock(noteData) {
-    // 随机决定黑块高度：30%概率为超高，70%概率为普通高度
-    const isTall = Math.random() < 0.3;
+    // 平均分配超高黑块：每5个黑块中有1个超高（20%）
+    // 使用音符索引来确保均匀分布
+    const noteIndex = noteObjects.length;
+    const isTall = (noteIndex % 5) === 0; // 每5个一个超高
     const blockHeight = isTall ? 2.5 : 0.4; // 超高2.5或普通0.4
     const blockY = isTall ? 1.25 : 0.2; // 超高方块的Y位置也要调整
     
