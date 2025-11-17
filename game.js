@@ -159,7 +159,7 @@ async function initMIDISystem() {
         loadingElement.textContent = '加载MIDI文件...';
         
         // 只等待MIDI文件加载
-        const notes = await midiParser.loadMIDI('2025-11-16 23.35.43.mp3.mid');
+        const notes = await midiParser.loadMIDI('2025-11-16 23.35.43.mp3.mid?v=1');
         
         if (notes.length === 0) {
             console.error('MIDI文件中没有音符');
