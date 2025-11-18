@@ -31,11 +31,11 @@ let lastCollisionBlock = null; // 记录最后碰撞的黑块
 // 跳跃状态
 let isJumping = false;
 let verticalVelocity = 0;
-let isFastFalling = false; // 是否在快速下落
-let isFastRising = false; // 是否在快速上升
-const gravity = -0.022; // 重力（不使用）
+const gravity = -0.035; // 重力加速度
 const groundY = 0.25; // 小球的地面高度
 const maxJumpHeight = 2.0; // 最大跳跃高度
+// 计算初始跳跃速度：使用 v² = 2gh，让跳跃高度固定
+const jumpForce = Math.sqrt(2 * Math.abs(gravity * 60) * maxJumpHeight);
 
 // UI 元素
 const scoreElement = document.getElementById('score');
@@ -645,27 +645,15 @@ function updatePlayer() {
     // 相机始终看向玩家前方
     camera.lookAt(player.position.x, 0, player.position.z - 8);
     
-    // 跳跃物理 - 基于时间，不绑定帧率
+    // 跳跃物理 - 基于时间，使用重力系统
     if (isJumping) {
         // 使用 deltaTime 让跳跃在不同帧率下一致
+        const gravityPerSecond = gravity * 60; // 转换为每秒的重力
         const velocityPerSecond = verticalVelocity * 60; // 转换为每秒的速度
         
-        // 如果是快速上升或快速下落，保持恒定速度（不受重力影响）
-        // 否则应用重力
-        if (!isFastRising && !isFastFalling) {
-            const gravityPerSecond = gravity * 60;
-            verticalVelocity += gravityPerSecond * deltaTime;
-        }
-        
+        // 应用重力
+        verticalVelocity += gravityPerSecond * deltaTime;
         player.position.y += velocityPerSecond * deltaTime;
-        
-        // 检查是否到达最大高度
-        if (isFastRising && player.position.y >= groundY + maxJumpHeight) {
-            player.position.y = groundY + maxJumpHeight;
-            isFastRising = false;
-            isFastFalling = true;
-            verticalVelocity = -moveSpeed; // 自动开始下落
-        }
         
         // 添加跳跃时的轻微旋转动画
         player.rotation.x = Math.min(verticalVelocity * 0.5, 0.3);
@@ -674,8 +662,6 @@ function updatePlayer() {
         if (player.position.y <= groundY) {
             player.position.y = groundY;
             isJumping = false;
-            isFastRising = false;
-            isFastFalling = false;
             verticalVelocity = 0;
             player.rotation.x = 0;
             player.scale.set(1, 1, 1);
@@ -714,16 +700,12 @@ function updatePlayer() {
 // 跳跃函数
 function jump() {
     if (!isJumping) {
-        // 在地面 = 快速上升（使用统一速度）
+        // 在地面 = 跳跃
         isJumping = true;
-        isFastRising = true;
-        isFastFalling = false;
-        verticalVelocity = moveSpeed;
+        verticalVelocity = jumpForce;
     } else {
-        // 在空中 = 快速下落（使用统一速度）
-        isFastRising = false;
-        isFastFalling = true;
-        verticalVelocity = -moveSpeed;
+        // 在空中 = 快速下落
+        verticalVelocity = -jumpForce;
     }
 }
 
@@ -1043,8 +1025,6 @@ function continueGame() {
     // 重置玩家状态
     player.position.y = groundY;
     isJumping = false;
-    isFastRising = false;
-    isFastFalling = false;
     verticalVelocity = 0;
     
     console.log(`继续游戏：整体移动 ${untriggeredBlocks.length} 个黑块到迷雾边缘，移动距离 ${moveDistance.toFixed(2)}`);
@@ -1103,8 +1083,6 @@ function restart() {
     player.position.set(0, 0.6, 0);
     player.scale.set(1, 1, 1);
     isJumping = false;
-    isFastRising = false;
-    isFastFalling = false;
     verticalVelocity = 0;
     
     // 如果是MIDI模式，重新创建音符方块
@@ -1315,13 +1293,10 @@ document.addEventListener('touchend', (e) => {
         if (!isJumping) {
             // 在地面 = 跳跃
             isJumping = true;
-            isFastRising = true;
-            verticalVelocity = moveSpeed;
+            verticalVelocity = jumpForce;
         } else {
             // 在空中 = 快速下落
-            isFastRising = false;
-            isFastFalling = true;
-            verticalVelocity = -moveSpeed;
+            verticalVelocity = -jumpForce;
         }
     }
 }, { passive: false });
