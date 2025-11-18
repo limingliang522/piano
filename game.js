@@ -28,10 +28,15 @@ let speedIncreaseRate = 0.000005; // 每帧速度增长率（更缓慢）
 let isCompletingRound = false; // 防止重复触发完成
 let lastCollisionBlock = null; // 记录最后碰撞的黑块
 
+// MIDI文件列表
+let midiFiles = [];
+let currentMidiIndex = 0;
+let currentMidiName = '';
+
 // 跳跃状态
 let isJumping = false;
 let verticalVelocity = 0;
-const gravity = -0.025; // 重力加速度
+const gravity = -0.020; // 重力加速度（减小重力，增加漂浮时间）
 const groundY = 0.25; // 小球的地面高度
 // 超高黑块：底部0，顶部3.0，球半径0.25
 // 让球中心跳到2.6（球顶部到2.85，低于超高黑块顶部3.0）
@@ -158,25 +163,75 @@ function init() {
     loadingElement.style.display = 'none';
 }
 
+// 获取midi文件夹中的所有MIDI文件
+async function getMidiFiles() {
+    // 这里手动列出midi文件夹中的文件
+    // 因为浏览器无法直接读取文件夹内容
+    return [
+        'midi/2025-11-16 23.35.43.mp3.mid'
+        // 在这里添加更多MIDI文件
+    ];
+}
+
+// 加载指定的MIDI文件
+async function loadMidiFile(index) {
+    try {
+        loadingElement.style.display = 'block';
+        loadingElement.textContent = '加载MIDI文件...';
+        
+        const fileName = midiFiles[index];
+        const notes = await midiParser.loadMIDI(fileName + '?v=1');
+        
+        if (notes.length === 0) {
+            console.error('MIDI文件中没有音符');
+            return false;
+        }
+        
+        // 处理音符数据
+        processMIDINotes(notes);
+        
+        // 显示文件名（去掉路径和扩展名）
+        currentMidiName = fileName.split('/').pop().replace('.mid', '');
+        document.getElementById('midiName').textContent = currentMidiName;
+        
+        loadingElement.style.display = 'none';
+        return true;
+    } catch (error) {
+        console.error('加载MIDI文件失败:', error);
+        loadingElement.style.display = 'none';
+        return false;
+    }
+}
+
 // 初始化MIDI系统
 async function initMIDISystem() {
     try {
         midiParser = new MIDIParser();
         audioEngine = new AudioEngine();
         
-        loadingElement.textContent = '加载MIDI文件...';
+        // 获取MIDI文件列表
+        midiFiles = await getMidiFiles();
         
-        // 只等待MIDI文件加载
-        const notes = await midiParser.loadMIDI('midi/2025-11-16 23.35.43.mp3.mid?v=1');
-        
-        if (notes.length === 0) {
-            console.error('MIDI文件中没有音符');
+        if (midiFiles.length === 0) {
+            console.error('没有找到MIDI文件');
             startNormalGame();
             return;
         }
         
-        // 处理音符数据
-        processMIDINotes(notes);
+        // 随机选择一个MIDI文件
+        currentMidiIndex = Math.floor(Math.random() * midiFiles.length);
+        
+        loadingElement.textContent = '加载MIDI文件...';
+        
+        // 加载选中的MIDI文件
+        const success = await loadMidiFile(currentMidiIndex);
+        
+        if (!success) {
+            startNormalGame();
+            return;
+        }
+        
+
         
         // 暂时不加载音色，等用户点击播放按钮后再加载
         // 这样可以避免在没有用户交互时创建AudioContext
@@ -1289,6 +1344,9 @@ document.addEventListener('touchend', (e) => {
             } else if (diffX < 0 && targetLane > 0) {
                 targetLane--;
             }
+        } else if (diffY < -50) {
+            // 上滑切换MIDI文件
+            switchToNextMidi();
         }
     } else {
         // 点击 = 跳跃或下落（松手时判定）
@@ -1302,6 +1360,60 @@ document.addEventListener('touchend', (e) => {
         }
     }
 }, { passive: false });
+
+// 切换到下一个MIDI文件
+async function switchToNextMidi() {
+    if (midiFiles.length <= 1) return;
+    
+    // 暂停游戏
+    gameRunning = false;
+    
+    // 切换到下一个文件
+    currentMidiIndex = (currentMidiIndex + 1) % midiFiles.length;
+    
+    // 重置游戏状态
+    obstacles.forEach(obj => scene.remove(obj));
+    coins.forEach(obj => scene.remove(obj));
+    noteObjects.forEach(obj => scene.remove(obj));
+    obstacles = [];
+    coins = [];
+    noteObjects = [];
+    
+    score = 0;
+    distance = 0;
+    notesTriggered = 0;
+    collisions = 0;
+    starsEarned = 0;
+    speedMultiplier = 1.0;
+    isCompletingRound = false;
+    midiSpeed = originalBaseSpeed;
+    
+    player.position.set(0, groundY, 0);
+    player.scale.set(1, 1, 1);
+    isJumping = false;
+    verticalVelocity = 0;
+    currentLane = 2;
+    targetLane = 2;
+    
+    // 加载新的MIDI文件
+    const success = await loadMidiFile(currentMidiIndex);
+    
+    if (success) {
+        // 显示提示
+        comboElement.style.display = 'block';
+        comboElement.textContent = `♪ ${currentMidiName}`;
+        comboElement.style.fontSize = '24px';
+        comboElement.style.color = '#ffd700';
+        
+        setTimeout(() => {
+            comboElement.style.display = 'none';
+            // 重新开始游戏
+            gameStartTime = Date.now() / 1000;
+            createAllNoteBlocks();
+            gameRunning = true;
+        }, 2000);
+    }
+}
 
 // 阻止浏览器的下拉刷新和其他手势
 document.addEventListener('gesturestart', (e) => {

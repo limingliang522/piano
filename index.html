@@ -89,6 +89,18 @@
             z-index: 200;
         }
 
+        #midiName {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: #fff;
+            font-size: clamp(18px, 4vw, 24px);
+            font-weight: bold;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.8);
+            z-index: 100;
+        }
+
         #accuracy {
             display: none;
         }
@@ -271,6 +283,7 @@
             <button id="continue" class="game-button"></button>
         </div>
         <div id="instructions"></div>
+        <div id="midiName"></div>
 
     </div>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
