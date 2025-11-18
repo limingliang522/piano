@@ -600,8 +600,8 @@ function jump() {
         isJumping = true;
         verticalVelocity = jumpForce;
     } else {
-        // 在空中 = 快速下落
-        verticalVelocity = -jumpForce * 2;
+        // 在空中 = 下落（速度和跳跃一致）
+        verticalVelocity = -jumpForce;
     }
 }
 
