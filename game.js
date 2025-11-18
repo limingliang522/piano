@@ -31,11 +31,14 @@ let lastCollisionBlock = null; // 记录最后碰撞的黑块
 // 跳跃状态
 let isJumping = false;
 let verticalVelocity = 0;
-const gravity = -0.035; // 重力加速度
+const gravity = -0.025; // 重力加速度
 const groundY = 0.25; // 小球的地面高度
-const maxJumpHeight = 2.5; // 最大跳跃高度（从地面算起，球中心到达2.5+0.25=2.75，低于超高黑块顶部3.0）
-// 计算初始跳跃速度：使用 v² = 2gh，让跳跃高度固定
-const jumpForce = Math.sqrt(2 * Math.abs(gravity * 60) * maxJumpHeight);
+// 超高黑块：底部0，顶部3.0，球半径0.25
+// 让球最高跳到2.5（球顶部到2.75，低于超高黑块顶部3.0）
+const maxJumpHeight = 2.0; // 最大跳跃高度（从地面算起）
+// 计算初始跳跃速度：使用 v² = 2gh
+// 注意：这里的h是相对于groundY的高度
+const jumpForce = Math.sqrt(2 * Math.abs(gravity) * maxJumpHeight);
 
 // UI 元素
 const scoreElement = document.getElementById('score');
