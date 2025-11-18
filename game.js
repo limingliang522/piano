@@ -933,9 +933,14 @@ function restartRound() {
     // 重置完成标志
     isCompletingRound = false;
     
+    // 确保游戏继续运行
+    gameRunning = true;
+    
     // 更新UI
     scoreElement.textContent = `⭐ ${starsEarned} | 音符: 0/${totalNotes}`;
     distanceElement.textContent = `速度: ${speedMultiplier.toFixed(2)}x`;
+    
+    console.log(`第 ${starsEarned} 轮开始！创建了 ${noteObjects.length} 个音符方块`);
 }
 
 // 游戏结束（碰撞死亡）
@@ -953,25 +958,26 @@ function gameOver() {
     }
 }
 
-// 继续游戏（从碰撞点重新开始）
+// 继续游戏（被撞到的黑块重新从上往下落）
 function continueGame() {
     if (!lastCollisionBlock) return;
     
     gameOverElement.style.display = 'none';
     gameRunning = true;
     
-    // 将碰撞的黑块重新放到远处，让它重新下落
-    const noteData = lastCollisionBlock.userData.noteData;
-    const extraDistance = 42;
-    const zPosition = 2 - (noteData.time * originalBaseSpeed * 60) - extraDistance;
-    lastCollisionBlock.position.z = zPosition;
+    // 将碰撞的黑块移到玩家上方，让它重新下落
+    // 计算一个合适的距离，让黑块从视野上方开始下落
+    const distanceAbove = 30; // 在玩家前方30个单位
+    lastCollisionBlock.position.z = player.position.z - distanceAbove;
     
     // 重置碰撞状态
+    const noteData = lastCollisionBlock.userData.noteData;
     noteData.collided = false;
     lastCollisionBlock.material.color.setHex(0x000000);
     lastCollisionBlock.material.emissive.setHex(0x111111);
+    lastCollisionBlock.material.opacity = 1;
     
-    // 重置玩家位置
+    // 重置玩家状态
     player.position.y = groundY;
     isJumping = false;
     verticalVelocity = 0;
