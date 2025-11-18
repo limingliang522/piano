@@ -960,31 +960,52 @@ function gameOver() {
     }
 }
 
-// 继续游戏（被撞到的黑块从最远处重新往下落）
+// 继续游戏（从被撞到的黑块开始，重新从最上面往下落）
 function continueGame() {
     if (!lastCollisionBlock) return;
     
     gameOverElement.style.display = 'none';
     gameRunning = true;
     
-    // 将碰撞的黑块移到最远处（迷雾边缘-50的位置），让它重新下落
-    lastCollisionBlock.position.z = -50;
+    // 获取被撞黑块的时间
+    const collisionTime = lastCollisionBlock.userData.noteData.time;
     
-    // 重置碰撞状态
-    const noteData = lastCollisionBlock.userData.noteData;
-    noteData.collided = false;
-    noteData.triggered = false; // 也重置触发状态，让它可以重新触发
-    lastCollisionBlock.material.color.setHex(0x000000);
-    lastCollisionBlock.material.emissive.setHex(0x111111);
-    lastCollisionBlock.material.opacity = 1;
-    lastCollisionBlock.scale.set(1, 1, 1); // 重置缩放
+    // 删除所有在碰撞黑块之前的黑块（已经过去的）
+    for (let i = noteObjects.length - 1; i >= 0; i--) {
+        const noteBlock = noteObjects[i];
+        const noteTime = noteBlock.userData.noteData.time;
+        
+        if (noteTime < collisionTime) {
+            // 这个黑块在碰撞黑块之前，删除它
+            scene.remove(noteBlock);
+            noteObjects.splice(i, 1);
+        }
+    }
+    
+    // 将碰撞黑块和之后的所有黑块重新放到最上面
+    noteObjects.forEach((noteBlock, index) => {
+        const noteData = noteBlock.userData.noteData;
+        
+        // 重置状态
+        noteData.collided = false;
+        noteData.triggered = false;
+        noteBlock.material.color.setHex(0x000000);
+        noteBlock.material.emissive.setHex(0x111111);
+        noteBlock.material.opacity = 1;
+        noteBlock.scale.set(1, 1, 1);
+        
+        // 重新计算位置：从最远处开始，按时间间隔排列
+        const extraDistance = 42;
+        const zPosition = 2 - (noteData.time * originalBaseSpeed * 60) - extraDistance;
+        noteBlock.position.z = zPosition;
+    });
     
     // 重置玩家状态
     player.position.y = groundY;
     isJumping = false;
     verticalVelocity = 0;
     
-    console.log(`继续游戏：黑块从 z=-50 重新下落`);
+    console.log(`继续游戏：从第 ${noteObjects.length} 个黑块开始重新下落`);
     
     lastCollisionBlock = null;
 }
