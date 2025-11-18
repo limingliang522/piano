@@ -30,8 +30,8 @@ let isCompletingRound = false; // 防止重复触发完成
 // 跳跃状态
 let isJumping = false;
 let verticalVelocity = 0;
-const gravity = -0.025; // 增加重力，更快落地
-const jumpForce = 0.35; // 跳跃力度
+const gravity = -0.015; // 减小重力，增加浮空时间
+const jumpForce = 0.4; // 增加跳跃高度
 const groundY = 0.25; // 小球的地面高度
 
 // UI 元素
@@ -1080,7 +1080,7 @@ document.addEventListener('touchmove', (e) => {
     }
 }, { passive: false });
 
-let touchMoved = false;
+let touchHandled = false;
 
 document.addEventListener('touchstart', (e) => {
     // 只在游戏运行时阻止默认行为
@@ -1088,7 +1088,7 @@ document.addEventListener('touchstart', (e) => {
         e.preventDefault();
         touchStartX = e.touches[0].clientX;
         touchStartY = e.touches[0].clientY;
-        touchMoved = false;
+        touchHandled = false;
         
         // 立即响应点击 - 跳跃或下落（0延迟）
         if (!isJumping) {
@@ -1107,27 +1107,32 @@ document.addEventListener('touchmove', (e) => {
     // 只在游戏运行时阻止默认行为
     if (gameRunning) {
         e.preventDefault();
-        touchMoved = true;
-        
-        const touchX = e.touches[0].clientX;
-        const diffX = touchX - touchStartX;
-        
-        // 左右滑动切换轨道（实时响应）
-        if (Math.abs(diffX) > 50) {
-            if (diffX > 0 && targetLane < LANES - 1) {
-                targetLane++;
-                touchStartX = touchX;
-            } else if (diffX < 0 && targetLane > 0) {
-                targetLane--;
-                touchStartX = touchX;
-            }
-        }
     }
 }, { passive: false });
 
 document.addEventListener('touchend', (e) => {
+    // 只在游戏运行时处理游戏控制
     if (!gameRunning) return;
+    
     e.preventDefault();
+    
+    const touchEndX = e.changedTouches[0].clientX;
+    const touchEndY = e.changedTouches[0].clientY;
+    const diffX = touchEndX - touchStartX;
+    const diffY = touchEndY - touchStartY;
+    
+    // 判断是滑动还是点击
+    if (Math.abs(diffX) > 30 || Math.abs(diffY) > 30) {
+        // 滑动操作
+        if (Math.abs(diffX) > Math.abs(diffY)) {
+            // 左右滑动切换轨道
+            if (diffX > 0 && targetLane < LANES - 1) {
+                targetLane++;
+            } else if (diffX < 0 && targetLane > 0) {
+                targetLane--;
+            }
+        }
+    }
 }, { passive: false });
 
 // 阻止浏览器的下拉刷新和其他手势
