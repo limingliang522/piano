@@ -30,7 +30,7 @@ let isCompletingRound = false; // 防止重复触发完成
 // 跳跃状态
 let isJumping = false;
 let verticalVelocity = 0;
-const gravity = -0.012; // 减小重力，增加浮空时间
+const gravity = -0.016; // 增加重力，缩短浮空时间
 const jumpForce = 0.28; // 跳跃高度保持不变
 const groundY = 0.25; // 小球的地面高度
 
@@ -596,14 +596,12 @@ function updatePlayer() {
 // 跳跃函数
 function jump() {
     if (!isJumping) {
-        // 跳跃可以越过黑块
+        // 在地面 = 跳跃
         isJumping = true;
         verticalVelocity = jumpForce;
     } else {
-        // 在空中点击 = 立即下落到地面
-        player.position.y = groundY;
-        isJumping = false;
-        verticalVelocity = 0;
+        // 在空中 = 快速下落
+        verticalVelocity = -jumpForce * 2;
     }
 }
 
