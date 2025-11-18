@@ -967,23 +967,24 @@ function continueGame() {
     gameOverElement.style.display = 'none';
     gameRunning = true;
     
-    // 将碰撞的黑块移到最远处（迷雾边缘），让它重新下落
-    const noteData = lastCollisionBlock.userData.noteData;
-    const extraDistance = 42; // 固定距离，让黑块从迷雾边缘开始
-    const zPosition = 2 - (noteData.time * originalBaseSpeed * 60) - extraDistance;
-    lastCollisionBlock.position.z = zPosition;
+    // 将碰撞的黑块移到最远处（迷雾边缘-50的位置），让它重新下落
+    lastCollisionBlock.position.z = -50;
     
     // 重置碰撞状态
+    const noteData = lastCollisionBlock.userData.noteData;
     noteData.collided = false;
     noteData.triggered = false; // 也重置触发状态，让它可以重新触发
     lastCollisionBlock.material.color.setHex(0x000000);
     lastCollisionBlock.material.emissive.setHex(0x111111);
     lastCollisionBlock.material.opacity = 1;
+    lastCollisionBlock.scale.set(1, 1, 1); // 重置缩放
     
     // 重置玩家状态
     player.position.y = groundY;
     isJumping = false;
     verticalVelocity = 0;
+    
+    console.log(`继续游戏：黑块从 z=-50 重新下落`);
     
     lastCollisionBlock = null;
 }
