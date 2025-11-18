@@ -32,6 +32,8 @@ let lastCollisionBlock = null; // 记录最后碰撞的黑块
 let midiFiles = [];
 let currentMidiIndex = 0;
 let currentMidiName = '';
+let preloadedMidiData = []; // 预加载的MIDI数据
+const PRELOAD_COUNT = 5; // 预加载5个
 
 // 跳跃状态
 let isJumping = false;
@@ -192,7 +194,7 @@ async function loadMidiFile(index) {
         processMIDINotes(notes);
         
         // 显示文件名（去掉路径和扩展名）
-        currentMidiName = fileName.split('/').pop().replace('.mid', '');
+        currentMidiName = fileName.split('/').pop().replace('.mp3.mid', '').replace('.mid', '');
         document.getElementById('midiName').textContent = currentMidiName;
         
         loadingElement.style.display = 'none';
@@ -1344,8 +1346,8 @@ document.addEventListener('touchend', (e) => {
                 }
             }
         } else {
-            // 上下滑动切换MIDI文件（只在暂停时）
-            if (!gameRunning) {
+            // 上下滑动切换MIDI文件（游戏结束时或暂停时）
+            if (!gameRunning && midiFiles.length > 1) {
                 e.preventDefault();
                 if (diffY < -100) {
                     // 上滑 - 下一首
@@ -1411,37 +1413,40 @@ async function switchToPrevMidi() {
     isSwitchingMidi = false;
 }
 
-// 播放滑动动画
+// 播放滑动动画（抖音风格）
 function playSlideAnimation(direction) {
     return new Promise((resolve) => {
         const canvas = document.getElementById('gameCanvas');
-        const startY = direction === 'up' ? 0 : 0;
-        const endY = direction === 'up' ? -window.innerHeight : window.innerHeight;
+        const midiNameElement = document.getElementById('midiName');
         
-        let progress = 0;
-        const duration = 300; // 300ms动画
-        const startTime = Date.now();
+        // 名字先淡出
+        midiNameElement.style.opacity = '0';
         
-        function animate() {
-            const elapsed = Date.now() - startTime;
-            progress = Math.min(elapsed / duration, 1);
+        // 设置动画
+        setTimeout(() => {
+            const translateY = direction === 'up' ? '-100vh' : '100vh';
+            canvas.style.transition = 'transform 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94)';
+            canvas.style.transform = `translateY(${translateY})`;
             
-            // 使用缓动函数
-            const easeProgress = 1 - Math.pow(1 - progress, 3);
-            const currentY = startY + (endY - startY) * easeProgress;
-            
-            canvas.style.transform = `translateY(${currentY}px)`;
-            
-            if (progress < 1) {
-                requestAnimationFrame(animate);
-            } else {
-                // 动画结束，重置位置
-                canvas.style.transform = 'translateY(0)';
-                resolve();
-            }
-        }
-        
-        animate();
+            // 400ms后重置位置
+            setTimeout(() => {
+                canvas.style.transition = 'none';
+                const resetY = direction === 'up' ? '100vh' : '-100vh';
+                canvas.style.transform = `translateY(${resetY})`;
+                
+                // 立即滑回中间
+                setTimeout(() => {
+                    canvas.style.transition = 'transform 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94)';
+                    canvas.style.transform = 'translateY(0)';
+                    
+                    // 名字淡入
+                    setTimeout(() => {
+                        midiNameElement.style.opacity = '1';
+                        resolve();
+                    }, 200);
+                }, 50);
+            }, 400);
+        }, 100);
     });
 }
 
@@ -1471,22 +1476,27 @@ async function loadAndStartNewMidi() {
     currentLane = 2;
     targetLane = 2;
     
+    // 隐藏游戏结束界面
+    gameOverElement.style.display = 'none';
+    
     // 加载新的MIDI文件
     const success = await loadMidiFile(currentMidiIndex);
     
     if (success) {
-        // 显示文件名提示
-        comboElement.style.display = 'block';
-        comboElement.textContent = `♪ ${currentMidiName}`;
-        comboElement.style.fontSize = '28px';
-        comboElement.style.color = '#ffd700';
+        // 显示播放按钮
+        const startButton = document.getElementById('startButton');
+        startButton.style.display = 'block';
         
-        // 隐藏游戏结束界面
-        gameOverElement.style.display = 'none';
-        
-        setTimeout(() => {
-            comboElement.style.display = 'none';
-        }, 2000);
+        // 等待用户点击开始
+        const startGame = (e) => {
+            e.preventDefault();
+            startButton.removeEventListener('click', startGame);
+            startButton.removeEventListener('touchstart', startGame);
+            startButton.style.display = 'none';
+            startMIDIGame();
+        };
+        startButton.addEventListener('click', startGame);
+        startButton.addEventListener('touchstart', startGame, { passive: false });
     }
 }
 
