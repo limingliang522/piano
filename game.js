@@ -33,8 +33,7 @@ let isJumping = false;
 let verticalVelocity = 0;
 let isFastFalling = false; // 是否在快速下落
 let isFastRising = false; // 是否在快速上升
-const gravity = -0.022; // 增加重力，加快下落速度
-const jumpForce = 0.45; // 增加跳跃力度，加快速度
+const gravity = -0.022; // 重力（不使用）
 const groundY = 0.25; // 小球的地面高度
 
 // UI 元素
@@ -53,7 +52,9 @@ const instructionsElement = document.getElementById('instructions');
 const LANES = 5;
 const LANE_WIDTH = 2;
 const GROUND_LENGTH = 100;
-const horizontalSpeed = 0.45; // 左右移动速度，和上下移动一样
+
+// 统一的移动速度（调整这个值可以改变所有移动速度）
+const moveSpeed = 0.35;
 
 // 帧率检测和适配
 let targetFPS = 60;
@@ -618,16 +619,16 @@ function updatePlayer() {
         const diff = targetX - currentX;
         
         // 使用恒定速度移动
-        const moveSpeed = horizontalSpeed * 60 * deltaTime; // 转换为每秒的速度
+        const moveDistance = moveSpeed * 60 * deltaTime; // 转换为每秒的速度
         
-        if (Math.abs(diff) <= moveSpeed) {
+        if (Math.abs(diff) <= moveDistance) {
             // 距离很近，直接到达
             currentLane = targetLane;
             player.position.x = targetX;
         } else {
             // 按恒定速度移动
             const direction = diff > 0 ? 1 : -1;
-            player.position.x += direction * moveSpeed;
+            player.position.x += direction * moveDistance;
             // 更新当前轨道（用于显示）
             currentLane = (player.position.x / LANE_WIDTH) + 2;
         }
@@ -704,16 +705,16 @@ function updatePlayer() {
 // 跳跃函数
 function jump() {
     if (!isJumping) {
-        // 在地面 = 快速上升（不受重力影响）
+        // 在地面 = 快速上升（使用统一速度）
         isJumping = true;
         isFastRising = true;
         isFastFalling = false;
-        verticalVelocity = jumpForce;
+        verticalVelocity = moveSpeed;
     } else {
-        // 在空中 = 快速下落（速度和跳跃一致，不受重力影响）
+        // 在空中 = 快速下落（使用统一速度）
         isFastRising = false;
         isFastFalling = true;
-        verticalVelocity = -jumpForce;
+        verticalVelocity = -moveSpeed;
     }
 }
 
@@ -1232,12 +1233,12 @@ document.addEventListener('keydown', (e) => {
             isJumping = true;
             verticalVelocity = jumpForce;
         } else {
-            verticalVelocity = -jumpForce * 1.5;
+            verticalVelocity = -moveSpeed * 1.5;
         }
     } else if (e.key === 'ArrowDown' || e.key === 's' || e.key === 'S') {
         // 下键 = 快速下落
         if (isJumping) {
-            verticalVelocity = -jumpForce * 1.5;
+            verticalVelocity = -moveSpeed * 1.5;
         }
     }
 });
@@ -1305,11 +1306,13 @@ document.addEventListener('touchend', (e) => {
         if (!isJumping) {
             // 在地面 = 跳跃
             isJumping = true;
-            verticalVelocity = jumpForce;
+            isFastRising = true;
+            verticalVelocity = moveSpeed;
         } else {
             // 在空中 = 快速下落
+            isFastRising = false;
             isFastFalling = true;
-            verticalVelocity = -jumpForce;
+            verticalVelocity = -moveSpeed;
         }
     }
 }, { passive: false });
