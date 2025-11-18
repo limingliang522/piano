@@ -30,8 +30,8 @@ let isCompletingRound = false; // 防止重复触发完成
 // 跳跃状态
 let isJumping = false;
 let verticalVelocity = 0;
-const gravity = -0.015; // 减小重力，增加浮空时间
-const jumpForce = 0.4; // 增加跳跃高度
+const gravity = -0.012; // 减小重力，增加浮空时间
+const jumpForce = 0.28; // 跳跃高度保持不变
 const groundY = 0.25; // 小球的地面高度
 
 // UI 元素
@@ -1080,26 +1080,12 @@ document.addEventListener('touchmove', (e) => {
     }
 }, { passive: false });
 
-let touchHandled = false;
-
 document.addEventListener('touchstart', (e) => {
     // 只在游戏运行时阻止默认行为
     if (gameRunning) {
         e.preventDefault();
         touchStartX = e.touches[0].clientX;
         touchStartY = e.touches[0].clientY;
-        touchHandled = false;
-        
-        // 立即响应点击 - 跳跃或下落（0延迟）
-        if (!isJumping) {
-            isJumping = true;
-            verticalVelocity = jumpForce;
-        } else {
-            // 在空中 = 立即下落到地面
-            player.position.y = groundY;
-            isJumping = false;
-            verticalVelocity = 0;
-        }
     }
 }, { passive: false });
 
@@ -1131,6 +1117,18 @@ document.addEventListener('touchend', (e) => {
             } else if (diffX < 0 && targetLane > 0) {
                 targetLane--;
             }
+        }
+    } else {
+        // 点击 = 跳跃或下落（松手时判定）
+        if (!isJumping) {
+            // 在地面 = 跳跃
+            isJumping = true;
+            verticalVelocity = jumpForce;
+        } else {
+            // 在空中 = 立即下落到地面
+            player.position.y = groundY;
+            isJumping = false;
+            verticalVelocity = 0;
         }
     }
 }, { passive: false });
