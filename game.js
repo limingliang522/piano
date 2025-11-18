@@ -30,8 +30,8 @@ let isCompletingRound = false; // 防止重复触发完成
 // 跳跃状态
 let isJumping = false;
 let verticalVelocity = 0;
-const gravity = -0.016; // 增加重力，缩短浮空时间
-const jumpForce = 0.28; // 跳跃高度保持不变
+const gravity = -0.022; // 增加重力，加快下落速度
+const jumpForce = 0.35; // 增加跳跃力度，加快速度
 const groundY = 0.25; // 小球的地面高度
 
 // UI 元素
@@ -526,7 +526,7 @@ function updatePlayer() {
     // 平滑移动到目标轨道
     if (currentLane !== targetLane) {
         const diff = targetLane - currentLane;
-        currentLane += diff * 0.15;
+        currentLane += diff * 0.25; // 加快左右移动速度
         if (Math.abs(targetLane - currentLane) < 0.01) {
             currentLane = targetLane;
         }
@@ -645,9 +645,9 @@ function updateNoteBlocks() {
                 const isTall = noteBlock.userData.isTall;
                 const blockHeight = noteBlock.userData.blockHeight;
                 
-                // 玩家的上下边界
-                const playerTop = player.position.y + 0.6;
-                const playerBottom = player.position.y - 0.6;
+                // 玩家的上下边界（小球半径0.25）
+                const playerTop = player.position.y + 0.25;
+                const playerBottom = player.position.y - 0.25;
                 
                 // 方块的上下边界
                 const blockTop = noteBlock.position.y + blockHeight / 2;
