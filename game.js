@@ -34,7 +34,7 @@ let verticalVelocity = 0;
 let isFastFalling = false; // 是否在快速下落
 let isFastRising = false; // 是否在快速上升
 const gravity = -0.022; // 增加重力，加快下落速度
-const jumpForce = 0.35; // 增加跳跃力度，加快速度
+const jumpForce = 0.45; // 增加跳跃力度，加快速度
 const groundY = 0.25; // 小球的地面高度
 
 // UI 元素
@@ -53,7 +53,7 @@ const instructionsElement = document.getElementById('instructions');
 const LANES = 5;
 const LANE_WIDTH = 2;
 const GROUND_LENGTH = 100;
-const horizontalSpeed = 0.35; // 左右移动速度，和上下移动一样
+const horizontalSpeed = 0.45; // 左右移动速度，和上下移动一样
 
 // 帧率检测和适配
 let targetFPS = 60;
@@ -253,14 +253,14 @@ function assignTallBlocks(notes) {
     for (let i = 0; i < notes.length; i++) {
         const density = calculateDensity(i, notes);
         
-        // 根据密集度决定超高概率
+        // 根据密集度决定超高概率（整体增加）
         let tallProbability;
         if (density > 0.8) {
-            tallProbability = 0.05; // 很密集：5%
+            tallProbability = 0.15; // 很密集：15%（原5%）
         } else if (density > 0.5) {
-            tallProbability = 0.15; // 中等：15%
+            tallProbability = 0.30; // 中等：30%（原15%）
         } else {
-            tallProbability = 0.30; // 分散：30%
+            tallProbability = 0.45; // 分散：45%（原30%）
         }
         
         // 使用确定性随机数（基于音符时间和索引）
