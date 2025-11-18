@@ -26,6 +26,7 @@ let speedMultiplier = 1.0; // 速度倍数
 let starsEarned = 0; // 获得的星星数
 let speedIncreaseRate = 0.000005; // 每帧速度增长率（更缓慢）
 let isCompletingRound = false; // 防止重复触发完成
+let lastCollisionBlock = null; // 记录最后碰撞的黑块
 
 // 跳跃状态
 let isJumping = false;
@@ -743,6 +744,9 @@ function updateNoteBlocks() {
                     collisions++;
                     audioEngine.playCollision();
                     
+                    // 记录碰撞的黑块
+                    lastCollisionBlock = noteBlock;
+                    
                     // 改变颜色表示碰撞
                     noteBlock.material.color.setHex(0xff0000);
                     noteBlock.material.emissive.setHex(0xff0000);
@@ -762,8 +766,15 @@ function updateNoteBlocks() {
             notesTriggered++;
             score += 100;
             
-            // 播放音符
-            audioEngine.playNote(noteData.note, noteData.duration, noteData.velocity);
+            // 播放音符（增大音量）
+            audioEngine.playNote(noteData.note, noteData.duration, noteData.velocity * 1.5);
+            
+            // 根据轨道触发震动
+            const vibrationDurations = [50, 100, 150, 100, 50]; // 对称分布
+            const duration = vibrationDurations[noteData.lane];
+            if (navigator.vibrate) {
+                navigator.vibrate(duration);
+            }
             
             // 改变颜色表示已触发（白色）
             noteBlock.material.color.setHex(0xffffff);
@@ -941,6 +952,32 @@ function gameOver() {
         document.getElementById('finalScore').textContent = `最终分数: ${score}`;
         document.getElementById('finalDistance').textContent = `跑了: ${Math.floor(distance)}m`;
     }
+}
+
+// 继续游戏（从碰撞点重新开始）
+function continueGame() {
+    if (!lastCollisionBlock) return;
+    
+    gameOverElement.style.display = 'none';
+    gameRunning = true;
+    
+    // 将碰撞的黑块重新放到远处，让它重新下落
+    const noteData = lastCollisionBlock.userData.noteData;
+    const extraDistance = 42;
+    const zPosition = 2 - (noteData.time * originalBaseSpeed * 60) - extraDistance;
+    lastCollisionBlock.position.z = zPosition;
+    
+    // 重置碰撞状态
+    noteData.collided = false;
+    lastCollisionBlock.material.color.setHex(0x000000);
+    lastCollisionBlock.material.emissive.setHex(0x111111);
+    
+    // 重置玩家位置
+    player.position.y = groundY;
+    isJumping = false;
+    verticalVelocity = 0;
+    
+    lastCollisionBlock = null;
 }
 
 // 重新开始
@@ -1235,6 +1272,16 @@ function handleRestart(e) {
 }
 restartButton.addEventListener('click', handleRestart);
 restartButton.addEventListener('touchend', handleRestart);
+
+// 继续按钮
+const continueButton = document.getElementById('continue');
+function handleContinue(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    continueGame();
+}
+continueButton.addEventListener('click', handleContinue);
+continueButton.addEventListener('touchend', handleContinue);
 
 
 
