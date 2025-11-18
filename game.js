@@ -33,7 +33,7 @@ let isJumping = false;
 let verticalVelocity = 0;
 const gravity = -0.035; // 重力加速度
 const groundY = 0.25; // 小球的地面高度
-const maxJumpHeight = 2.0; // 最大跳跃高度
+const maxJumpHeight = 2.5; // 最大跳跃高度（从地面算起，球中心到达2.5+0.25=2.75，低于超高黑块顶部3.0）
 // 计算初始跳跃速度：使用 v² = 2gh，让跳跃高度固定
 const jumpForce = Math.sqrt(2 * Math.abs(gravity * 60) * maxJumpHeight);
 
