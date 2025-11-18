@@ -35,6 +35,7 @@ let isFastFalling = false; // 是否在快速下落
 let isFastRising = false; // 是否在快速上升
 const gravity = -0.022; // 重力（不使用）
 const groundY = 0.25; // 小球的地面高度
+const maxJumpHeight = 2.0; // 最大跳跃高度
 
 // UI 元素
 const scoreElement = document.getElementById('score');
@@ -657,6 +658,14 @@ function updatePlayer() {
         }
         
         player.position.y += velocityPerSecond * deltaTime;
+        
+        // 检查是否到达最大高度
+        if (isFastRising && player.position.y >= groundY + maxJumpHeight) {
+            player.position.y = groundY + maxJumpHeight;
+            isFastRising = false;
+            isFastFalling = true;
+            verticalVelocity = -moveSpeed; // 自动开始下落
+        }
         
         // 添加跳跃时的轻微旋转动画
         player.rotation.x = Math.min(verticalVelocity * 0.5, 0.3);
