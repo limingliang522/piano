@@ -32,7 +32,7 @@ let isJumping = false;
 let verticalVelocity = 0;
 const gravity = -0.018; // 再增加重力，进一步缩短浮空时间
 const jumpForce = 0.28; // 再降低跳跃高度
-const groundY = 0.6;
+const groundY = 0.4; // 小球的地面高度
 
 // UI 元素
 const scoreElement = document.getElementById('score');
@@ -402,24 +402,62 @@ function createTriggerLine() {
     scene.add(triggerLine);
 }
 
-// 创建玩家
+// 拖尾效果数组
+let trailPositions = [];
+const trailLength = 10;
+let trailSpheres = [];
+
+// 创建玩家（白色小球）
 function createPlayer() {
-    const geometry = new THREE.BoxGeometry(0.8, 1.2, 0.8);
-    const material = new THREE.MeshStandardMaterial({ color: 0x3498db });
+    const geometry = new THREE.SphereGeometry(0.4, 32, 32);
+    const material = new THREE.MeshStandardMaterial({ 
+        color: 0xffffff,
+        emissive: 0xffffff,
+        emissiveIntensity: 0.5,
+        metalness: 0.8,
+        roughness: 0.2
+    });
     player = new THREE.Mesh(geometry, material);
-    player.position.set(0, 0.6, 0);
+    player.position.set(0, 0.4, 0);
     player.castShadow = true;
     scene.add(player);
     
-    // 添加眼睛
-    const eyeGeometry = new THREE.SphereGeometry(0.1, 16, 16);
-    const eyeMaterial = new THREE.MeshStandardMaterial({ color: 0xffffff });
-    const leftEye = new THREE.Mesh(eyeGeometry, eyeMaterial);
-    leftEye.position.set(-0.2, 0.3, 0.4);
-    player.add(leftEye);
-    const rightEye = new THREE.Mesh(eyeGeometry, eyeMaterial);
-    rightEye.position.set(0.2, 0.3, 0.4);
-    player.add(rightEye);
+    // 添加发光效果
+    const glowGeometry = new THREE.SphereGeometry(0.5, 32, 32);
+    const glowMaterial = new THREE.MeshBasicMaterial({
+        color: 0xffffff,
+        transparent: true,
+        opacity: 0.3
+    });
+    const glow = new THREE.Mesh(glowGeometry, glowMaterial);
+    player.add(glow);
+    
+    // 创建拖尾球体
+    for (let i = 0; i < trailLength; i++) {
+        const trailGeometry = new THREE.SphereGeometry(0.3, 16, 16);
+        const trailMaterial = new THREE.MeshBasicMaterial({
+            color: 0xffffff,
+            transparent: true,
+            opacity: 0
+        });
+        const trailSphere = new THREE.Mesh(trailGeometry, trailMaterial);
+        scene.add(trailSphere);
+        trailSpheres.push(trailSphere);
+    }
+}
+
+// 更新拖尾效果
+function updateTrail() {
+    for (let i = 0; i < trailSpheres.length; i++) {
+        if (i < trailPositions.length) {
+            const pos = trailPositions[trailPositions.length - 1 - i];
+            trailSpheres[i].position.set(pos.x, pos.y, pos.z);
+            trailSpheres[i].material.opacity = (1 - i / trailLength) * 0.6;
+            trailSpheres[i].scale.setScalar(1 - i / trailLength);
+        } else {
+            trailSpheres[i].material.opacity = 0;
+        }
+    }
 }
 
 // 创建障碍物
@@ -536,12 +574,19 @@ function updatePlayer() {
         player.position.y = groundY;
     }
     
-    // 添加跑步动画
-    if (!isJumping) {
-        player.rotation.z = Math.sin(Date.now() * 0.01) * 0.05;
-    } else {
-        player.rotation.z = 0;
+    // 添加拖尾效果
+    trailPositions.push({
+        x: player.position.x,
+        y: player.position.y,
+        z: player.position.z
+    });
+    
+    if (trailPositions.length > trailLength) {
+        trailPositions.shift();
     }
+    
+    // 更新拖尾球体
+    updateTrail();
 }
 
 // 跳跃函数
@@ -551,8 +596,10 @@ function jump() {
         isJumping = true;
         verticalVelocity = jumpForce;
     } else {
-        // 在空中点击 = 快速下落
-        verticalVelocity = -jumpForce * 1.5; // 快速下落
+        // 在空中点击 = 立即下落到地面
+        player.position.y = groundY;
+        isJumping = false;
+        verticalVelocity = 0;
     }
 }
 
