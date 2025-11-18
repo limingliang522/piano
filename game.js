@@ -1325,11 +1325,6 @@ document.addEventListener('touchmove', (e) => {
 }, { passive: false });
 
 document.addEventListener('touchend', (e) => {
-    // 只在游戏运行时处理游戏控制
-    if (!gameRunning) return;
-    
-    e.preventDefault();
-    
     const touchEndX = e.changedTouches[0].clientX;
     const touchEndY = e.changedTouches[0].clientY;
     const diffX = touchEndX - touchStartX;
@@ -1339,39 +1334,119 @@ document.addEventListener('touchend', (e) => {
     if (Math.abs(diffX) > 30 || Math.abs(diffY) > 30) {
         // 滑动操作
         if (Math.abs(diffX) > Math.abs(diffY)) {
-            // 左右滑动切换轨道
-            if (diffX > 0 && targetLane < LANES - 1) {
-                targetLane++;
-            } else if (diffX < 0 && targetLane > 0) {
-                targetLane--;
+            // 左右滑动切换轨道（只在游戏运行时）
+            if (gameRunning) {
+                e.preventDefault();
+                if (diffX > 0 && targetLane < LANES - 1) {
+                    targetLane++;
+                } else if (diffX < 0 && targetLane > 0) {
+                    targetLane--;
+                }
             }
-        } else if (diffY < -50) {
-            // 上滑切换MIDI文件
-            switchToNextMidi();
+        } else {
+            // 上下滑动切换MIDI文件（只在暂停时）
+            if (!gameRunning) {
+                e.preventDefault();
+                if (diffY < -100) {
+                    // 上滑 - 下一首
+                    switchToNextMidi();
+                } else if (diffY > 100) {
+                    // 下滑 - 上一首
+                    switchToPrevMidi();
+                }
+            }
         }
     } else {
-        // 点击 = 跳跃或下落（松手时判定）
-        if (!isJumping) {
-            // 在地面 = 跳跃
-            isJumping = true;
-            verticalVelocity = jumpForce;
-        } else {
-            // 在空中 = 快速下落
-            verticalVelocity = -jumpForce;
+        // 点击 = 跳跃或下落（只在游戏运行时）
+        if (gameRunning) {
+            e.preventDefault();
+            if (!isJumping) {
+                // 在地面 = 跳跃
+                isJumping = true;
+                verticalVelocity = jumpForce;
+            } else {
+                // 在空中 = 快速下落
+                verticalVelocity = -jumpForce;
+            }
         }
     }
 }, { passive: false });
 
+// 切换MIDI文件的动画
+let isSwitchingMidi = false;
+
 // 切换到下一个MIDI文件
 async function switchToNextMidi() {
-    if (midiFiles.length <= 1) return;
+    if (midiFiles.length <= 1 || isSwitchingMidi) return;
     
-    // 暂停游戏
-    gameRunning = false;
+    isSwitchingMidi = true;
     
     // 切换到下一个文件
     currentMidiIndex = (currentMidiIndex + 1) % midiFiles.length;
     
+    // 上滑动画
+    await playSlideAnimation('up');
+    
+    // 加载新的MIDI文件
+    await loadAndStartNewMidi();
+    
+    isSwitchingMidi = false;
+}
+
+// 切换到上一个MIDI文件
+async function switchToPrevMidi() {
+    if (midiFiles.length <= 1 || isSwitchingMidi) return;
+    
+    isSwitchingMidi = true;
+    
+    // 切换到上一个文件
+    currentMidiIndex = (currentMidiIndex - 1 + midiFiles.length) % midiFiles.length;
+    
+    // 下滑动画
+    await playSlideAnimation('down');
+    
+    // 加载新的MIDI文件
+    await loadAndStartNewMidi();
+    
+    isSwitchingMidi = false;
+}
+
+// 播放滑动动画
+function playSlideAnimation(direction) {
+    return new Promise((resolve) => {
+        const canvas = document.getElementById('gameCanvas');
+        const startY = direction === 'up' ? 0 : 0;
+        const endY = direction === 'up' ? -window.innerHeight : window.innerHeight;
+        
+        let progress = 0;
+        const duration = 300; // 300ms动画
+        const startTime = Date.now();
+        
+        function animate() {
+            const elapsed = Date.now() - startTime;
+            progress = Math.min(elapsed / duration, 1);
+            
+            // 使用缓动函数
+            const easeProgress = 1 - Math.pow(1 - progress, 3);
+            const currentY = startY + (endY - startY) * easeProgress;
+            
+            canvas.style.transform = `translateY(${currentY}px)`;
+            
+            if (progress < 1) {
+                requestAnimationFrame(animate);
+            } else {
+                // 动画结束，重置位置
+                canvas.style.transform = 'translateY(0)';
+                resolve();
+            }
+        }
+        
+        animate();
+    });
+}
+
+// 加载并开始新的MIDI
+async function loadAndStartNewMidi() {
     // 重置游戏状态
     obstacles.forEach(obj => scene.remove(obj));
     coins.forEach(obj => scene.remove(obj));
@@ -1400,18 +1475,17 @@ async function switchToNextMidi() {
     const success = await loadMidiFile(currentMidiIndex);
     
     if (success) {
-        // 显示提示
+        // 显示文件名提示
         comboElement.style.display = 'block';
         comboElement.textContent = `♪ ${currentMidiName}`;
-        comboElement.style.fontSize = '24px';
+        comboElement.style.fontSize = '28px';
         comboElement.style.color = '#ffd700';
+        
+        // 隐藏游戏结束界面
+        gameOverElement.style.display = 'none';
         
         setTimeout(() => {
             comboElement.style.display = 'none';
-            // 重新开始游戏
-            gameStartTime = Date.now() / 1000;
-            createAllNoteBlocks();
-            gameRunning = true;
         }, 2000);
     }
 }
