@@ -953,61 +953,62 @@ function gameOver() {
     }
 }
 
-// 继续游戏（从被撞到的黑块开始，从迷雾边缘重新往下落）
+// 继续游戏（把未触发的黑块整体移动到迷雾边缘）
 function continueGame() {
     if (!lastCollisionBlock) return;
     
     gameOverElement.style.display = 'none';
     gameRunning = true;
     
-    // 获取被撞黑块的时间
-    const collisionTime = lastCollisionBlock.userData.noteData.time;
+    // 找到所有未触发的黑块
+    const untriggeredBlocks = noteObjects.filter(block => !block.userData.noteData.triggered);
     
-    // 删除所有在碰撞黑块之前的黑块（已经过去的）
-    for (let i = noteObjects.length - 1; i >= 0; i--) {
-        const noteBlock = noteObjects[i];
-        const noteTime = noteBlock.userData.noteData.time;
-        
-        if (noteTime < collisionTime) {
-            // 这个黑块在碰撞黑块之前，删除它
-            scene.remove(noteBlock);
-            noteObjects.splice(i, 1);
+    if (untriggeredBlocks.length === 0) {
+        console.log('没有未触发的黑块');
+        lastCollisionBlock = null;
+        return;
+    }
+    
+    // 找到最前面的未触发黑块的位置
+    let frontmostZ = untriggeredBlocks[0].position.z;
+    for (let block of untriggeredBlocks) {
+        if (block.position.z > frontmostZ) {
+            frontmostZ = block.position.z;
         }
     }
     
-    // 按时间排序剩余的黑块
-    noteObjects.sort((a, b) => a.userData.noteData.time - b.userData.noteData.time);
+    // 计算需要移动的距离（移动到迷雾边缘 z=-50）
+    const fogEdgeZ = -50;
+    const moveDistance = fogEdgeZ - frontmostZ;
     
-    // 将所有剩余黑块从迷雾边缘开始重新排列
-    const fogEdgeZ = -50; // 迷雾边缘位置
-    const firstNoteTime = noteObjects[0].userData.noteData.time;
-    
-    noteObjects.forEach((noteBlock) => {
-        const noteData = noteBlock.userData.noteData;
+    // 整体移动所有未触发的黑块
+    for (let block of untriggeredBlocks) {
+        block.position.z += moveDistance;
         
         // 重置状态
+        const noteData = block.userData.noteData;
         noteData.collided = false;
         noteData.triggered = false;
-        noteBlock.material.color.setHex(0x000000);
-        noteBlock.material.emissive.setHex(0x111111);
-        noteBlock.material.opacity = 1;
-        noteBlock.scale.set(1, 1, 1);
-        
-        // 从迷雾边缘开始，按时间间隔排列
-        // 计算这个音符相对于第一个音符的时间差
-        const timeDiff = noteData.time - firstNoteTime;
-        // 转换为距离（使用原始基础速度，保持音符间隔一致）
-        const distance = timeDiff * originalBaseSpeed * 60;
-        // 第一个黑块在迷雾边缘，后面的按间隔排列
-        noteBlock.position.z = fogEdgeZ + distance;
-    });
+        block.material.color.setHex(0x000000);
+        block.material.emissive.setHex(0x111111);
+        block.material.opacity = 1;
+        block.scale.set(1, 1, 1);
+    }
+    
+    // 删除已触发的黑块
+    for (let i = noteObjects.length - 1; i >= 0; i--) {
+        if (noteObjects[i].userData.noteData.triggered) {
+            scene.remove(noteObjects[i]);
+            noteObjects.splice(i, 1);
+        }
+    }
     
     // 重置玩家状态
     player.position.y = groundY;
     isJumping = false;
     verticalVelocity = 0;
     
-    console.log(`继续游戏：从迷雾边缘（z=-50）重新开始，剩余 ${noteObjects.length} 个黑块`);
+    console.log(`继续游戏：整体移动 ${untriggeredBlocks.length} 个黑块到迷雾边缘，移动距离 ${moveDistance.toFixed(2)}`);
     
     lastCollisionBlock = null;
 }
