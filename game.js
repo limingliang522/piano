@@ -245,7 +245,7 @@ function calculateDensity(noteIndex, allNotes) {
     return Math.min(nearbyCount / 20, 1.0);
 }
 
-// 动态分配超高黑块
+// 动态分配超高黑块（使用确定性算法）
 function assignTallBlocks(notes) {
     for (let i = 0; i < notes.length; i++) {
         const density = calculateDensity(i, notes);
@@ -260,15 +260,18 @@ function assignTallBlocks(notes) {
             tallProbability = 0.30; // 分散：30%
         }
         
-        notes[i].isTall = Math.random() < tallProbability;
+        // 使用确定性随机数（基于音符时间和索引）
+        const seed = notes[i].time * 10000 + i;
+        const randomValue = seededRandom(seed);
+        notes[i].isTall = randomValue < tallProbability;
     }
     
     console.log(`超高黑块分配完成：${notes.filter(n => n.isTall).length}/${notes.length}`);
 }
 
-// 确保每个时间窗口最多3条轨道有黑块
+// 确保每个时间窗口最多3条轨道有黑块（使用确定性算法）
 function ensureMaxThreeLanes(notes) {
-    const windowSize = 0.5; // 时间窗口：0.5秒
+    const windowSize = 0.3; // 时间窗口：0.3秒（更精确）
     const maxLanes = 3; // 最多3条轨道
     
     // 获取最大时间
@@ -276,7 +279,8 @@ function ensureMaxThreeLanes(notes) {
     
     let adjustCount = 0;
     
-    for (let t = 0; t < maxTime; t += windowSize) {
+    // 使用更小的步长来检查，确保不遗漏任何时间点
+    for (let t = 0; t < maxTime; t += 0.1) {
         // 获取这个时间窗口内的所有音符
         const blocksInWindow = notes.filter(note => 
             note.time >= t && note.time < t + windowSize
@@ -288,28 +292,23 @@ function ensureMaxThreeLanes(notes) {
         const occupiedLanes = [...new Set(blocksInWindow.map(b => b.lane))];
         
         if (occupiedLanes.length > maxLanes) {
-            // 需要调整！把多余的黑块移到已占用的轨道（重叠）
-            const excessCount = occupiedLanes.length - maxLanes;
+            // 需要调整！使用确定性算法
             
-            // 优先移动普通高度的黑块
-            const normalBlocks = blocksInWindow.filter(b => !b.isTall);
-            const tallBlocks = blocksInWindow.filter(b => b.isTall);
+            // 按轨道号排序（确定性）
+            occupiedLanes.sort((a, b) => a - b);
             
-            // 随机选择要移动的黑块
-            let blocksToMove = [];
-            if (normalBlocks.length >= excessCount) {
-                blocksToMove = normalBlocks.sort(() => Math.random() - 0.5).slice(0, excessCount);
-            } else {
-                blocksToMove = [...normalBlocks, ...tallBlocks.sort(() => Math.random() - 0.5).slice(0, excessCount - normalBlocks.length)];
-            }
+            // 保留前3条轨道（确定性）
+            const keepLanes = occupiedLanes.slice(0, maxLanes);
+            const removeLanes = occupiedLanes.slice(maxLanes);
             
-            // 保留的轨道（随机选3条）
-            const keepLanes = occupiedLanes.sort(() => Math.random() - 0.5).slice(0, maxLanes);
-            
-            // 移动黑块到保留的轨道（随机选择）
-            for (let block of blocksToMove) {
-                if (!keepLanes.includes(block.lane)) {
-                    block.lane = keepLanes[Math.floor(Math.random() * keepLanes.length)];
+            // 将需要移除的轨道上的黑块，移动到保留的轨道上
+            for (let block of blocksInWindow) {
+                if (removeLanes.includes(block.lane)) {
+                    // 使用确定性算法选择目标轨道
+                    const seed = block.time * 1000 + block.lane;
+                    const randomValue = seededRandom(seed);
+                    const targetLane = keepLanes[Math.floor(randomValue * keepLanes.length)];
+                    block.lane = targetLane;
                     adjustCount++;
                 }
             }
