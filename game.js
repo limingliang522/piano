@@ -269,9 +269,9 @@ function assignTallBlocks(notes) {
     console.log(`超高黑块分配完成：${notes.filter(n => n.isTall).length}/${notes.length}`);
 }
 
-// 确保每个时间窗口最多3条轨道有黑块（使用确定性算法）
+// 确保每个时间窗口最多3条轨道有黑块（使用种子随机算法）
 function ensureMaxThreeLanes(notes) {
-    const windowSize = 0.3; // 时间窗口：0.3秒（更精确）
+    const windowSize = 0.3; // 时间窗口：0.3秒
     const maxLanes = 3; // 最多3条轨道
     
     // 获取最大时间
@@ -279,7 +279,7 @@ function ensureMaxThreeLanes(notes) {
     
     let adjustCount = 0;
     
-    // 使用更小的步长来检查，确保不遗漏任何时间点
+    // 使用更小的步长来检查
     for (let t = 0; t < maxTime; t += 0.1) {
         // 获取这个时间窗口内的所有音符
         const blocksInWindow = notes.filter(note => 
@@ -292,21 +292,25 @@ function ensureMaxThreeLanes(notes) {
         const occupiedLanes = [...new Set(blocksInWindow.map(b => b.lane))];
         
         if (occupiedLanes.length > maxLanes) {
-            // 需要调整！使用确定性算法
+            // 需要调整！随机选择要移除的轨道
+            const excessCount = occupiedLanes.length - maxLanes;
             
-            // 按轨道号排序（确定性）
-            occupiedLanes.sort((a, b) => a - b);
+            // 使用种子随机数选择要移除的轨道
+            const seed1 = Math.floor(t * 1000);
+            const shuffledLanes = [...occupiedLanes].sort((a, b) => {
+                return seededRandom(seed1 + a) - seededRandom(seed1 + b);
+            });
             
-            // 保留前3条轨道（确定性）
-            const keepLanes = occupiedLanes.slice(0, maxLanes);
-            const removeLanes = occupiedLanes.slice(maxLanes);
+            // 保留前3条，移除其余的
+            const keepLanes = shuffledLanes.slice(0, maxLanes);
+            const removeLanes = shuffledLanes.slice(maxLanes);
             
-            // 将需要移除的轨道上的黑块，移动到保留的轨道上
+            // 将需要移除的轨道上的黑块，随机移动到保留的轨道上
             for (let block of blocksInWindow) {
                 if (removeLanes.includes(block.lane)) {
-                    // 使用确定性算法选择目标轨道
-                    const seed = block.time * 1000 + block.lane;
-                    const randomValue = seededRandom(seed);
+                    // 使用种子随机数选择目标轨道
+                    const seed2 = block.time * 10000 + block.lane * 100;
+                    const randomValue = seededRandom(seed2);
                     const targetLane = keepLanes[Math.floor(randomValue * keepLanes.length)];
                     block.lane = targetLane;
                     adjustCount++;
@@ -515,13 +519,11 @@ function createPlayer() {
     player.castShadow = true;
     scene.add(player);
     
-    // 创建拖尾球体（炫酷渐变色）
+    // 创建拖尾球体（纯白色）
     for (let i = 0; i < trailLength; i++) {
         const trailGeometry = new THREE.SphereGeometry(0.2, 16, 16);
-        const hue = (i / trailLength) * 0.3; // 从青色到蓝色渐变
-        const color = new THREE.Color().setHSL(0.5 + hue, 1.0, 0.6);
         const trailMaterial = new THREE.MeshBasicMaterial({
-            color: color,
+            color: 0xffffff, // 纯白色
             transparent: true,
             opacity: 0
         });
@@ -958,21 +960,22 @@ function gameOver() {
     }
 }
 
-// 继续游戏（被撞到的黑块重新从上往下落）
+// 继续游戏（被撞到的黑块从最远处重新往下落）
 function continueGame() {
     if (!lastCollisionBlock) return;
     
     gameOverElement.style.display = 'none';
     gameRunning = true;
     
-    // 将碰撞的黑块移到玩家上方，让它重新下落
-    // 计算一个合适的距离，让黑块从视野上方开始下落
-    const distanceAbove = 30; // 在玩家前方30个单位
-    lastCollisionBlock.position.z = player.position.z - distanceAbove;
+    // 将碰撞的黑块移到最远处（迷雾边缘），让它重新下落
+    const noteData = lastCollisionBlock.userData.noteData;
+    const extraDistance = 42; // 固定距离，让黑块从迷雾边缘开始
+    const zPosition = 2 - (noteData.time * originalBaseSpeed * 60) - extraDistance;
+    lastCollisionBlock.position.z = zPosition;
     
     // 重置碰撞状态
-    const noteData = lastCollisionBlock.userData.noteData;
     noteData.collided = false;
+    noteData.triggered = false; // 也重置触发状态，让它可以重新触发
     lastCollisionBlock.material.color.setHex(0x000000);
     lastCollisionBlock.material.emissive.setHex(0x111111);
     lastCollisionBlock.material.opacity = 1;
