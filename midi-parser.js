@@ -67,12 +67,6 @@ class MIDIParser {
         return allNotes;
     }
 
-    // 解析上传的MIDI数据
-    async parseMIDIData(arrayBuffer) {
-        const data = new Uint8Array(arrayBuffer);
-        return this.parse(data);
-    }
-
     parseTrack(data, start, end) {
         let pos = start;
         let currentTime = 0;

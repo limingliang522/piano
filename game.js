@@ -1337,50 +1337,6 @@ continueButton.addEventListener('touchend', handleContinue);
 
 
 
-// 上传MIDI文件功能
-const uploadButton = document.getElementById('uploadButton');
-const midiFileInput = document.getElementById('midiFileInput');
-
-uploadButton.addEventListener('click', () => {
-    midiFileInput.click();
-});
-
-midiFileInput.addEventListener('change', async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    
-    try {
-        loadingElement.style.display = 'block';
-        loadingElement.textContent = '加载MIDI文件...';
-        
-        // 读取文件
-        const arrayBuffer = await file.arrayBuffer();
-        const notes = await midiParser.parseMIDIData(arrayBuffer);
-        
-        if (notes.length === 0) {
-            alert('MIDI文件中没有音符');
-            loadingElement.style.display = 'none';
-            return;
-        }
-        
-        // 处理音符数据
-        processMIDINotes(notes);
-        
-        loadingElement.style.display = 'none';
-        const startButton = document.getElementById('startButton');
-        startButton.style.display = 'block';
-        
-        console.log(`成功加载MIDI文件: ${file.name}`);
-    } catch (error) {
-        console.error('加载MIDI文件失败:', error);
-        alert('加载MIDI文件失败，请选择有效的MIDI文件');
-        loadingElement.style.display = 'none';
-    }
-    
-    // 清空input，允许重复选择同一个文件
-    e.target.value = '';
-});
-
 // 启动游戏
 init();
 animate(performance.now());
