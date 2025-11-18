@@ -227,12 +227,102 @@ function seededRandom(seed) {
     return x - Math.floor(x);
 }
 
+// 计算音符密集度
+function calculateDensity(noteIndex, allNotes) {
+    const currentTime = allNotes[noteIndex].time;
+    const checkRange = 1.0; // 检查前后1秒
+    
+    let nearbyCount = 0;
+    for (let note of allNotes) {
+        if (Math.abs(note.time - currentTime) < checkRange) {
+            nearbyCount++;
+        }
+    }
+    
+    // 密集度 = 附近音符数 / 理论最大值
+    // 假设最密集时1秒内20个音符
+    return Math.min(nearbyCount / 20, 1.0);
+}
+
+// 动态分配超高黑块
+function assignTallBlocks(notes) {
+    for (let i = 0; i < notes.length; i++) {
+        const density = calculateDensity(i, notes);
+        
+        // 根据密集度决定超高概率
+        let tallProbability;
+        if (density > 0.8) {
+            tallProbability = 0.05; // 很密集：5%
+        } else if (density > 0.5) {
+            tallProbability = 0.15; // 中等：15%
+        } else {
+            tallProbability = 0.30; // 分散：30%
+        }
+        
+        notes[i].isTall = Math.random() < tallProbability;
+    }
+    
+    console.log(`超高黑块分配完成：${notes.filter(n => n.isTall).length}/${notes.length}`);
+}
+
+// 确保每个时间窗口最多3条轨道有黑块
+function ensureMaxThreeLanes(notes) {
+    const windowSize = 0.5; // 时间窗口：0.5秒
+    const maxLanes = 3; // 最多3条轨道
+    
+    // 获取最大时间
+    const maxTime = Math.max(...notes.map(n => n.time));
+    
+    let adjustCount = 0;
+    
+    for (let t = 0; t < maxTime; t += windowSize) {
+        // 获取这个时间窗口内的所有音符
+        const blocksInWindow = notes.filter(note => 
+            note.time >= t && note.time < t + windowSize
+        );
+        
+        if (blocksInWindow.length === 0) continue;
+        
+        // 统计占用的轨道
+        const occupiedLanes = [...new Set(blocksInWindow.map(b => b.lane))];
+        
+        if (occupiedLanes.length > maxLanes) {
+            // 需要调整！把多余的黑块移到已占用的轨道（重叠）
+            const excessCount = occupiedLanes.length - maxLanes;
+            
+            // 优先移动普通高度的黑块
+            const normalBlocks = blocksInWindow.filter(b => !b.isTall);
+            const tallBlocks = blocksInWindow.filter(b => b.isTall);
+            
+            // 随机选择要移动的黑块
+            let blocksToMove = [];
+            if (normalBlocks.length >= excessCount) {
+                blocksToMove = normalBlocks.sort(() => Math.random() - 0.5).slice(0, excessCount);
+            } else {
+                blocksToMove = [...normalBlocks, ...tallBlocks.sort(() => Math.random() - 0.5).slice(0, excessCount - normalBlocks.length)];
+            }
+            
+            // 保留的轨道（随机选3条）
+            const keepLanes = occupiedLanes.sort(() => Math.random() - 0.5).slice(0, maxLanes);
+            
+            // 移动黑块到保留的轨道（随机选择）
+            for (let block of blocksToMove) {
+                if (!keepLanes.includes(block.lane)) {
+                    block.lane = keepLanes[Math.floor(Math.random() * keepLanes.length)];
+                    adjustCount++;
+                }
+            }
+        }
+    }
+    
+    console.log(`轨道调整完成：调整了 ${adjustCount} 个黑块`);
+}
+
 // 处理MIDI音符
 function processMIDINotes(notes) {
-    // 将音符随机分配到5个轨道（使用音符时间作为种子确保每次结果一致）
-    midiNotes = notes.map(note => {
-        // 使用音符的时间作为随机种子
-        const seed = note.time * 1000; // 放大以获得更好的随机性
+    // 第一步：随机分配轨道
+    midiNotes = notes.map((note, index) => {
+        const seed = note.time * 1000;
         const randomValue = seededRandom(seed);
         const lane = Math.floor(randomValue * LANES);
         
@@ -243,9 +333,16 @@ function processMIDINotes(notes) {
             velocity: note.velocity,
             duration: midiParser.ticksToSeconds(note.duration),
             triggered: false,
-            collided: false
+            collided: false,
+            isTall: false // 稍后分配
         };
     });
+    
+    // 第二步：根据密集度动态分配超高黑块
+    assignTallBlocks(midiNotes);
+    
+    // 第三步：确保每个时间窗口最多3条轨道有黑块
+    ensureMaxThreeLanes(midiNotes);
     
     totalNotes = midiNotes.length;
     
@@ -311,10 +408,8 @@ function createAllNoteBlocks() {
 
 // 创建音符方块
 function createNoteBlock(noteData) {
-    // 平均分配超高黑块：每5个黑块中有1个超高（20%）
-    // 使用音符索引来确保均匀分布
-    const noteIndex = noteObjects.length;
-    const isTall = (noteIndex % 5) === 0; // 每5个一个超高
+    // 使用预先分配的高度
+    const isTall = noteData.isTall;
     const blockHeight = isTall ? 2.5 : 0.4; // 超高2.5或普通0.4
     const blockY = isTall ? 1.25 : 0.2; // 超高方块的Y位置也要调整
     
@@ -412,25 +507,13 @@ function createPlayer() {
     const geometry = new THREE.SphereGeometry(0.25, 32, 32);
     const material = new THREE.MeshStandardMaterial({ 
         color: 0xffffff,
-        emissive: 0xffffff,
-        emissiveIntensity: 0.8,
-        metalness: 1.0,
-        roughness: 0.1
+        metalness: 0.3,
+        roughness: 0.7
     });
     player = new THREE.Mesh(geometry, material);
     player.position.set(0, 0.25, 0);
     player.castShadow = true;
     scene.add(player);
-    
-    // 添加发光效果
-    const glowGeometry = new THREE.SphereGeometry(0.35, 32, 32);
-    const glowMaterial = new THREE.MeshBasicMaterial({
-        color: 0x00ffff,
-        transparent: true,
-        opacity: 0.4
-    });
-    const glow = new THREE.Mesh(glowGeometry, glowMaterial);
-    player.add(glow);
     
     // 创建拖尾球体（炫酷渐变色）
     for (let i = 0; i < trailLength; i++) {
