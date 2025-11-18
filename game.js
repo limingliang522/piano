@@ -30,9 +30,9 @@ let isCompletingRound = false; // 防止重复触发完成
 // 跳跃状态
 let isJumping = false;
 let verticalVelocity = 0;
-const gravity = -0.018; // 再增加重力，进一步缩短浮空时间
-const jumpForce = 0.28; // 再降低跳跃高度
-const groundY = 0.4; // 小球的地面高度
+const gravity = -0.025; // 增加重力，更快落地
+const jumpForce = 0.35; // 跳跃力度
+const groundY = 0.25; // 小球的地面高度
 
 // UI 元素
 const scoreElement = document.getElementById('score');
@@ -409,34 +409,36 @@ let trailSpheres = [];
 
 // 创建玩家（白色小球）
 function createPlayer() {
-    const geometry = new THREE.SphereGeometry(0.4, 32, 32);
+    const geometry = new THREE.SphereGeometry(0.25, 32, 32);
     const material = new THREE.MeshStandardMaterial({ 
         color: 0xffffff,
         emissive: 0xffffff,
-        emissiveIntensity: 0.5,
-        metalness: 0.8,
-        roughness: 0.2
+        emissiveIntensity: 0.8,
+        metalness: 1.0,
+        roughness: 0.1
     });
     player = new THREE.Mesh(geometry, material);
-    player.position.set(0, 0.4, 0);
+    player.position.set(0, 0.25, 0);
     player.castShadow = true;
     scene.add(player);
     
     // 添加发光效果
-    const glowGeometry = new THREE.SphereGeometry(0.5, 32, 32);
+    const glowGeometry = new THREE.SphereGeometry(0.35, 32, 32);
     const glowMaterial = new THREE.MeshBasicMaterial({
-        color: 0xffffff,
+        color: 0x00ffff,
         transparent: true,
-        opacity: 0.3
+        opacity: 0.4
     });
     const glow = new THREE.Mesh(glowGeometry, glowMaterial);
     player.add(glow);
     
-    // 创建拖尾球体
+    // 创建拖尾球体（炫酷渐变色）
     for (let i = 0; i < trailLength; i++) {
-        const trailGeometry = new THREE.SphereGeometry(0.3, 16, 16);
+        const trailGeometry = new THREE.SphereGeometry(0.2, 16, 16);
+        const hue = (i / trailLength) * 0.3; // 从青色到蓝色渐变
+        const color = new THREE.Color().setHSL(0.5 + hue, 1.0, 0.6);
         const trailMaterial = new THREE.MeshBasicMaterial({
-            color: 0xffffff,
+            color: color,
             transparent: true,
             opacity: 0
         });
@@ -452,8 +454,10 @@ function updateTrail() {
         if (i < trailPositions.length) {
             const pos = trailPositions[trailPositions.length - 1 - i];
             trailSpheres[i].position.set(pos.x, pos.y, pos.z);
-            trailSpheres[i].material.opacity = (1 - i / trailLength) * 0.6;
-            trailSpheres[i].scale.setScalar(1 - i / trailLength);
+            const opacity = (1 - i / trailLength) * 0.8;
+            trailSpheres[i].material.opacity = opacity;
+            const scale = (1 - i / trailLength) * 0.8;
+            trailSpheres[i].scale.setScalar(scale);
         } else {
             trailSpheres[i].material.opacity = 0;
         }
@@ -1076,39 +1080,54 @@ document.addEventListener('touchmove', (e) => {
     }
 }, { passive: false });
 
-document.addEventListener('touchend', (e) => {
-    // 只在游戏运行时处理游戏控制
-    if (!gameRunning) return;
-    
-    e.preventDefault();
-    
-    const touchEndX = e.changedTouches[0].clientX;
-    const touchEndY = e.changedTouches[0].clientY;
-    const diffX = touchEndX - touchStartX;
-    const diffY = touchEndY - touchStartY;
-    
-    // 判断是滑动还是点击
-    if (Math.abs(diffX) > 30 || Math.abs(diffY) > 30) {
-        // 滑动操作
-        if (Math.abs(diffX) > Math.abs(diffY)) {
-            // 左右滑动切换轨道
-            if (diffX > 0 && targetLane < LANES - 1) {
-                targetLane++;
-            } else if (diffX < 0 && targetLane > 0) {
-                targetLane--;
-            }
-        }
-    } else {
-        // 点击 = 跳跃或下落
+let touchMoved = false;
+
+document.addEventListener('touchstart', (e) => {
+    // 只在游戏运行时阻止默认行为
+    if (gameRunning) {
+        e.preventDefault();
+        touchStartX = e.touches[0].clientX;
+        touchStartY = e.touches[0].clientY;
+        touchMoved = false;
+        
+        // 立即响应点击 - 跳跃或下落（0延迟）
         if (!isJumping) {
-            // 在地面 = 跳跃
             isJumping = true;
             verticalVelocity = jumpForce;
         } else {
-            // 在空中 = 快速下落
-            verticalVelocity = -jumpForce * 1.5;
+            // 在空中 = 立即下落到地面
+            player.position.y = groundY;
+            isJumping = false;
+            verticalVelocity = 0;
         }
     }
+}, { passive: false });
+
+document.addEventListener('touchmove', (e) => {
+    // 只在游戏运行时阻止默认行为
+    if (gameRunning) {
+        e.preventDefault();
+        touchMoved = true;
+        
+        const touchX = e.touches[0].clientX;
+        const diffX = touchX - touchStartX;
+        
+        // 左右滑动切换轨道（实时响应）
+        if (Math.abs(diffX) > 50) {
+            if (diffX > 0 && targetLane < LANES - 1) {
+                targetLane++;
+                touchStartX = touchX;
+            } else if (diffX < 0 && targetLane > 0) {
+                targetLane--;
+                touchStartX = touchX;
+            }
+        }
+    }
+}, { passive: false });
+
+document.addEventListener('touchend', (e) => {
+    if (!gameRunning) return;
+    e.preventDefault();
 }, { passive: false });
 
 // 阻止浏览器的下拉刷新和其他手势
