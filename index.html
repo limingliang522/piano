@@ -95,17 +95,13 @@
 
         #gameOver {
             display: none;
-            position: absolute;
+            position: fixed;
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
             text-align: center;
-            background: rgba(0, 0, 0, 0.95);
-            padding: clamp(20px, 5vw, 40px) clamp(30px, 8vw, 60px);
-            border-radius: 20px;
             pointer-events: all;
-            max-width: 90%;
-            width: auto;
+            z-index: 1000;
         }
 
         #gameOver h1 {
@@ -117,33 +113,37 @@
         }
 
         .game-button {
-            margin: 15px;
+            margin: 20px;
             padding: 0;
-            width: 90px;
-            height: 90px;
+            width: 100px;
+            height: 100px;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             border: none;
             border-radius: 50%;
             cursor: pointer;
             transition: all 0.3s;
-            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.4);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
             touch-action: manipulation;
-            font-size: 48px;
+            font-size: 50px;
             color: white;
             display: inline-block;
+            vertical-align: middle;
+            line-height: 100px;
         }
 
         .game-button:active {
             transform: scale(0.9);
-            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
         }
 
         #restart::before {
             content: '↻';
+            display: inline-block;
         }
 
         #continue::before {
             content: '▶';
+            display: inline-block;
         }
 
         #instructions {

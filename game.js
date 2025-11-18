@@ -953,7 +953,7 @@ function gameOver() {
     }
 }
 
-// 继续游戏（从被撞到的黑块开始，重新从最上面往下落）
+// 继续游戏（从被撞到的黑块开始，从迷雾边缘重新往下落）
 function continueGame() {
     if (!lastCollisionBlock) return;
     
@@ -979,7 +979,7 @@ function continueGame() {
     noteObjects.sort((a, b) => a.userData.noteData.time - b.userData.noteData.time);
     
     // 将所有剩余黑块从迷雾边缘开始重新排列
-    const startZ = -50; // 迷雾边缘起始位置
+    const fogEdgeZ = -50; // 迷雾边缘位置
     const firstNoteTime = noteObjects[0].userData.noteData.time;
     
     noteObjects.forEach((noteBlock) => {
@@ -996,10 +996,10 @@ function continueGame() {
         // 从迷雾边缘开始，按时间间隔排列
         // 计算这个音符相对于第一个音符的时间差
         const timeDiff = noteData.time - firstNoteTime;
-        // 转换为距离（使用当前速度）
-        const distance = timeDiff * midiSpeed * 60;
-        // 从起始位置向前偏移
-        noteBlock.position.z = startZ + distance;
+        // 转换为距离（使用原始基础速度，保持音符间隔一致）
+        const distance = timeDiff * originalBaseSpeed * 60;
+        // 第一个黑块在迷雾边缘，后面的按间隔排列
+        noteBlock.position.z = fogEdgeZ + distance;
     });
     
     // 重置玩家状态
@@ -1007,7 +1007,7 @@ function continueGame() {
     isJumping = false;
     verticalVelocity = 0;
     
-    console.log(`继续游戏：从迷雾边缘重新开始，剩余 ${noteObjects.length} 个黑块`);
+    console.log(`继续游戏：从迷雾边缘（z=-50）重新开始，剩余 ${noteObjects.length} 个黑块`);
     
     lastCollisionBlock = null;
 }
