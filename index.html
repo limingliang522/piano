@@ -113,12 +113,12 @@
         }
 
         .game-button {
-            margin: 20px;
+            margin: 15px;
             padding: 0;
             width: 100px;
             height: 100px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            border: none;
+            background: #808080;
+            border: 4px solid white;
             border-radius: 50%;
             cursor: pointer;
             transition: all 0.3s;
@@ -128,7 +128,8 @@
             color: white;
             display: inline-block;
             vertical-align: middle;
-            line-height: 100px;
+            line-height: 92px;
+            text-align: center;
         }
 
         .game-button:active {
@@ -144,6 +145,41 @@
         #continue::before {
             content: '▶';
             display: inline-block;
+        }
+
+        #uploadButton {
+            position: fixed;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 80px;
+            height: 80px;
+            background: #808080;
+            border: 4px solid white;
+            border-radius: 50%;
+            cursor: pointer;
+            transition: all 0.3s;
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.4);
+            touch-action: manipulation;
+            font-size: 40px;
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+        }
+
+        #uploadButton:active {
+            transform: translateX(-50%) scale(0.9);
+        }
+
+        #uploadButton::before {
+            content: '+';
+            display: block;
+        }
+
+        #midiFileInput {
+            display: none;
         }
 
         #instructions {
@@ -270,6 +306,10 @@
         <div id="instructions"></div>
 
     </div>
+    
+    <button id="uploadButton"></button>
+    <input type="file" id="midiFileInput" accept=".mid,.midi" />
+    
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="midi-parser.js?v=14.0"></script>
     <script src="audio-engine.js?v=14.0"></script>

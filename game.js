@@ -34,10 +34,9 @@ let verticalVelocity = 0;
 const gravity = -0.025; // 重力加速度
 const groundY = 0.25; // 小球的地面高度
 // 超高黑块：底部0，顶部3.0，球半径0.25
-// 让球最高跳到2.5（球顶部到2.75，低于超高黑块顶部3.0）
-const maxJumpHeight = 2.0; // 最大跳跃高度（从地面算起）
+// 让球中心跳到2.6（球顶部到2.85，低于超高黑块顶部3.0）
+const maxJumpHeight = 2.35; // 最大跳跃高度（从地面算起）
 // 计算初始跳跃速度：使用 v² = 2gh
-// 注意：这里的h是相对于groundY的高度
 const jumpForce = Math.sqrt(2 * Math.abs(gravity) * maxJumpHeight);
 
 // UI 元素
@@ -168,7 +167,7 @@ async function initMIDISystem() {
         loadingElement.textContent = '加载MIDI文件...';
         
         // 只等待MIDI文件加载
-        const notes = await midiParser.loadMIDI('2025-11-16 23.35.43.mp3.mid?v=1');
+        const notes = await midiParser.loadMIDI('midi/2025-11-16 23.35.43.mp3.mid?v=1');
         
         if (notes.length === 0) {
             console.error('MIDI文件中没有音符');
@@ -1337,6 +1336,50 @@ continueButton.addEventListener('click', handleContinue);
 continueButton.addEventListener('touchend', handleContinue);
 
 
+
+// 上传MIDI文件功能
+const uploadButton = document.getElementById('uploadButton');
+const midiFileInput = document.getElementById('midiFileInput');
+
+uploadButton.addEventListener('click', () => {
+    midiFileInput.click();
+});
+
+midiFileInput.addEventListener('change', async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    
+    try {
+        loadingElement.style.display = 'block';
+        loadingElement.textContent = '加载MIDI文件...';
+        
+        // 读取文件
+        const arrayBuffer = await file.arrayBuffer();
+        const notes = await midiParser.parseMIDIData(arrayBuffer);
+        
+        if (notes.length === 0) {
+            alert('MIDI文件中没有音符');
+            loadingElement.style.display = 'none';
+            return;
+        }
+        
+        // 处理音符数据
+        processMIDINotes(notes);
+        
+        loadingElement.style.display = 'none';
+        const startButton = document.getElementById('startButton');
+        startButton.style.display = 'block';
+        
+        console.log(`成功加载MIDI文件: ${file.name}`);
+    } catch (error) {
+        console.error('加载MIDI文件失败:', error);
+        alert('加载MIDI文件失败，请选择有效的MIDI文件');
+        loadingElement.style.display = 'none';
+    }
+    
+    // 清空input，允许重复选择同一个文件
+    e.target.value = '';
+});
 
 // 启动游戏
 init();
