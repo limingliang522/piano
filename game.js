@@ -770,13 +770,6 @@ function updateNoteBlocks() {
             // 播放音符（增大音量）
             audioEngine.playNote(noteData.note, noteData.duration, noteData.velocity * 1.5);
             
-            // 根据轨道触发震动
-            const vibrationDurations = [50, 100, 150, 100, 50]; // 对称分布
-            const duration = vibrationDurations[noteData.lane];
-            if (navigator.vibrate) {
-                navigator.vibrate(duration);
-            }
-            
             // 改变颜色表示已触发（白色）
             noteBlock.material.color.setHex(0xffffff);
             noteBlock.material.emissive.setHex(0xffffff);
@@ -982,8 +975,14 @@ function continueGame() {
         }
     }
     
-    // 将碰撞黑块和之后的所有黑块重新放到最上面
-    noteObjects.forEach((noteBlock, index) => {
+    // 按时间排序剩余的黑块
+    noteObjects.sort((a, b) => a.userData.noteData.time - b.userData.noteData.time);
+    
+    // 将所有剩余黑块从迷雾边缘开始重新排列
+    const startZ = -50; // 迷雾边缘起始位置
+    const firstNoteTime = noteObjects[0].userData.noteData.time;
+    
+    noteObjects.forEach((noteBlock) => {
         const noteData = noteBlock.userData.noteData;
         
         // 重置状态
@@ -994,10 +993,13 @@ function continueGame() {
         noteBlock.material.opacity = 1;
         noteBlock.scale.set(1, 1, 1);
         
-        // 重新计算位置：从最远处开始，按时间间隔排列
-        const extraDistance = 42;
-        const zPosition = 2 - (noteData.time * originalBaseSpeed * 60) - extraDistance;
-        noteBlock.position.z = zPosition;
+        // 从迷雾边缘开始，按时间间隔排列
+        // 计算这个音符相对于第一个音符的时间差
+        const timeDiff = noteData.time - firstNoteTime;
+        // 转换为距离（使用当前速度）
+        const distance = timeDiff * midiSpeed * 60;
+        // 从起始位置向前偏移
+        noteBlock.position.z = startZ + distance;
     });
     
     // 重置玩家状态
@@ -1005,7 +1007,7 @@ function continueGame() {
     isJumping = false;
     verticalVelocity = 0;
     
-    console.log(`继续游戏：从第 ${noteObjects.length} 个黑块开始重新下落`);
+    console.log(`继续游戏：从迷雾边缘重新开始，剩余 ${noteObjects.length} 个黑块`);
     
     lastCollisionBlock = null;
 }
