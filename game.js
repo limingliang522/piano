@@ -53,6 +53,7 @@ const instructionsElement = document.getElementById('instructions');
 const LANES = 5;
 const LANE_WIDTH = 2;
 const GROUND_LENGTH = 100;
+const horizontalSpeed = 0.35; // 左右移动速度，和上下移动一样
 
 // 帧率检测和适配
 let targetFPS = 60;
@@ -610,17 +611,30 @@ function createCoin() {
 
 // 更新玩家位置
 function updatePlayer() {
-    // 平滑移动到目标轨道
+    // 恒定速度移动到目标轨道
     if (currentLane !== targetLane) {
-        const diff = targetLane - currentLane;
-        currentLane += diff * 0.25; // 加快左右移动速度
-        if (Math.abs(targetLane - currentLane) < 0.01) {
+        const targetX = (targetLane - 2) * LANE_WIDTH;
+        const currentX = player.position.x;
+        const diff = targetX - currentX;
+        
+        // 使用恒定速度移动
+        const moveSpeed = horizontalSpeed * 60 * deltaTime; // 转换为每秒的速度
+        
+        if (Math.abs(diff) <= moveSpeed) {
+            // 距离很近，直接到达
             currentLane = targetLane;
+            player.position.x = targetX;
+        } else {
+            // 按恒定速度移动
+            const direction = diff > 0 ? 1 : -1;
+            player.position.x += direction * moveSpeed;
+            // 更新当前轨道（用于显示）
+            currentLane = (player.position.x / LANE_WIDTH) + 2;
         }
+    } else {
+        const targetX = (currentLane - 2) * LANE_WIDTH;
+        player.position.x = targetX;
     }
-    
-    const targetX = (currentLane - 2) * LANE_WIDTH;
-    player.position.x = targetX;
     
     // 相机跟随玩家左右移动
     const cameraTargetX = player.position.x;
