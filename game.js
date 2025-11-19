@@ -178,7 +178,10 @@ async function getMidiFiles() {
     // 因为浏览器无法直接读取文件夹内容
     return [
         'midi/2025-09-08 17.35.08.mp3.mid',
-        'midi/2025-11-16 23.35.43.mp3.mid'
+        'midi/2025-11-16 23.35.43.mp3.mid',
+        'midi/2025-11-19 17.06.11.mp3.mid',
+        'midi/2025-11-19 17.06.53.mp3.mid',
+        'midi/2025-11-19 17.07.45.mp3.mid'
         // 在这里添加更多MIDI文件
     ];
 }
@@ -764,23 +767,16 @@ function updatePlayer() {
     updateTrail();
 }
 
-// 跳跃函数 - 极速响应，每次点击立即反转速度
+// 跳跃函数 - 极速响应，在空中只能快速下落
 function jump() {
     // 在地面：向上跳
     if (player.position.y <= groundY + 0.01) {
         isJumping = true;
         verticalVelocity = jumpForce;
     } 
-    // 在空中：立即反转速度方向
+    // 在空中：快速下落（不能二段跳）
     else {
-        // 如果正在上升，改成下降
-        if (verticalVelocity > 0) {
-            verticalVelocity = -jumpForce;
-        } 
-        // 如果正在下降，改成上升
-        else {
-            verticalVelocity = jumpForce;
-        }
+        verticalVelocity = -jumpForce;
     }
 }
 
@@ -1572,15 +1568,75 @@ async function selectMidi(index) {
     // 等待动画完成（缩短等待时间）
     await new Promise(resolve => setTimeout(resolve, 300));
     
-    // 切换 MIDI（不检查锁定状态）
+    // 停止当前游戏
+    gameRunning = false;
+    
+    // 清理场景
+    obstacles.forEach(obj => scene.remove(obj));
+    coins.forEach(obj => scene.remove(obj));
+    noteObjects.forEach(obj => scene.remove(obj));
+    obstacles = [];
+    coins = [];
+    noteObjects = [];
+    
+    // 重置游戏状态
+    score = 0;
+    distance = 0;
+    notesTriggered = 0;
+    collisions = 0;
+    starsEarned = 0;
+    speedMultiplier = 1.0;
+    isCompletingRound = false;
+    
+    // 重置玩家位置
+    player.position.set(0, groundY, 0);
+    player.scale.set(1, 1, 1);
+    isJumping = false;
+    verticalVelocity = 0;
+    currentLane = 2;
+    targetLane = 2;
+    
+    // 隐藏游戏结束界面
+    gameOverElement.style.display = 'none';
+    
+    // 切换 MIDI
     currentMidiIndex = index;
     const success = await loadMidiFile(currentMidiIndex);
     
     if (success) {
-        // 重新开始游戏
-        restart();
+        // 显示播放按钮，等待用户点击
+        const startButton = document.getElementById('startButton');
+        startButton.style.display = 'block';
+        
         // 更新列表中的选中状态
         initMidiList();
+        
+        // 设置播放按钮点击事件
+        const startGame = (e) => {
+            if (e) e.preventDefault();
+            startButton.removeEventListener('click', startGame);
+            startButton.removeEventListener('touchstart', startGame);
+            startButton.style.display = 'none';
+            
+            // 开始游戏
+            gameStartTime = Date.now() / 1000;
+            midiSpeed = originalBaseSpeed;
+            
+            // 重置音符状态
+            midiNotes.forEach(note => {
+                note.triggered = false;
+                note.collided = false;
+            });
+            
+            // 创建音符方块
+            createAllNoteBlocks();
+            
+            // 开始游戏
+            gameRunning = true;
+        };
+        
+        startButton.addEventListener('click', startGame);
+        startButton.addEventListener('touchstart', startGame, { passive: false });
     }
 }
 
