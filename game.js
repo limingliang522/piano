@@ -631,11 +631,17 @@ let trailPositions = [];
 const trailLength = 10;
 let trailSpheres = [];
 
-// 创建玩家（纯白色小球）
+// 创建玩家（半透明白色小球 + 微光边缘）
 function createPlayer() {
     const geometry = new THREE.SphereGeometry(0.25, 32, 32);
-    const material = new THREE.MeshBasicMaterial({ 
-        color: 0xffffff // 纯白色，不受光照影响
+    const material = new THREE.MeshStandardMaterial({ 
+        color: 0xffffff,
+        emissive: 0xffffff,
+        emissiveIntensity: 0.4, // 微光
+        metalness: 0.3,
+        roughness: 0.4,
+        transparent: true,
+        opacity: 0.95 // 半透明
     });
     player = new THREE.Mesh(geometry, material);
     player.position.set(0, 0.25, 0);
