@@ -478,8 +478,8 @@ function startMIDIGame() {
     gameRunning = true;
     gameStartTime = Date.now() / 1000;
     
-    // 创建所有音符方块
-    createAllNoteBlocks();
+    // 不再一次性创建所有黑块，改为动态创建
+    // createAllNoteBlocks();
 }
 
 // 开始普通游戏（无MIDI）
@@ -580,10 +580,10 @@ function createNoteBlock(noteData) {
 
 // 创建地面
 function createGround() {
-    // 极简风格：深色半透明地面
+    // 极简风格：深蓝灰色地面
     const groundGeometry = new THREE.PlaneGeometry(LANES * LANE_WIDTH, GROUND_LENGTH);
     const groundMaterial = new THREE.MeshStandardMaterial({ 
-        color: 0x0a0a0a,
+        color: 0x1a1a2e, // 深蓝灰色
         roughness: 0.3,
         metalness: 0.8,
         transparent: true,
@@ -599,22 +599,42 @@ function createGround() {
         ground.push(groundMesh);
     }
     
-    // 添加发光轨道线（白色霓虹）
+    // 添加发光轨道线（青色霓虹）
     const lineMaterial = new THREE.MeshBasicMaterial({ 
-        color: 0xffffff,
+        color: 0x00ffff, // 青色
         transparent: true,
-        opacity: 0.8,
+        opacity: 0.7,
         fog: true
     });
     
+    // 添加轨道分隔线（4条）
     for (let i = 1; i < LANES; i++) {
         const x = (i - LANES / 2) * LANE_WIDTH;
-        // 使用更细的立方体，更优雅
         const lineGeometry = new THREE.BoxGeometry(0.03, 0.01, 250);
         const lineMesh = new THREE.Mesh(lineGeometry, lineMaterial);
         lineMesh.position.set(x, 0.01, -75);
         scene.add(lineMesh);
     }
+    
+    // 添加两侧边界线（让5条轨道更明显）
+    const edgeMaterial = new THREE.MeshBasicMaterial({
+        color: 0x00ffff,
+        transparent: true,
+        opacity: 0.5,
+        fog: true
+    });
+    
+    // 左边界
+    const leftEdge = new THREE.BoxGeometry(0.05, 0.02, 250);
+    const leftMesh = new THREE.Mesh(leftEdge, edgeMaterial);
+    leftMesh.position.set(-LANES * LANE_WIDTH / 2, 0.01, -75);
+    scene.add(leftMesh);
+    
+    // 右边界
+    const rightEdge = new THREE.BoxGeometry(0.05, 0.02, 250);
+    const rightMesh = new THREE.Mesh(rightEdge, edgeMaterial);
+    rightMesh.position.set(LANES * LANE_WIDTH / 2, 0.01, -75);
+    scene.add(rightMesh);
     
     // 创建触发线（白色发光）
     createTriggerLine();
@@ -909,6 +929,24 @@ function updateNoteBlocks() {
     // 基于时间的移动速度（每秒移动的距离）
     const moveSpeed = midiSpeed * 60; // 转换为每秒的速度
     
+    // === 动态创建黑块（陆续飞入）===
+    const currentTime = Date.now() / 1000 - gameStartTime;
+    const spawnDistance = 60; // 黑块在60米外开始创建
+    
+    for (let noteData of midiNotes) {
+        // 检查是否已经创建
+        if (noteData.created) continue;
+        
+        // 计算黑块应该出现的时间
+        const noteAppearTime = noteData.time - (spawnDistance / (originalBaseSpeed * 60));
+        
+        // 如果到了创建时间，就创建黑块
+        if (currentTime >= noteAppearTime) {
+            createNoteBlock(noteData);
+            noteData.created = true;
+        }
+    }
+    
     for (let i = noteObjects.length - 1; i >= 0; i--) {
         const noteBlock = noteObjects[i];
         
@@ -1143,11 +1181,11 @@ function restartRound() {
     midiNotes.forEach(note => {
         note.triggered = false;
         note.collided = false;
+        note.created = false; // 重置创建状态
     });
     
-    // 重新创建音符方块
+    // 重置游戏开始时间（不立即创建，等待动态创建）
     gameStartTime = Date.now() / 1000;
-    createAllNoteBlocks();
     
     // 重置完成标志
     isCompletingRound = false;
@@ -1269,6 +1307,7 @@ function restart() {
     midiNotes.forEach(note => {
         note.triggered = false;
         note.collided = false;
+        note.created = false; // 重置创建状态
     });
     
     // 重置 UI
@@ -1290,10 +1329,12 @@ function restart() {
     isJumping = false;
     verticalVelocity = 0;
     
-    // 如果是MIDI模式，重新创建音符方块
+    // 如果是MIDI模式，重置创建状态（不立即创建，等待动态创建）
     if (midiNotes.length > 0) {
         gameStartTime = Date.now() / 1000;
-        createAllNoteBlocks();
+        midiNotes.forEach(note => {
+            note.created = false;
+        });
     }
     
     gameRunning = true;
@@ -1776,10 +1817,8 @@ async function selectMidi(index) {
             midiNotes.forEach(note => {
                 note.triggered = false;
                 note.collided = false;
+                note.created = false; // 重置创建状态
             });
-            
-            // 创建音符方块
-            createAllNoteBlocks();
             
             // 开始游戏
             gameRunning = true;
@@ -1813,13 +1852,14 @@ dynamicIsland.addEventListener('click', (e) => {
     }
 });
 
-// 点击空白处关闭
+// 点击空白处关闭（优先级更高）
 document.addEventListener('click', (e) => {
     if (isIslandExpanded && !dynamicIsland.contains(e.target)) {
+        e.stopPropagation();
         dynamicIsland.classList.remove('expanded');
         isIslandExpanded = false;
     }
-});
+}, true); // 使用捕获阶段，优先处理
 
 // 阻止灵动岛内部点击冒泡
 dynamicIsland.addEventListener('click', (e) => {
