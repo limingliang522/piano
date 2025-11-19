@@ -607,13 +607,13 @@ function createGround() {
     createTriggerLine();
 }
 
-// 创建触发线（极淡的线条，不发光）
+// 创建触发线（纯白色）
 function createTriggerLine() {
-    const geometry = new THREE.PlaneGeometry(LANES * LANE_WIDTH, 0.2);
+    const geometry = new THREE.PlaneGeometry(LANES * LANE_WIDTH, 0.3);
     const material = new THREE.MeshBasicMaterial({ 
-        color: 0x666666, // 深灰色
+        color: 0xffffff, // 纯白色
         transparent: true,
-        opacity: 0.3, // 降低不透明度
+        opacity: 0.8,
         side: THREE.DoubleSide
     });
     triggerLine = new THREE.Mesh(geometry, material);
@@ -631,15 +631,11 @@ let trailPositions = [];
 const trailLength = 10;
 let trailSpheres = [];
 
-// 创建玩家（白色小球 - 取消光圈）
+// 创建玩家（纯白色小球）
 function createPlayer() {
     const geometry = new THREE.SphereGeometry(0.25, 32, 32);
-    const material = new THREE.MeshStandardMaterial({ 
-        color: 0xffffff,
-        emissive: 0xffffff,
-        emissiveIntensity: 0.2, // 降低发光强度，只保留微光
-        metalness: 0.8,
-        roughness: 0.2
+    const material = new THREE.MeshBasicMaterial({ 
+        color: 0xffffff // 纯白色，不受光照影响
     });
     player = new THREE.Mesh(geometry, material);
     player.position.set(0, 0.25, 0);
