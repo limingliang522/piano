@@ -1421,12 +1421,8 @@ document.addEventListener('touchend', (e) => {
         // 优先级1：如果灵动岛展开，点击空白处收起界面并继续游戏
         if (isIslandExpanded) {
             e.preventDefault();
-            dynamicIsland.classList.remove('expanded');
-            isIslandExpanded = false;
-            // 恢复游戏运行状态
-            if (wasGameRunningBeforePause) {
-                gameRunning = true;
-            }
+            // 调用toggleIsland统一处理收起逻辑
+            toggleIsland();
             return;
         }
         
@@ -1749,8 +1745,8 @@ dynamicIsland.addEventListener('click', (e) => {
 document.addEventListener('click', (e) => {
     if (isIslandExpanded && !dynamicIsland.contains(e.target)) {
         e.stopPropagation();
-        dynamicIsland.classList.remove('expanded');
-        isIslandExpanded = false;
+        // 调用toggleIsland统一处理收起逻辑
+        toggleIsland();
     }
 }, true); // 使用捕获阶段，优先处理
 
