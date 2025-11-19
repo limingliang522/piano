@@ -173,44 +173,35 @@ class AudioEngine {
         
         let loadedCount = 0;
         const total = sampleNotes.length;
-        const batchSize = 5; // 每次只加载5个，避免手机卡顿
         
-        // 加载单个音色（带重试）
-        const loadSample = async (noteName, maxRetries = 3) => {
-            for (let attempt = 0; attempt < maxRetries; attempt++) {
-                try {
-                    const response = await fetch(`./piano-samples/${noteName}.mp3`);
-                    if (!response.ok) {
-                        throw new Error(`HTTP ${response.status}`);
-                    }
-                    const arrayBuffer = await response.arrayBuffer();
-                    const audioBuffer = await this.audioContext.decodeAudioData(arrayBuffer);
-                    this.samples.set(noteName, audioBuffer);
-                    return true;
-                } catch (error) {
-                    if (attempt < maxRetries - 1) {
-                        await new Promise(resolve => setTimeout(resolve, 300));
-                    } else {
-                        console.warn(`${noteName} 加载失败:`, error);
-                        return false;
-                    }
+        // 加载单个音色（简化版，快速加载）
+        const loadSample = async (noteName) => {
+            try {
+                const response = await fetch(`./piano-samples/${noteName}.mp3`);
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
                 }
+                const arrayBuffer = await response.arrayBuffer();
+                const audioBuffer = await this.audioContext.decodeAudioData(arrayBuffer);
+                this.samples.set(noteName, audioBuffer);
+                return true;
+            } catch (error) {
+                console.warn(`${noteName} 加载失败:`, error);
+                return false;
             }
         };
         
-        // 分批加载（每批5个）
-        for (let i = 0; i < sampleNotes.length; i += batchSize) {
-            const batch = sampleNotes.slice(i, i + batchSize);
-            const batchPromises = batch.map(async (noteName) => {
-                const success = await loadSample(noteName);
-                loadedCount++;
-                if (progressCallback) {
-                    progressCallback(loadedCount, total);
-                }
-                return success;
-            });
-            await Promise.all(batchPromises);
-        }
+        // 并行加载所有音色（最快速度）
+        const allPromises = sampleNotes.map(async (noteName) => {
+            const success = await loadSample(noteName);
+            loadedCount++;
+            if (progressCallback) {
+                progressCallback(loadedCount, total);
+            }
+            return success;
+        });
+        
+        await Promise.all(allPromises);
         
         console.log(`钢琴采样加载完成！共 ${this.samples.size}/30 个音符`);
         

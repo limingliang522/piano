@@ -116,7 +116,7 @@ function updateFPS(currentTime) {
 function init() {
     // 创建场景
     scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x000000); // 纯黑背景
+    // 不设置背景色，让背景透明，显示body的背景图
     scene.fog = new THREE.Fog(0x000000, 20, 80); // 黑色雾效，更远的距离
     
     // 创建相机 - 更宽的视角以显示完整的5条轨道
@@ -127,11 +127,12 @@ function init() {
     camera.position.set(0, 5.5, 8);
     camera.lookAt(0, 0, -8);
     
-    // 创建渲染器 - 高画质设置
+    // 创建渲染器 - 高画质设置（透明背景）
     const canvas = document.getElementById('gameCanvas');
     renderer = new THREE.WebGLRenderer({ 
         canvas: canvas,
         antialias: true,
+        alpha: true, // 启用透明背景
         powerPreference: "high-performance",
         precision: "highp"
     });
@@ -140,6 +141,9 @@ function init() {
     const pixelRatio = Math.min(window.devicePixelRatio, 2);
     renderer.setPixelRatio(pixelRatio);
     renderer.setSize(window.innerWidth, window.innerHeight);
+    
+    // 设置透明背景
+    renderer.setClearColor(0x000000, 0); // 完全透明
     
     // 优化阴影设置
     renderer.shadowMap.enabled = true;
@@ -275,16 +279,22 @@ async function initMIDISystem() {
             
             // 显示加载提示
             loadingElement.style.display = 'block';
-            loadingElement.textContent = '加载钢琴音色中...';
+            loadingElement.textContent = '启动音频系统...';
+            console.log('开始加载音色...');
             
             try {
                 // 启动音频上下文
+                console.log('启动音频上下文...');
                 await audioEngine.start();
+                console.log('音频上下文启动完成');
+                
+                loadingElement.textContent = '加载钢琴音色 0/30';
                 
                 // 加载钢琴音色（带进度显示）
+                console.log('开始加载钢琴音色...');
                 await audioEngine.init((loaded, total) => {
                     loadingElement.textContent = `加载钢琴音色 ${loaded}/${total}`;
-                    console.log(`加载钢琴音色 ${loaded}/${total}`);
+                    console.log(`加载进度: ${loaded}/${total}`);
                 });
                 
                 console.log('钢琴音色加载完成！');
