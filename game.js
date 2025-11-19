@@ -478,8 +478,8 @@ function startMIDIGame() {
     gameRunning = true;
     gameStartTime = Date.now() / 1000;
     
-    // 不再一次性创建所有黑块，改为动态创建
-    // createAllNoteBlocks();
+    // 创建所有音符方块
+    createAllNoteBlocks();
 }
 
 // 开始普通游戏（无MIDI）
@@ -495,7 +495,7 @@ function createAllNoteBlocks() {
     });
 }
 
-// 创建音符方块（玻璃质感 + 飞入动画）
+// 创建音符方块（玻璃质感）
 function createNoteBlock(noteData) {
     // 使用预先分配的高度
     const isTall = noteData.isTall;
@@ -529,49 +529,17 @@ function createNoteBlock(noteData) {
     noteBlock.add(edges);
     
     const x = (noteData.lane - 2) * LANE_WIDTH;
-    // 根据时间计算最终Z位置
+    // 根据时间计算初始Z位置
     const extraDistance = 42;
-    const finalZ = 2 - (noteData.time * originalBaseSpeed * 60) - extraDistance;
-    
-    // === 飞入动画：从四面八方汇聚 ===
-    // 随机选择飞入方向
-    const directions = [
-        { x: -15, y: 8, z: finalZ },   // 左上方
-        { x: 15, y: 8, z: finalZ },    // 右上方
-        { x: -20, y: 3, z: finalZ },   // 左侧
-        { x: 20, y: 3, z: finalZ },    // 右侧
-        { x: x, y: 15, z: finalZ }     // 正上方
-    ];
-    
-    // 使用音符时间作为种子，确保每次生成位置一致
-    const seed = noteData.time * 1000 + noteData.lane;
-    const randomValue = Math.sin(seed) * 10000;
-    const dirIndex = Math.floor(Math.abs(randomValue - Math.floor(randomValue)) * directions.length);
-    const startPos = directions[dirIndex];
-    
-    // 设置初始位置（远离轨道）
-    noteBlock.position.set(startPos.x, startPos.y, startPos.z);
-    
-    // 初始缩放为0（从无到有）
-    noteBlock.scale.set(0, 0, 0);
-    
-    // 初始旋转
-    noteBlock.rotation.set(
-        Math.random() * Math.PI,
-        Math.random() * Math.PI,
-        Math.random() * Math.PI
-    );
-    
+    const zPosition = 2 - (noteData.time * originalBaseSpeed * 60) - extraDistance;
+    noteBlock.position.set(x, blockY, zPosition);
     noteBlock.castShadow = true;
     
     noteBlock.userData = {
         noteData: noteData,
         isNote: true,
         isTall: isTall,
-        blockHeight: blockHeight,
-        finalPosition: { x: x, y: blockY, z: finalZ },
-        animationProgress: 0,
-        isAnimating: true
+        blockHeight: blockHeight
     };
     
     scene.add(noteBlock);
@@ -929,63 +897,9 @@ function updateNoteBlocks() {
     // 基于时间的移动速度（每秒移动的距离）
     const moveSpeed = midiSpeed * 60; // 转换为每秒的速度
     
-    // === 动态创建黑块（陆续飞入）===
-    const currentTime = Date.now() / 1000 - gameStartTime;
-    const spawnDistance = 60; // 黑块在60米外开始创建
-    
-    for (let noteData of midiNotes) {
-        // 检查是否已经创建
-        if (noteData.created) continue;
-        
-        // 计算黑块应该出现的时间
-        const noteAppearTime = noteData.time - (spawnDistance / (originalBaseSpeed * 60));
-        
-        // 如果到了创建时间，就创建黑块
-        if (currentTime >= noteAppearTime) {
-            createNoteBlock(noteData);
-            noteData.created = true;
-        }
-    }
-    
     for (let i = noteObjects.length - 1; i >= 0; i--) {
         const noteBlock = noteObjects[i];
-        
-        // === 飞入动画处理 ===
-        if (noteBlock.userData.isAnimating) {
-            noteBlock.userData.animationProgress += deltaTime * 2; // 动画速度
-            const progress = Math.min(noteBlock.userData.animationProgress, 1);
-            
-            // 使用缓动函数（easeOutCubic）
-            const eased = 1 - Math.pow(1 - progress, 3);
-            
-            // 位置插值
-            const finalPos = noteBlock.userData.finalPosition;
-            noteBlock.position.x += (finalPos.x - noteBlock.position.x) * eased * 0.15;
-            noteBlock.position.y += (finalPos.y - noteBlock.position.y) * eased * 0.15;
-            
-            // 缩放从0到1
-            const scale = eased;
-            noteBlock.scale.set(scale, scale, scale);
-            
-            // 旋转归零
-            noteBlock.rotation.x *= (1 - eased * 0.1);
-            noteBlock.rotation.y *= (1 - eased * 0.1);
-            noteBlock.rotation.z *= (1 - eased * 0.1);
-            
-            // 动画完成
-            if (progress >= 1) {
-                noteBlock.userData.isAnimating = false;
-                noteBlock.position.set(finalPos.x, finalPos.y, finalPos.z);
-                noteBlock.scale.set(1, 1, 1);
-                noteBlock.rotation.set(0, 0, 0);
-            }
-        }
-        
-        // 正常移动（动画完成后或动画期间都要移动）
         noteBlock.position.z += moveSpeed * deltaTime; // 基于时间移动
-        if (noteBlock.userData.finalPosition) {
-            noteBlock.userData.finalPosition.z += moveSpeed * deltaTime;
-        }
         
         const noteData = noteBlock.userData.noteData;
         
@@ -1181,11 +1095,11 @@ function restartRound() {
     midiNotes.forEach(note => {
         note.triggered = false;
         note.collided = false;
-        note.created = false; // 重置创建状态
     });
     
-    // 重置游戏开始时间（不立即创建，等待动态创建）
+    // 重新创建音符方块
     gameStartTime = Date.now() / 1000;
+    createAllNoteBlocks();
     
     // 重置完成标志
     isCompletingRound = false;
@@ -1307,7 +1221,6 @@ function restart() {
     midiNotes.forEach(note => {
         note.triggered = false;
         note.collided = false;
-        note.created = false; // 重置创建状态
     });
     
     // 重置 UI
@@ -1329,12 +1242,10 @@ function restart() {
     isJumping = false;
     verticalVelocity = 0;
     
-    // 如果是MIDI模式，重置创建状态（不立即创建，等待动态创建）
+    // 如果是MIDI模式，重新创建音符方块
     if (midiNotes.length > 0) {
         gameStartTime = Date.now() / 1000;
-        midiNotes.forEach(note => {
-            note.created = false;
-        });
+        createAllNoteBlocks();
     }
     
     gameRunning = true;
@@ -1817,8 +1728,10 @@ async function selectMidi(index) {
             midiNotes.forEach(note => {
                 note.triggered = false;
                 note.collided = false;
-                note.created = false; // 重置创建状态
             });
+            
+            // 创建音符方块
+            createAllNoteBlocks();
             
             // 开始游戏
             gameRunning = true;
