@@ -194,7 +194,7 @@ async function loadMidiFile(index) {
         processMIDINotes(notes);
         
         // 显示文件名（去掉路径和扩展名）
-        currentMidiName = fileName.split('/').pop().replace('.mid', '');
+        currentMidiName = fileName.split('/').pop().replace('.mp3.mid', '').replace('.mid', '');
         document.getElementById('midiName').textContent = currentMidiName;
         
         loadingElement.style.display = 'none';
@@ -1346,8 +1346,8 @@ document.addEventListener('touchend', (e) => {
                 }
             }
         } else {
-            // 上下滑动切换MIDI文件（只在暂停时）
-            if (!gameRunning) {
+            // 上下滑动切换MIDI文件（游戏结束时或暂停时）
+            if (!gameRunning && midiFiles.length > 1) {
                 e.preventDefault();
                 if (diffY < -100) {
                     // 上滑 - 下一首
@@ -1419,31 +1419,34 @@ function playSlideAnimation(direction) {
         const canvas = document.getElementById('gameCanvas');
         const midiNameElement = document.getElementById('midiName');
         
-        // 设置动画
-        const translateY = direction === 'up' ? '-100%' : '100%';
-        canvas.style.transform = `translateY(${translateY})`;
-        
-        // 名字淡出
+        // 名字先淡出
         midiNameElement.style.opacity = '0';
-        midiNameElement.style.transition = 'opacity 0.2s';
         
-        // 400ms后动画完成
+        // 设置动画
         setTimeout(() => {
-            canvas.style.transform = 'translateY(0)';
-            canvas.style.transition = 'none';
-            
-            // 名字淡入
-            setTimeout(() => {
-                midiNameElement.style.opacity = '1';
-                midiNameElement.style.transition = 'opacity 0.3s';
-                resolve();
-            }, 50);
-        }, 400);
-        
-        // 启用过渡
-        setTimeout(() => {
+            const translateY = direction === 'up' ? '-100vh' : '100vh';
             canvas.style.transition = 'transform 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94)';
-        }, 10);
+            canvas.style.transform = `translateY(${translateY})`;
+            
+            // 400ms后重置位置
+            setTimeout(() => {
+                canvas.style.transition = 'none';
+                const resetY = direction === 'up' ? '100vh' : '-100vh';
+                canvas.style.transform = `translateY(${resetY})`;
+                
+                // 立即滑回中间
+                setTimeout(() => {
+                    canvas.style.transition = 'transform 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94)';
+                    canvas.style.transform = 'translateY(0)';
+                    
+                    // 名字淡入
+                    setTimeout(() => {
+                        midiNameElement.style.opacity = '1';
+                        resolve();
+                    }, 200);
+                }, 50);
+            }, 400);
+        }, 100);
     });
 }
 
@@ -1473,22 +1476,27 @@ async function loadAndStartNewMidi() {
     currentLane = 2;
     targetLane = 2;
     
+    // 隐藏游戏结束界面
+    gameOverElement.style.display = 'none';
+    
     // 加载新的MIDI文件
     const success = await loadMidiFile(currentMidiIndex);
     
     if (success) {
-        // 显示文件名提示
-        comboElement.style.display = 'block';
-        comboElement.textContent = `♪ ${currentMidiName}`;
-        comboElement.style.fontSize = '28px';
-        comboElement.style.color = '#ffd700';
+        // 显示播放按钮
+        const startButton = document.getElementById('startButton');
+        startButton.style.display = 'block';
         
-        // 隐藏游戏结束界面
-        gameOverElement.style.display = 'none';
-        
-        setTimeout(() => {
-            comboElement.style.display = 'none';
-        }, 2000);
+        // 等待用户点击开始
+        const startGame = (e) => {
+            e.preventDefault();
+            startButton.removeEventListener('click', startGame);
+            startButton.removeEventListener('touchstart', startGame);
+            startButton.style.display = 'none';
+            startMIDIGame();
+        };
+        startButton.addEventListener('click', startGame);
+        startButton.addEventListener('touchstart', startGame, { passive: false });
     }
 }
 
