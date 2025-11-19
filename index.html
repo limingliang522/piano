@@ -90,21 +90,163 @@
         }
 
         #midiName {
+            display: none;
+        }
+
+        /* 灵动岛式 MIDI 选择器 */
+        #dynamicIsland {
             position: fixed;
             top: 20px;
             left: 50%;
             transform: translateX(-50%);
-            color: #fff;
-            font-size: clamp(18px, 4.5vw, 24px);
-            font-weight: bold;
-            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.8);
+            background: rgba(0, 0, 0, 0.85);
+            backdrop-filter: blur(20px);
+            border-radius: 25px;
+            padding: 12px 24px;
             z-index: 1000;
-            text-align: center;
+            cursor: pointer;
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+        }
+
+        #dynamicIsland.expanded {
+            width: 90%;
+            max-width: 600px;
+            height: 280px;
+            border-radius: 30px;
+            padding: 20px;
+            cursor: default;
+        }
+
+        .island-content {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .island-wave {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 3px;
+            height: 20px;
+        }
+
+        .wave-bar {
+            width: 3px;
+            background: linear-gradient(to top, #667eea, #764ba2);
+            border-radius: 2px;
+            animation: wave 1s ease-in-out infinite;
+        }
+
+        .wave-bar:nth-child(1) { animation-delay: 0s; height: 8px; }
+        .wave-bar:nth-child(2) { animation-delay: 0.1s; height: 14px; }
+        .wave-bar:nth-child(3) { animation-delay: 0.2s; height: 18px; }
+        .wave-bar:nth-child(4) { animation-delay: 0.3s; height: 12px; }
+        .wave-bar:nth-child(5) { animation-delay: 0.4s; height: 16px; }
+        .wave-bar:nth-child(6) { animation-delay: 0.5s; height: 10px; }
+        .wave-bar:nth-child(7) { animation-delay: 0.6s; height: 14px; }
+
+        @keyframes wave {
+            0%, 100% { transform: scaleY(1); }
+            50% { transform: scaleY(1.5); }
+        }
+
+        .island-title {
+            color: #fff;
+            font-size: 14px;
+            font-weight: 600;
             white-space: nowrap;
-            max-width: 90%;
             overflow: hidden;
             text-overflow: ellipsis;
-            transition: opacity 0.3s;
+            max-width: 200px;
+        }
+
+        .island-expanded-content {
+            display: none;
+            width: 100%;
+            height: 100%;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        #dynamicIsland.expanded .island-content {
+            display: none;
+        }
+
+        #dynamicIsland.expanded .island-expanded-content {
+            display: flex;
+        }
+
+        .midi-list-container {
+            flex: 1;
+            overflow-x: auto;
+            overflow-y: hidden;
+            -webkit-overflow-scrolling: touch;
+            scrollbar-width: none;
+        }
+
+        .midi-list-container::-webkit-scrollbar {
+            display: none;
+        }
+
+        .midi-list {
+            display: flex;
+            gap: 20px;
+            padding: 10px 0;
+            min-width: min-content;
+        }
+
+        .midi-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
+            cursor: pointer;
+            transition: transform 0.2s;
+            min-width: 120px;
+        }
+
+        .midi-item:hover {
+            transform: scale(1.05);
+        }
+
+        .midi-item:active {
+            transform: scale(0.95);
+        }
+
+        .midi-cover {
+            width: 100px;
+            height: 100px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 15px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 48px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        }
+
+        .midi-item.active .midi-cover {
+            box-shadow: 0 0 0 3px #fff, 0 4px 12px rgba(0, 0, 0, 0.3);
+        }
+
+        .midi-name {
+            color: #fff;
+            font-size: 12px;
+            text-align: center;
+            max-width: 120px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .close-hint {
+            color: rgba(255, 255, 255, 0.5);
+            font-size: 11px;
+            text-align: center;
+            margin-top: auto;
         }
 
         .canvas-container {
@@ -310,6 +452,30 @@
         </div>
         <div id="instructions"></div>
         <div id="midiName"></div>
+
+        <!-- 灵动岛式 MIDI 选择器 -->
+        <div id="dynamicIsland">
+            <div class="island-content">
+                <div class="island-wave">
+                    <div class="wave-bar"></div>
+                    <div class="wave-bar"></div>
+                    <div class="wave-bar"></div>
+                    <div class="wave-bar"></div>
+                    <div class="wave-bar"></div>
+                    <div class="wave-bar"></div>
+                    <div class="wave-bar"></div>
+                </div>
+                <div class="island-title" id="islandTitle">加载中...</div>
+            </div>
+            <div class="island-expanded-content">
+                <div class="midi-list-container">
+                    <div class="midi-list" id="midiList">
+                        <!-- MIDI 文件列表将动态生成 -->
+                    </div>
+                </div>
+                <div class="close-hint">点击曲目切换 · 点击空白处关闭</div>
+            </div>
+        </div>
 
     </div>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>

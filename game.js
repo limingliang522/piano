@@ -57,6 +57,12 @@ const restartButton = document.getElementById('restart');
 const loadingElement = document.getElementById('loading');
 const instructionsElement = document.getElementById('instructions');
 
+// 灵动岛元素
+const dynamicIsland = document.getElementById('dynamicIsland');
+const islandTitle = document.getElementById('islandTitle');
+const midiList = document.getElementById('midiList');
+let isIslandExpanded = false;
+
 
 // 游戏配置
 const LANES = 5;
@@ -195,7 +201,7 @@ async function loadMidiFile(index) {
         
         // 显示文件名（去掉路径和扩展名）
         currentMidiName = fileName.split('/').pop().replace('.mid', '');
-        document.getElementById('midiName').textContent = currentMidiName;
+        updateIslandTitle(currentMidiName);
         
         loadingElement.style.display = 'none';
         return true;
@@ -1504,6 +1510,105 @@ continueButton.addEventListener('click', handleContinue);
 continueButton.addEventListener('touchend', handleContinue);
 
 
+
+// ========== 灵动岛功能 ==========
+
+// 更新灵动岛标题
+function updateIslandTitle(name) {
+    islandTitle.textContent = name;
+}
+
+// 初始化 MIDI 列表
+function initMidiList() {
+    midiList.innerHTML = '';
+    midiFiles.forEach((file, index) => {
+        const item = document.createElement('div');
+        item.className = 'midi-item';
+        if (index === currentMidiIndex) {
+            item.classList.add('active');
+        }
+        
+        const cover = document.createElement('div');
+        cover.className = 'midi-cover';
+        cover.textContent = '🎵';
+        
+        const name = document.createElement('div');
+        name.className = 'midi-name';
+        name.textContent = file.split('/').pop().replace('.mid', '');
+        
+        item.appendChild(cover);
+        item.appendChild(name);
+        
+        // 点击切换 MIDI
+        item.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (index !== currentMidiIndex) {
+                selectMidi(index);
+            }
+        });
+        
+        midiList.appendChild(item);
+    });
+}
+
+// 选择 MIDI 文件
+async function selectMidi(index) {
+    // 先收起动画
+    dynamicIsland.classList.remove('expanded');
+    isIslandExpanded = false;
+    
+    // 等待动画完成
+    await new Promise(resolve => setTimeout(resolve, 400));
+    
+    // 切换 MIDI
+    currentMidiIndex = index;
+    const success = await loadMidiFile(currentMidiIndex);
+    
+    if (success) {
+        // 重新开始游戏
+        restart();
+        // 更新列表中的选中状态
+        initMidiList();
+    }
+}
+
+// 切换灵动岛展开/收起
+function toggleIsland() {
+    if (isIslandExpanded) {
+        dynamicIsland.classList.remove('expanded');
+        isIslandExpanded = false;
+    } else {
+        dynamicIsland.classList.add('expanded');
+        isIslandExpanded = true;
+        // 初始化列表
+        if (midiFiles.length > 0) {
+            initMidiList();
+        }
+    }
+}
+
+// 灵动岛点击事件
+dynamicIsland.addEventListener('click', (e) => {
+    // 如果点击的是胶囊本身（未展开状态）
+    if (!isIslandExpanded) {
+        toggleIsland();
+    }
+});
+
+// 点击空白处关闭
+document.addEventListener('click', (e) => {
+    if (isIslandExpanded && !dynamicIsland.contains(e.target)) {
+        dynamicIsland.classList.remove('expanded');
+        isIslandExpanded = false;
+    }
+});
+
+// 阻止灵动岛内部点击冒泡
+dynamicIsland.addEventListener('click', (e) => {
+    if (isIslandExpanded) {
+        e.stopPropagation();
+    }
+});
 
 // 启动游戏
 init();
