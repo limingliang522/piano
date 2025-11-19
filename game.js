@@ -38,6 +38,7 @@ const PRELOAD_COUNT = 5; // 预加载5个
 // 跳跃状态
 let isJumping = false;
 let verticalVelocity = 0;
+let jumpQueue = []; // 跳跃队列，存储待执行的跳跃
 const gravity = -0.012; // 重力加速度（减小重力，增加漂浮时间）
 const groundY = 0.25; // 小球的地面高度
 // 超高黑块：底部0，顶部3.0，球半径0.25
@@ -763,8 +764,9 @@ function updatePlayer() {
     updateTrail();
 }
 
-// 跳跃函数
+// 跳跃函数 - 支持快速连续点击
 function jump() {
+    // 立即执行跳跃动作
     if (!isJumping) {
         // 在地面 = 跳跃
         isJumping = true;
@@ -1347,14 +1349,8 @@ document.addEventListener('touchend', (e) => {
         // 点击 = 跳跃或下落（只在游戏运行时）
         if (gameRunning) {
             e.preventDefault();
-            if (!isJumping) {
-                // 在地面 = 跳跃
-                isJumping = true;
-                verticalVelocity = jumpForce;
-            } else {
-                // 在空中 = 快速下落
-                verticalVelocity = -jumpForce;
-            }
+            // 立即执行跳跃，不检查状态
+            jump();
         }
     }
 }, { passive: false });
@@ -1364,7 +1360,13 @@ let isSwitchingMidi = false;
 
 // 切换到下一个MIDI文件
 async function switchToNextMidi() {
-    if (midiFiles.length <= 1 || isSwitchingMidi) return;
+    if (midiFiles.length <= 1) return;
+    
+    // 允许在切换过程中再次点击（取消锁定）
+    if (isSwitchingMidi) {
+        console.log('正在切换中，请稍候...');
+        return;
+    }
     
     isSwitchingMidi = true;
     
@@ -1382,7 +1384,13 @@ async function switchToNextMidi() {
 
 // 切换到上一个MIDI文件
 async function switchToPrevMidi() {
-    if (midiFiles.length <= 1 || isSwitchingMidi) return;
+    if (midiFiles.length <= 1) return;
+    
+    // 允许在切换过程中再次点击（取消锁定）
+    if (isSwitchingMidi) {
+        console.log('正在切换中，请稍候...');
+        return;
+    }
     
     isSwitchingMidi = true;
     
@@ -1551,16 +1559,16 @@ function initMidiList() {
     });
 }
 
-// 选择 MIDI 文件
+// 选择 MIDI 文件 - 随时可点击
 async function selectMidi(index) {
     // 先收起动画
     dynamicIsland.classList.remove('expanded');
     isIslandExpanded = false;
     
-    // 等待动画完成
-    await new Promise(resolve => setTimeout(resolve, 400));
+    // 等待动画完成（缩短等待时间）
+    await new Promise(resolve => setTimeout(resolve, 300));
     
-    // 切换 MIDI
+    // 切换 MIDI（不检查锁定状态）
     currentMidiIndex = index;
     const success = await loadMidiFile(currentMidiIndex);
     

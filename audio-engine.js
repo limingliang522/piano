@@ -83,7 +83,7 @@ class AudioEngine {
         
         // 5. 主音量（大幅提高音量）
         this.masterGain = ctx.createGain();
-        this.masterGain.gain.value = 1.5;
+        this.masterGain.gain.value = 2.5;
         
         // 连接音频处理链：
         // 压缩 → 均衡器 → 混响 → 限制器 → 主音量 → 输出
@@ -315,7 +315,7 @@ class AudioEngine {
             
             // === 音量包络（ADSR - 消除咔嚓声）===
             const gainNode = ctx.createGain();
-            const baseVolume = (velocity / 127) * 2.5; // 基础音量（大幅提高）
+            const baseVolume = (velocity / 127) * 3.5; // 基础音量（大幅提高）
             
             // 根据音高调整音量（高音稍微轻一点）
             const pitchFactor = 1 - (midiNote - 60) / 200;
