@@ -10,6 +10,7 @@ class AudioEngine {
         this.convolver = null; // 卷积混响
         this.compressor = null; // 动态压缩
         this.limiter = null; // 限制器
+        this.softClipper = null; // 软削波器（抖音级音质）
         this.eqLow = null; // 低频均衡
         this.eqMid = null; // 中频均衡
         this.eqHigh = null; // 高频均衡
@@ -91,10 +92,16 @@ class AudioEngine {
             this.limiter.attack.value = 0.003;
             this.limiter.release.value = 0.1;
             
+            console.log('initAudioChain: 创建软削波器（抖音级）...');
+            // 4.5. 软削波器（模拟抖音的音频处理）
+            this.softClipper = ctx.createWaveShaper();
+            this.softClipper.curve = this.makeSoftClipCurve();
+            this.softClipper.oversample = '4x'; // 高质量过采样
+            
             console.log('initAudioChain: 创建主音量...');
-            // 5. 主音量（平衡响度和音质）
+            // 5. 主音量（抖音级响度）
             this.masterGain = ctx.createGain();
-            this.masterGain.gain.value = 2.2;
+            this.masterGain.gain.value = 2.8;
             
             console.log('initAudioChain: 连接音频节点...');
             // 连接音频处理链
@@ -111,7 +118,8 @@ class AudioEngine {
             this.reverbDry.connect(this.limiter);
             this.reverbWet.connect(this.limiter);
             
-            this.limiter.connect(this.masterGain);
+            this.limiter.connect(this.softClipper);
+            this.softClipper.connect(this.masterGain);
             this.masterGain.connect(ctx.destination);
             
             console.log('initAudioChain: 设置 3D 音频监听器...');
@@ -165,6 +173,23 @@ class AudioEngine {
         }
         
         this.convolver.buffer = impulse;
+    }
+    
+    // 创建软削波曲线（抖音级音频处理）
+    makeSoftClipCurve() {
+        const samples = 2048;
+        const curve = new Float32Array(samples);
+        const drive = 1.2; // 驱动强度
+        
+        for (let i = 0; i < samples; i++) {
+            const x = (i / samples) * 2 - 1; // -1 到 1
+            const driven = x * drive;
+            
+            // 使用 tanh 软削波（平滑过渡，不失真）
+            curve[i] = Math.tanh(driven) / Math.tanh(drive);
+        }
+        
+        return curve;
     }
 
     // 将 MIDI 音符号转换为音符名称
@@ -323,7 +348,7 @@ class AudioEngine {
             
             // === 音量包络（ADSR - 消除咔嚓声）===
             const gainNode = ctx.createGain();
-            const baseVolume = (velocity / 127) * 2.6; // 基础音量（平衡响度）
+            const baseVolume = (velocity / 127) * 3.0; // 基础音量（抖音级响度）
             
             // 根据音高调整音量（高音稍微轻一点）
             const pitchFactor = 1 - (midiNote - 60) / 200;
