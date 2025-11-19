@@ -160,8 +160,8 @@ function init() {
     directionalLight.shadow.mapSize.height = 2048;
     scene.add(directionalLight);
     
-    // 添加跟随小球的点光源（发光效果）
-    const playerLight = new THREE.PointLight(0xffffff, 1.5, 15);
+    // 添加跟随小球的点光源（发光效果）- 增强亮度
+    const playerLight = new THREE.PointLight(0xffffff, 2.5, 20);
     playerLight.position.set(0, 1, 0);
     scene.add(playerLight);
     // 保存引用以便后续更新位置
@@ -495,7 +495,7 @@ function createAllNoteBlocks() {
     });
 }
 
-// 创建音符方块（玻璃质感）
+// 创建音符方块（玻璃质感 + 飞入动画）
 function createNoteBlock(noteData) {
     // 使用预先分配的高度
     const isTall = noteData.isTall;
@@ -504,11 +504,11 @@ function createNoteBlock(noteData) {
     
     const geometry = new THREE.BoxGeometry(1.5, blockHeight, 1.2);
     const material = new THREE.MeshPhysicalMaterial({ 
-        color: 0x1a1a1a,
+        color: 0x2a2a2a, // 稍微亮一点
         metalness: 0.9,
         roughness: 0.1,
         transparent: true,
-        opacity: 0.8,
+        opacity: 0.85,
         transmission: 0.3, // 玻璃透射
         thickness: 0.5,
         envMapIntensity: 1,
@@ -517,32 +517,61 @@ function createNoteBlock(noteData) {
     });
     const noteBlock = new THREE.Mesh(geometry, material);
     
-    // 添加发光边缘（白色边框）
+    // 添加更亮的发光边缘（白色边框）
     const edgesGeometry = new THREE.EdgesGeometry(geometry);
     const edgesMaterial = new THREE.LineBasicMaterial({ 
         color: 0xffffff,
         transparent: true,
-        opacity: 0.6
+        opacity: 0.9, // 提高不透明度
+        linewidth: 2
     });
     const edges = new THREE.LineSegments(edgesGeometry, edgesMaterial);
     noteBlock.add(edges);
     
     const x = (noteData.lane - 2) * LANE_WIDTH;
-    // 根据时间计算初始Z位置
-    // 音符需要在正确的时间到达触发线
-    // 触发线在 z=2，音符以原始基础速度移动
-    // 使用原始基础速度来计算位置，这样位置永远不变
-    // 添加额外的偏移量让第一个音符从迷雾边缘开始（大约-40的位置）
-    const extraDistance = 42; // 固定距离，让第一个音符出现在迷雾边缘
-    const zPosition = 2 - (noteData.time * originalBaseSpeed * 60) - extraDistance;
-    noteBlock.position.set(x, blockY, zPosition);
+    // 根据时间计算最终Z位置
+    const extraDistance = 42;
+    const finalZ = 2 - (noteData.time * originalBaseSpeed * 60) - extraDistance;
+    
+    // === 飞入动画：从四面八方汇聚 ===
+    // 随机选择飞入方向
+    const directions = [
+        { x: -15, y: 8, z: finalZ },   // 左上方
+        { x: 15, y: 8, z: finalZ },    // 右上方
+        { x: -20, y: 3, z: finalZ },   // 左侧
+        { x: 20, y: 3, z: finalZ },    // 右侧
+        { x: x, y: 15, z: finalZ }     // 正上方
+    ];
+    
+    // 使用音符时间作为种子，确保每次生成位置一致
+    const seed = noteData.time * 1000 + noteData.lane;
+    const randomValue = Math.sin(seed) * 10000;
+    const dirIndex = Math.floor(Math.abs(randomValue - Math.floor(randomValue)) * directions.length);
+    const startPos = directions[dirIndex];
+    
+    // 设置初始位置（远离轨道）
+    noteBlock.position.set(startPos.x, startPos.y, startPos.z);
+    
+    // 初始缩放为0（从无到有）
+    noteBlock.scale.set(0, 0, 0);
+    
+    // 初始旋转
+    noteBlock.rotation.set(
+        Math.random() * Math.PI,
+        Math.random() * Math.PI,
+        Math.random() * Math.PI
+    );
+    
     noteBlock.castShadow = true;
     
     noteBlock.userData = {
         noteData: noteData,
         isNote: true,
         isTall: isTall,
-        blockHeight: blockHeight
+        blockHeight: blockHeight,
+        finalPosition: { x: x, y: blockY, z: finalZ },
+        animationProgress: 0,
+        isAnimating: true
     };
     
     scene.add(noteBlock);
@@ -580,8 +609,8 @@ function createGround() {
     
     for (let i = 1; i < LANES; i++) {
         const x = (i - LANES / 2) * LANE_WIDTH;
-        // 使用薄的立方体代替线条，产生发光效果
-        const lineGeometry = new THREE.BoxGeometry(0.05, 0.02, 250);
+        // 使用更细的立方体，更优雅
+        const lineGeometry = new THREE.BoxGeometry(0.03, 0.01, 250);
         const lineMesh = new THREE.Mesh(lineGeometry, lineMaterial);
         lineMesh.position.set(x, 0.01, -75);
         scene.add(lineMesh);
@@ -591,7 +620,7 @@ function createGround() {
     createTriggerLine();
 }
 
-// 创建触发线（白色发光）
+// 创建触发线（白色发光 + 脉动效果）
 function createTriggerLine() {
     const geometry = new THREE.PlaneGeometry(LANES * LANE_WIDTH, 0.4);
     const material = new THREE.MeshBasicMaterial({ 
@@ -617,6 +646,10 @@ function createTriggerLine() {
     glowMesh.rotation.x = -Math.PI / 2;
     glowMesh.position.set(0, 0.01, 2);
     scene.add(glowMesh);
+    
+    // 保存光晕引用用于脉动动画
+    window.triggerLineGlow = glowMesh;
+    window.triggerLineMaterial = material;
 }
 
 // 拖尾效果数组
@@ -630,7 +663,7 @@ function createPlayer() {
     const material = new THREE.MeshStandardMaterial({ 
         color: 0xffffff,
         emissive: 0xffffff,
-        emissiveIntensity: 0.5,
+        emissiveIntensity: 0.8, // 增强发光
         metalness: 0.8,
         roughness: 0.2
     });
@@ -639,15 +672,25 @@ function createPlayer() {
     player.castShadow = true;
     scene.add(player);
     
-    // 添加小球的光晕效果
-    const glowGeometry = new THREE.SphereGeometry(0.4, 16, 16);
+    // 添加更大的光晕效果
+    const glowGeometry = new THREE.SphereGeometry(0.5, 16, 16);
     const glowMaterial = new THREE.MeshBasicMaterial({
         color: 0xffffff,
         transparent: true,
-        opacity: 0.3
+        opacity: 0.4
     });
     const glowSphere = new THREE.Mesh(glowGeometry, glowMaterial);
     player.add(glowSphere);
+    
+    // 添加外层光晕
+    const outerGlowGeometry = new THREE.SphereGeometry(0.7, 16, 16);
+    const outerGlowMaterial = new THREE.MeshBasicMaterial({
+        color: 0xffffff,
+        transparent: true,
+        opacity: 0.2
+    });
+    const outerGlowSphere = new THREE.Mesh(outerGlowGeometry, outerGlowMaterial);
+    player.add(outerGlowSphere);
     
     // 创建拖尾球体（发光白色）
     for (let i = 0; i < trailLength; i++) {
@@ -868,7 +911,43 @@ function updateNoteBlocks() {
     
     for (let i = noteObjects.length - 1; i >= 0; i--) {
         const noteBlock = noteObjects[i];
+        
+        // === 飞入动画处理 ===
+        if (noteBlock.userData.isAnimating) {
+            noteBlock.userData.animationProgress += deltaTime * 2; // 动画速度
+            const progress = Math.min(noteBlock.userData.animationProgress, 1);
+            
+            // 使用缓动函数（easeOutCubic）
+            const eased = 1 - Math.pow(1 - progress, 3);
+            
+            // 位置插值
+            const finalPos = noteBlock.userData.finalPosition;
+            noteBlock.position.x += (finalPos.x - noteBlock.position.x) * eased * 0.15;
+            noteBlock.position.y += (finalPos.y - noteBlock.position.y) * eased * 0.15;
+            
+            // 缩放从0到1
+            const scale = eased;
+            noteBlock.scale.set(scale, scale, scale);
+            
+            // 旋转归零
+            noteBlock.rotation.x *= (1 - eased * 0.1);
+            noteBlock.rotation.y *= (1 - eased * 0.1);
+            noteBlock.rotation.z *= (1 - eased * 0.1);
+            
+            // 动画完成
+            if (progress >= 1) {
+                noteBlock.userData.isAnimating = false;
+                noteBlock.position.set(finalPos.x, finalPos.y, finalPos.z);
+                noteBlock.scale.set(1, 1, 1);
+                noteBlock.rotation.set(0, 0, 0);
+            }
+        }
+        
+        // 正常移动（动画完成后或动画期间都要移动）
         noteBlock.position.z += moveSpeed * deltaTime; // 基于时间移动
+        if (noteBlock.userData.finalPosition) {
+            noteBlock.userData.finalPosition.z += moveSpeed * deltaTime;
+        }
         
         const noteData = noteBlock.userData.noteData;
         
@@ -1247,6 +1326,13 @@ function animate(currentTime) {
     }
     deltaTime = (currentTime - lastUpdateTime) / 1000; // 转换为秒
     lastUpdateTime = currentTime;
+    
+    // 触发线脉动动画
+    if (window.triggerLineGlow && window.triggerLineMaterial) {
+        const pulse = Math.sin(currentTime * 0.003) * 0.1 + 0.3;
+        window.triggerLineGlow.material.opacity = pulse;
+        window.triggerLineMaterial.opacity = 0.8 + Math.sin(currentTime * 0.003) * 0.2;
+    }
     
     // 更新FPS统计
     updateFPS(currentTime);
