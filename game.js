@@ -63,6 +63,7 @@ const dynamicIsland = document.getElementById('dynamicIsland');
 const islandTitle = document.getElementById('islandTitle');
 const midiList = document.getElementById('midiList');
 let isIslandExpanded = false;
+let wasGameRunningBeforePause = false; // 记录暂停前的游戏状态
 
 
 // 游戏配置
@@ -160,12 +161,8 @@ function init() {
     directionalLight.shadow.mapSize.height = 2048;
     scene.add(directionalLight);
     
-    // 添加跟随小球的点光源（发光效果）- 增强亮度
-    const playerLight = new THREE.PointLight(0xffffff, 2.5, 20);
-    playerLight.position.set(0, 1, 0);
-    scene.add(playerLight);
-    // 保存引用以便后续更新位置
-    window.playerLight = playerLight;
+    // 取消点光源，避免白色光柱
+    window.playerLight = null;
     
     // 创建地面
     createGround();
@@ -1421,11 +1418,15 @@ document.addEventListener('touchend', (e) => {
         }
     } else {
         // 点击操作
-        // 优先级1：如果灵动岛展开，点击空白处收起界面
+        // 优先级1：如果灵动岛展开，点击空白处收起界面并继续游戏
         if (isIslandExpanded) {
             e.preventDefault();
             dynamicIsland.classList.remove('expanded');
             isIslandExpanded = false;
+            // 恢复游戏运行状态
+            if (wasGameRunningBeforePause) {
+                gameRunning = true;
+            }
             return;
         }
         
@@ -1589,15 +1590,7 @@ function handleRestart(e) {
 restartButton.addEventListener('click', handleRestart);
 restartButton.addEventListener('touchend', handleRestart);
 
-// 继续按钮
-const continueButton = document.getElementById('continue');
-function handleContinue(e) {
-    e.preventDefault();
-    e.stopPropagation();
-    continueGame();
-}
-continueButton.addEventListener('click', handleContinue);
-continueButton.addEventListener('touchend', handleContinue);
+// 继续功能已取消
 
 
 
@@ -1722,14 +1715,21 @@ async function selectMidi(index) {
     }
 }
 
-// 切换灵动岛展开/收起
+// 切换灵动岛展开/收起（带暂停/继续功能）
 function toggleIsland() {
     if (isIslandExpanded) {
+        // 收起 → 继续游戏
         dynamicIsland.classList.remove('expanded');
         isIslandExpanded = false;
+        if (!gameRunning && wasGameRunningBeforePause) {
+            gameRunning = true;
+        }
     } else {
+        // 展开 → 暂停游戏
         dynamicIsland.classList.add('expanded');
         isIslandExpanded = true;
+        wasGameRunningBeforePause = gameRunning;
+        gameRunning = false;
         // 初始化列表
         if (midiFiles.length > 0) {
             initMidiList();
