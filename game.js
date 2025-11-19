@@ -764,16 +764,23 @@ function updatePlayer() {
     updateTrail();
 }
 
-// 跳跃函数 - 支持快速连续点击
+// 跳跃函数 - 极速响应，每次点击立即反转速度
 function jump() {
-    // 立即执行跳跃动作
-    if (!isJumping) {
-        // 在地面 = 跳跃
+    // 在地面：向上跳
+    if (player.position.y <= groundY + 0.01) {
         isJumping = true;
         verticalVelocity = jumpForce;
-    } else {
-        // 在空中 = 快速下落
-        verticalVelocity = -jumpForce;
+    } 
+    // 在空中：立即反转速度方向
+    else {
+        // 如果正在上升，改成下降
+        if (verticalVelocity > 0) {
+            verticalVelocity = -jumpForce;
+        } 
+        // 如果正在下降，改成上升
+        else {
+            verticalVelocity = jumpForce;
+        }
     }
 }
 
@@ -1274,18 +1281,11 @@ document.addEventListener('keydown', (e) => {
             targetLane++;
         }
     } else if (e.key === 'ArrowUp' || e.key === 'w' || e.key === 'W' || e.key === ' ') {
-        // 上键或空格 = 跳跃或下落
-        if (!isJumping) {
-            isJumping = true;
-            verticalVelocity = jumpForce;
-        } else {
-            verticalVelocity = -moveSpeed * 1.5;
-        }
+        // 上键或空格 = 跳跃或反转
+        jump();
     } else if (e.key === 'ArrowDown' || e.key === 's' || e.key === 'S') {
-        // 下键 = 快速下落
-        if (isJumping) {
-            verticalVelocity = -moveSpeed * 1.5;
-        }
+        // 下键 = 跳跃或反转（同样的效果）
+        jump();
     }
 });
 
@@ -1294,6 +1294,13 @@ let touchStartX = 0;
 let touchStartY = 0;
 
 document.addEventListener('touchstart', (e) => {
+    // 检查是否点击了灵动岛
+    const island = document.getElementById('dynamicIsland');
+    if (island && island.contains(e.target)) {
+        // 点击了灵动岛，不阻止默认行为
+        return;
+    }
+    
     // 只在游戏运行时阻止默认行为
     if (gameRunning) {
         e.preventDefault();
@@ -1303,22 +1310,12 @@ document.addEventListener('touchstart', (e) => {
 }, { passive: false });
 
 document.addEventListener('touchmove', (e) => {
-    // 只在游戏运行时阻止默认行为
-    if (gameRunning) {
-        e.preventDefault();
+    // 检查是否在灵动岛上
+    const island = document.getElementById('dynamicIsland');
+    if (island && island.contains(e.target)) {
+        return;
     }
-}, { passive: false });
-
-document.addEventListener('touchstart', (e) => {
-    // 只在游戏运行时阻止默认行为
-    if (gameRunning) {
-        e.preventDefault();
-        touchStartX = e.touches[0].clientX;
-        touchStartY = e.touches[0].clientY;
-    }
-}, { passive: false });
-
-document.addEventListener('touchmove', (e) => {
+    
     // 只在游戏运行时阻止默认行为
     if (gameRunning) {
         e.preventDefault();
@@ -1326,6 +1323,13 @@ document.addEventListener('touchmove', (e) => {
 }, { passive: false });
 
 document.addEventListener('touchend', (e) => {
+    // 检查是否点击了灵动岛
+    const island = document.getElementById('dynamicIsland');
+    if (island && island.contains(e.target)) {
+        // 点击了灵动岛，不处理游戏逻辑
+        return;
+    }
+    
     const touchEndX = e.changedTouches[0].clientX;
     const touchEndY = e.changedTouches[0].clientY;
     const diffX = touchEndX - touchStartX;

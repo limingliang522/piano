@@ -37,10 +37,10 @@ class AudioEngine {
         
         // 1. 动态压缩器（平衡音量，增加冲击力 - 柔和设置）
         this.compressor = ctx.createDynamicsCompressor();
-        this.compressor.threshold.value = -30; // 阈值（更高）
-        this.compressor.knee.value = 30; // 柔和压缩
-        this.compressor.ratio.value = 8; // 压缩比（降低）
-        this.compressor.attack.value = 0.005; // 稍慢响应（避免咔嚓）
+        this.compressor.threshold.value = -24; // 阈值（提高，减少压缩）
+        this.compressor.knee.value = 40; // 更柔和的压缩
+        this.compressor.ratio.value = 4; // 压缩比（降低，避免失真）
+        this.compressor.attack.value = 0.003; // 快速响应
         this.compressor.release.value = 0.25; // 释放时间
         
         // 2. 三段均衡器（精细调音）
@@ -73,17 +73,17 @@ class AudioEngine {
         this.reverbWet = ctx.createGain();
         this.reverbWet.gain.value = 0.15; // 15% 湿声（减少混响）
         
-        // 4. 限制器（防止削波 - 更严格）
+        // 4. 限制器（防止削波 - 柔和限制）
         this.limiter = ctx.createDynamicsCompressor();
-        this.limiter.threshold.value = -6; // 更低的阈值
-        this.limiter.knee.value = 3; // 柔和拐点
-        this.limiter.ratio.value = 20;
-        this.limiter.attack.value = 0.001;
+        this.limiter.threshold.value = -3; // 提高阈值，减少限制
+        this.limiter.knee.value = 6; // 更柔和的拐点
+        this.limiter.ratio.value = 12; // 降低压缩比
+        this.limiter.attack.value = 0.003;
         this.limiter.release.value = 0.1;
         
-        // 5. 主音量（大幅提高音量）
+        // 5. 主音量（适中音量，避免失真）
         this.masterGain = ctx.createGain();
-        this.masterGain.gain.value = 2.5;
+        this.masterGain.gain.value = 1.8;
         
         // 连接音频处理链：
         // 压缩 → 均衡器 → 混响 → 限制器 → 主音量 → 输出
@@ -315,7 +315,7 @@ class AudioEngine {
             
             // === 音量包络（ADSR - 消除咔嚓声）===
             const gainNode = ctx.createGain();
-            const baseVolume = (velocity / 127) * 3.5; // 基础音量（大幅提高）
+            const baseVolume = (velocity / 127) * 2.8; // 基础音量（适中，避免失真）
             
             // 根据音高调整音量（高音稍微轻一点）
             const pitchFactor = 1 - (midiNote - 60) / 200;
