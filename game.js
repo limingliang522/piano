@@ -530,8 +530,10 @@ function createNoteBlock(noteData) {
     
     const x = (noteData.lane - 2) * LANE_WIDTH;
     // 根据时间计算初始Z位置
-    const extraDistance = 42;
-    const zPosition = 2 - (noteData.time * originalBaseSpeed * 60) - extraDistance;
+    // 修复：移除固定的extraDistance，让音符的初始位置完全基于MIDI时间
+    // 触发线在z=2，黑块从后方移动过来
+    // 初始位置 = 触发线位置 - (音符时间 * 移动速度)
+    const zPosition = 2 - (noteData.time * originalBaseSpeed * 60);
     noteBlock.position.set(x, blockY, zPosition);
     noteBlock.castShadow = true;
     
@@ -949,7 +951,8 @@ function updateNoteBlocks() {
             score += 100;
             
             // 播放音符（极致音质 - 传递轨道信息用于3D定位）
-            audioEngine.playNote(noteData.note, noteData.duration, noteData.velocity * 1.5, noteData.lane);
+            // 使用原始velocity，完美还原MIDI
+            audioEngine.playNote(noteData.note, noteData.duration, noteData.velocity, noteData.lane);
             
             // 改变颜色表示已触发（白色发光）
             noteBlock.material.color.setHex(0xffffff);
@@ -1310,7 +1313,7 @@ function animate(currentTime) {
     
     // 如果有MIDI音符，更新音符方块；否则更新普通障碍物
     if (midiNotes.length > 0) {
-        // 只有在第二轮及以后才缓慢增加速度
+        // 禁用速度增长，以后才缓慢增加速度
         if (starsEarned > 0) {
             midiSpeed += speedIncreaseRate * speedMultiplier;
         }
