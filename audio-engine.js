@@ -75,9 +75,11 @@ class AudioEngine {
         this.eqHigh.frequency.value = 6000;
         this.eqHigh.gain.value = 4; // +4dB
         
-        // 3. 卷积混响（音乐厅效果 - 轻量化）
+        // 3. 卷积混响（音乐厅效果 - 简化版）
         this.convolver = ctx.createConvolver();
-        this.createReverbImpulse(); // 创建混响脉冲响应
+        // 创建一个极简的混响buffer，避免卡顿
+        const impulse = ctx.createBuffer(2, ctx.sampleRate * 0.1, ctx.sampleRate);
+        this.convolver.buffer = impulse;
         
         // 混响干湿比控制（减少混响，提升性能）
         this.reverbDry = ctx.createGain();
