@@ -81,9 +81,9 @@ class AudioEngine {
         this.limiter.attack.value = 0.001;
         this.limiter.release.value = 0.1;
         
-        // 5. 主音量（适中音量，避免削波）
+        // 5. 主音量（提高音量）
         this.masterGain = ctx.createGain();
-        this.masterGain.gain.value = 1.0;
+        this.masterGain.gain.value = 1.15;
         
         // 连接音频处理链：
         // 压缩 → 均衡器 → 混响 → 限制器 → 主音量 → 输出
@@ -315,11 +315,11 @@ class AudioEngine {
             
             // === 音量包络（ADSR - 消除咔嚓声）===
             const gainNode = ctx.createGain();
-            const baseVolume = (velocity / 127) * 1.0; // 基础音量（降低避免削波）
+            const baseVolume = (velocity / 127) * 1.4; // 基础音量（提高）
             
             // 根据音高调整音量（高音稍微轻一点）
             const pitchFactor = 1 - (midiNote - 60) / 200;
-            const volume = baseVolume * Math.max(0.7, Math.min(1.2, pitchFactor));
+            const volume = baseVolume * Math.max(0.8, Math.min(1.3, pitchFactor));
             
             // Attack（柔和起音，10ms - 消除咔嚓声）
             gainNode.gain.setValueAtTime(0, now);
