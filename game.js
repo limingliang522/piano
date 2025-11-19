@@ -846,8 +846,8 @@ function updateNoteBlocks() {
             notesTriggered++;
             score += 100;
             
-            // 播放音符（增大音量）
-            audioEngine.playNote(noteData.note, noteData.duration, noteData.velocity * 1.5);
+            // 播放音符（极致音质 - 传递轨道信息用于3D定位）
+            audioEngine.playNote(noteData.note, noteData.duration, noteData.velocity * 1.5, noteData.lane);
             
             // 改变颜色表示已触发（白色）
             noteBlock.material.color.setHex(0xffffff);
