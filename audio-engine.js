@@ -35,12 +35,12 @@ class AudioEngine {
     initAudioChain() {
         const ctx = this.audioContext;
         
-        // 1. 动态压缩器（平衡音量，增加冲击力）
+        // 1. 动态压缩器（平衡音量，增加冲击力 - 柔和设置）
         this.compressor = ctx.createDynamicsCompressor();
-        this.compressor.threshold.value = -24; // 阈值
+        this.compressor.threshold.value = -30; // 阈值（更高）
         this.compressor.knee.value = 30; // 柔和压缩
-        this.compressor.ratio.value = 12; // 压缩比
-        this.compressor.attack.value = 0.003; // 快速响应
+        this.compressor.ratio.value = 8; // 压缩比（降低）
+        this.compressor.attack.value = 0.005; // 稍慢响应（避免咔嚓）
         this.compressor.release.value = 0.25; // 释放时间
         
         // 2. 三段均衡器（精细调音）
@@ -73,17 +73,17 @@ class AudioEngine {
         this.reverbWet = ctx.createGain();
         this.reverbWet.gain.value = 0.15; // 15% 湿声（减少混响）
         
-        // 4. 限制器（防止削波）
+        // 4. 限制器（防止削波 - 更严格）
         this.limiter = ctx.createDynamicsCompressor();
-        this.limiter.threshold.value = -3;
-        this.limiter.knee.value = 0;
+        this.limiter.threshold.value = -6; // 更低的阈值
+        this.limiter.knee.value = 3; // 柔和拐点
         this.limiter.ratio.value = 20;
         this.limiter.attack.value = 0.001;
         this.limiter.release.value = 0.1;
         
-        // 5. 主音量（提高音量）
+        // 5. 主音量（适中音量，避免削波）
         this.masterGain = ctx.createGain();
-        this.masterGain.gain.value = 1.2;
+        this.masterGain.gain.value = 1.0;
         
         // 连接音频处理链：
         // 压缩 → 均衡器 → 混响 → 限制器 → 主音量 → 输出
@@ -313,29 +313,26 @@ class AudioEngine {
             const panValue = (lane - 2) / 2; // -1, -0.5, 0, 0.5, 1
             stereoPanner.pan.value = Math.max(-1, Math.min(1, panValue));
             
-            // === 音量包络（ADSR）===
+            // === 音量包络（ADSR - 消除咔嚓声）===
             const gainNode = ctx.createGain();
-            const baseVolume = (velocity / 127) * 1.5; // 基础音量（提高）
+            const baseVolume = (velocity / 127) * 1.0; // 基础音量（降低避免削波）
             
             // 根据音高调整音量（高音稍微轻一点）
             const pitchFactor = 1 - (midiNote - 60) / 200;
-            const volume = baseVolume * Math.max(0.8, Math.min(1.4, pitchFactor));
+            const volume = baseVolume * Math.max(0.7, Math.min(1.2, pitchFactor));
             
-            // Attack（快速起音，2ms）
+            // Attack（柔和起音，10ms - 消除咔嚓声）
             gainNode.gain.setValueAtTime(0, now);
-            gainNode.gain.linearRampToValueAtTime(volume, now + 0.002);
+            gainNode.gain.linearRampToValueAtTime(volume, now + 0.01);
             
             // Decay + Sustain（保持）
-            const sustainTime = noteDuration - 0.05;
-            if (sustainTime > 0) {
-                gainNode.gain.setValueAtTime(volume, now + 0.002);
-                // 自然衰减
-                gainNode.gain.exponentialRampToValueAtTime(volume * 0.6, now + sustainTime);
-            }
+            const sustainTime = Math.max(noteDuration - 0.08, 0.02);
+            gainNode.gain.setValueAtTime(volume, now + 0.01);
+            // 自然衰减
+            gainNode.gain.linearRampToValueAtTime(volume * 0.7, now + 0.01 + sustainTime);
             
-            // Release（柔和释放，50ms）
-            gainNode.gain.setValueAtTime(gainNode.gain.value, now + sustainTime);
-            gainNode.gain.exponentialRampToValueAtTime(0.001, now + noteDuration);
+            // Release（柔和释放，70ms - 消除咔嚓声）
+            gainNode.gain.linearRampToValueAtTime(0, now + noteDuration);
             
             // === 微妙的音高调制（模拟真实钢琴的不完美）===
             const detuneAmount = (Math.random() - 0.5) * 2; // ±1 cent
