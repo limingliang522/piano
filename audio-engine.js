@@ -99,9 +99,9 @@ class AudioEngine {
             this.softClipper.oversample = '4x'; // 高质量过采样
             
             console.log('initAudioChain: 创建主音量...');
-            // 5. 主音量（抖音级响度）
+            // 5. 主音量（平衡响度）
             this.masterGain = ctx.createGain();
-            this.masterGain.gain.value = 2.8;
+            this.masterGain.gain.value = 2.0;
             
             console.log('initAudioChain: 连接音频节点...');
             // 连接音频处理链
@@ -175,11 +175,11 @@ class AudioEngine {
         this.convolver.buffer = impulse;
     }
     
-    // 创建软削波曲线（抖音级音频处理）
+    // 创建软削波曲线（温和版）
     makeSoftClipCurve() {
         const samples = 2048;
         const curve = new Float32Array(samples);
-        const drive = 1.2; // 驱动强度
+        const drive = 0.8; // 降低驱动强度（从 1.2 降到 0.8）
         
         for (let i = 0; i < samples; i++) {
             const x = (i / samples) * 2 - 1; // -1 到 1
@@ -348,7 +348,7 @@ class AudioEngine {
             
             // === 音量包络（ADSR - 消除咔嚓声）===
             const gainNode = ctx.createGain();
-            const baseVolume = (velocity / 127) * 3.0; // 基础音量（抖音级响度）
+            const baseVolume = (velocity / 127) * 2.4; // 基础音量（平衡）
             
             // 根据音高调整音量（高音稍微轻一点）
             const pitchFactor = 1 - (midiNote - 60) / 200;
