@@ -81,6 +81,7 @@ let frameCount = 0;
 let fpsCheckTime = 0;
 let fpsHistory = [];
 let currentFPS = 0;
+let performanceMode = 'high'; // high, medium, low
 
 function detectRefreshRate() {
     // 计算平均FPS
@@ -88,13 +89,39 @@ function detectRefreshRate() {
     
     if (avgFPS > 110) {
         targetFPS = 120;
+        performanceMode = 'high';
     } else if (avgFPS > 80) {
         targetFPS = 90;
+        performanceMode = 'high';
+    } else if (avgFPS > 50) {
+        targetFPS = 60;
+        performanceMode = 'medium';
     } else {
         targetFPS = 60;
+        performanceMode = 'low';
     }
+    
     console.log(`检测到屏幕刷新率: ${targetFPS}Hz (平均FPS: ${avgFPS.toFixed(1)})`);
+    console.log(`性能模式: ${performanceMode}`);
     fpsElement.textContent = `${targetFPS}Hz`;
+    
+    // 根据性能调整画质
+    adjustQuality();
+}
+
+function adjustQuality() {
+    if (performanceMode === 'low') {
+        // 低端设备：关闭阴影，降低像素比
+        renderer.shadowMap.enabled = false;
+        renderer.setPixelRatio(1);
+        scene.fog.far = 50; // 减少雾效范围
+        console.log('已切换到低画质模式');
+    } else if (performanceMode === 'medium') {
+        // 中端设备：保持阴影，适中像素比
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
+        console.log('已切换到中画质模式');
+    }
+    // high 模式保持原样
 }
 
 function updateFPS(currentTime) {
