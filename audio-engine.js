@@ -51,7 +51,7 @@ class AudioEngine {
             
             // 1.5. Makeup Gain（补偿压缩损失的音量）
             this.makeupGain = ctx.createGain();
-            this.makeupGain.gain.value = 1.6;
+            this.makeupGain.gain.value = 1.4;
             
             console.log('initAudioChain: 创建均衡器...');
             // 2. 三段均衡器（精细调音）
@@ -83,18 +83,18 @@ class AudioEngine {
             this.reverbWet.gain.value = 0;
             
             console.log('initAudioChain: 创建限制器...');
-            // 4. 限制器（防止削波 - 硬限制，最大化响度）
+            // 4. 限制器（防止削波 - 平衡限制）
             this.limiter = ctx.createDynamicsCompressor();
-            this.limiter.threshold.value = -0.5;
-            this.limiter.knee.value = 0;
-            this.limiter.ratio.value = 20;
+            this.limiter.threshold.value = -2;
+            this.limiter.knee.value = 2;
+            this.limiter.ratio.value = 15;
             this.limiter.attack.value = 0.003;
             this.limiter.release.value = 0.1;
             
             console.log('initAudioChain: 创建主音量...');
-            // 5. 主音量（最大化响度）
+            // 5. 主音量（平衡响度和音质）
             this.masterGain = ctx.createGain();
-            this.masterGain.gain.value = 3.0;
+            this.masterGain.gain.value = 2.2;
             
             console.log('initAudioChain: 连接音频节点...');
             // 连接音频处理链
@@ -323,7 +323,7 @@ class AudioEngine {
             
             // === 音量包络（ADSR - 消除咔嚓声）===
             const gainNode = ctx.createGain();
-            const baseVolume = (velocity / 127) * 3.2; // 基础音量（提升响度）
+            const baseVolume = (velocity / 127) * 2.6; // 基础音量（平衡响度）
             
             // 根据音高调整音量（高音稍微轻一点）
             const pitchFactor = 1 - (midiNote - 60) / 200;
