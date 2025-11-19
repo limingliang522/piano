@@ -75,11 +75,9 @@ class AudioEngine {
         this.eqHigh.frequency.value = 6000;
         this.eqHigh.gain.value = 4; // +4dB
         
-        // 3. 卷积混响（音乐厅效果 - 简化版）
+        // 3. 卷积混响（音乐厅效果 - 轻量化）
         this.convolver = ctx.createConvolver();
-        // 创建一个极简的混响buffer，避免卡顿
-        const impulse = ctx.createBuffer(2, ctx.sampleRate * 0.1, ctx.sampleRate);
-        this.convolver.buffer = impulse;
+        this.createReverbImpulse(); // 创建混响脉冲响应
         
         // 混响干湿比控制（减少混响，提升性能）
         this.reverbDry = ctx.createGain();
@@ -443,20 +441,27 @@ class AudioEngine {
 
     // 启动音频上下文
     async start() {
-        console.log('ensureAudioContext 开始...');
-        this.ensureAudioContext();
-        console.log('ensureAudioContext 完成，状态:', this.audioContext.state);
-        
-        if (this.audioContext.state === 'suspended') {
-            console.log('音频上下文被挂起，尝试恢复...');
-            try {
+        console.log('start() 方法开始执行...');
+        try {
+            console.log('调用 ensureAudioContext()...');
+            this.ensureAudioContext();
+            console.log('ensureAudioContext() 完成，audioContext 状态:', this.audioContext ? this.audioContext.state : 'null');
+            
+            if (!this.audioContext) {
+                throw new Error('AudioContext 创建失败');
+            }
+            
+            if (this.audioContext.state === 'suspended') {
+                console.log('音频上下文被挂起，尝试恢复...');
                 await this.audioContext.resume();
                 console.log('音频上下文恢复成功，新状态:', this.audioContext.state);
-            } catch (error) {
-                console.error('音频上下文恢复失败:', error);
-                throw error;
             }
+            
+            console.log('start() 方法执行完成');
+            return true;
+        } catch (error) {
+            console.error('start() 方法执行失败:', error);
+            throw error;
         }
-        console.log('音频上下文已启动');
     }
 }
