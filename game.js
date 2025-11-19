@@ -974,17 +974,8 @@ function completeRound() {
     // 更新当前速度为：原始速度 × 倍数
     midiSpeed = originalBaseSpeed * speedMultiplier;
     
-    // 显示完成提示
-    comboElement.style.display = 'block';
-    comboElement.textContent = `⭐ 完成！获得第 ${starsEarned} 颗星！`;
-    comboElement.style.fontSize = '24px';
-    comboElement.style.color = '#ffd700';
-    
-    // 1秒后隐藏提示并继续
-    setTimeout(() => {
-        comboElement.style.display = 'none';
-        restartRound();
-    }, 1000);
+    // 直接继续下一轮，不显示提示
+    restartRound();
 }
 
 // 重新开始一轮（不重置星星和速度）
