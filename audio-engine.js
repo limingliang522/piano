@@ -19,15 +19,27 @@ class AudioEngine {
     
     // 确保AudioContext已创建
     ensureAudioContext() {
+        console.log('ensureAudioContext: 检查 audioContext...');
         if (!this.audioContext) {
-            // 使用平衡模式（性能优化）
-            this.audioContext = new (window.AudioContext || window.webkitAudioContext)({
-                latencyHint: 'balanced', // 平衡延迟和性能
-                sampleRate: 44100 // 标准采样率（降低CPU负担）
-            });
-            
-            // 初始化专业音频处理链
-            this.initAudioChain();
+            console.log('ensureAudioContext: 创建新的 AudioContext...');
+            try {
+                // 使用平衡模式（性能优化）
+                this.audioContext = new (window.AudioContext || window.webkitAudioContext)({
+                    latencyHint: 'balanced', // 平衡延迟和性能
+                    sampleRate: 44100 // 标准采样率（降低CPU负担）
+                });
+                console.log('ensureAudioContext: AudioContext 创建成功');
+                
+                // 初始化专业音频处理链
+                console.log('ensureAudioContext: 初始化音频处理链...');
+                this.initAudioChain();
+                console.log('ensureAudioContext: 音频处理链初始化完成');
+            } catch (error) {
+                console.error('ensureAudioContext: 创建失败:', error);
+                throw error;
+            }
+        } else {
+            console.log('ensureAudioContext: audioContext 已存在');
         }
     }
     
@@ -429,9 +441,19 @@ class AudioEngine {
 
     // 启动音频上下文
     async start() {
+        console.log('ensureAudioContext 开始...');
         this.ensureAudioContext();
+        console.log('ensureAudioContext 完成，状态:', this.audioContext.state);
+        
         if (this.audioContext.state === 'suspended') {
-            await this.audioContext.resume();
+            console.log('音频上下文被挂起，尝试恢复...');
+            try {
+                await this.audioContext.resume();
+                console.log('音频上下文恢复成功，新状态:', this.audioContext.state);
+            } catch (error) {
+                console.error('音频上下文恢复失败:', error);
+                throw error;
+            }
         }
         console.log('音频上下文已启动');
     }

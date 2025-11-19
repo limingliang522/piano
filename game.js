@@ -277,6 +277,15 @@ async function initMIDISystem() {
             startButton.removeEventListener('touchstart', startGame);
             startButton.style.display = 'none';
             
+            // 检查audioEngine是否存在
+            if (!audioEngine) {
+                console.error('audioEngine 未初始化！');
+                alert('音频引擎未初始化，请刷新页面');
+                return;
+            }
+            
+            console.log('audioEngine 存在:', audioEngine);
+            
             // 显示加载提示
             loadingElement.style.display = 'block';
             loadingElement.textContent = '启动音频系统...';
@@ -285,7 +294,9 @@ async function initMIDISystem() {
             try {
                 // 启动音频上下文
                 console.log('启动音频上下文...');
+                console.log('调用 audioEngine.start()...');
                 await audioEngine.start();
+                console.log('audioEngine.start() 返回了');
                 console.log('音频上下文启动完成');
                 
                 loadingElement.textContent = '加载钢琴音色 0/30';
