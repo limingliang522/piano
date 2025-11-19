@@ -41,60 +41,65 @@ class AudioEngine {
         const ctx = this.audioContext;
         
         try {
-            // 1. 动态压缩器（平衡音量，增加冲击力 - 柔和设置）
+            // 1. 动态压缩器（平衡音量，增加冲击力 - 温和设置）
             this.compressor = ctx.createDynamicsCompressor();
-            this.compressor.threshold.value = -24;
+            this.compressor.threshold.value = -20;
             this.compressor.knee.value = 40;
-            this.compressor.ratio.value = 4;
+            this.compressor.ratio.value = 3;
             this.compressor.attack.value = 0.003;
             this.compressor.release.value = 0.25;
+            
+            // 1.5. Makeup Gain（补偿压缩损失的音量）
+            this.makeupGain = ctx.createGain();
+            this.makeupGain.gain.value = 1.3;
             
             console.log('initAudioChain: 创建均衡器...');
             // 2. 三段均衡器（精细调音）
             this.eqLow = ctx.createBiquadFilter();
             this.eqLow.type = 'lowshelf';
             this.eqLow.frequency.value = 200;
-            this.eqLow.gain.value = 3;
+            this.eqLow.gain.value = 0;
             
             this.eqMid = ctx.createBiquadFilter();
             this.eqMid.type = 'peaking';
             this.eqMid.frequency.value = 2000;
             this.eqMid.Q.value = 0.7;
-            this.eqMid.gain.value = 2;
+            this.eqMid.gain.value = 0;
             
             this.eqHigh = ctx.createBiquadFilter();
             this.eqHigh.type = 'highshelf';
             this.eqHigh.frequency.value = 6000;
-            this.eqHigh.gain.value = 4;
+            this.eqHigh.gain.value = 0;
             
             console.log('initAudioChain: 创建混响...');
             // 3. 卷积混响（音乐厅效果 - 轻量化）
             this.convolver = ctx.createConvolver();
             this.createReverbImpulse();
             
-            // 混响干湿比控制
+            // 混响干湿比控制（关闭混响以完美还原MIDI）
             this.reverbDry = ctx.createGain();
-            this.reverbDry.gain.value = 0.85;
+            this.reverbDry.gain.value = 1.0;
             this.reverbWet = ctx.createGain();
-            this.reverbWet.gain.value = 0.15;
+            this.reverbWet.gain.value = 0;
             
             console.log('initAudioChain: 创建限制器...');
-            // 4. 限制器（防止削波 - 柔和限制）
+            // 4. 限制器（防止削波 - 硬限制，提升响度）
             this.limiter = ctx.createDynamicsCompressor();
-            this.limiter.threshold.value = -3;
-            this.limiter.knee.value = 6;
-            this.limiter.ratio.value = 12;
+            this.limiter.threshold.value = -1;
+            this.limiter.knee.value = 0;
+            this.limiter.ratio.value = 20;
             this.limiter.attack.value = 0.003;
             this.limiter.release.value = 0.1;
             
             console.log('initAudioChain: 创建主音量...');
-            // 5. 主音量
+            // 5. 主音量（提升响度）
             this.masterGain = ctx.createGain();
-            this.masterGain.gain.value = 1.8;
+            this.masterGain.gain.value = 2.5;
             
             console.log('initAudioChain: 连接音频节点...');
             // 连接音频处理链
-            this.compressor.connect(this.eqLow);
+            this.compressor.connect(this.makeupGain);
+            this.makeupGain.connect(this.eqLow);
             this.eqLow.connect(this.eqMid);
             this.eqMid.connect(this.eqHigh);
             
@@ -337,9 +342,8 @@ class AudioEngine {
             // Release（柔和释放，70ms - 消除咔嚓声）
             gainNode.gain.linearRampToValueAtTime(0, now + noteDuration);
             
-            // === 微妙的音高调制（模拟真实钢琴的不完美）===
-            const detuneAmount = (Math.random() - 0.5) * 2; // ±1 cent
-            source.detune.value = detuneAmount;
+            // === 完美还原MIDI，不添加随机音高偏移 ===
+            // 已移除随机 detune，保持音高精确
             
             // === 连接音频处理链 ===
             // 音源 → 3D定位 → 立体声 → 音量包络 → 压缩器 → [效果链] → 输出
