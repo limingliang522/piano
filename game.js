@@ -530,10 +530,10 @@ function createNoteBlock(noteData) {
     
     const x = (noteData.lane - 2) * LANE_WIDTH;
     // 根据时间计算初始Z位置
-    // 修复：移除固定的extraDistance，让音符的初始位置完全基于MIDI时间
-    // 触发线在z=2，黑块从后方移动过来
-    // 初始位置 = 触发线位置 - (音符时间 * 移动速度)
-    const zPosition = 2 - (noteData.time * originalBaseSpeed * 60);
+    // 触发线在z=2，黑块从迷雾深处移动过来
+    // 添加缓冲距离，让黑块从远处出现
+    const bufferDistance = 30; // 缓冲距离，让黑块从迷雾中出现
+    const zPosition = 2 - (noteData.time * originalBaseSpeed * 60) - bufferDistance;
     noteBlock.position.set(x, blockY, zPosition);
     noteBlock.castShadow = true;
     
@@ -569,11 +569,11 @@ function createGround() {
         ground.push(groundMesh);
     }
     
-    // 添加发光轨道线（青色霓虹）
+    // 添加轨道线（深灰色，低调）
     const lineMaterial = new THREE.MeshBasicMaterial({ 
-        color: 0x00ffff, // 青色
+        color: 0x444444, // 深灰色
         transparent: true,
-        opacity: 0.7,
+        opacity: 0.5,
         fog: true
     });
     
@@ -588,9 +588,9 @@ function createGround() {
     
     // 添加两侧边界线（让5条轨道更明显）
     const edgeMaterial = new THREE.MeshBasicMaterial({
-        color: 0x00ffff,
+        color: 0x444444, // 深灰色
         transparent: true,
-        opacity: 0.5,
+        opacity: 0.4,
         fog: true
     });
     
@@ -610,13 +610,13 @@ function createGround() {
     createTriggerLine();
 }
 
-// 创建触发线（白色发光 + 脉动效果）
+// 创建触发线（极淡的线条，不发光）
 function createTriggerLine() {
-    const geometry = new THREE.PlaneGeometry(LANES * LANE_WIDTH, 0.4);
+    const geometry = new THREE.PlaneGeometry(LANES * LANE_WIDTH, 0.2);
     const material = new THREE.MeshBasicMaterial({ 
-        color: 0xffffff,
+        color: 0x666666, // 深灰色
         transparent: true,
-        opacity: 0.9,
+        opacity: 0.3, // 降低不透明度
         side: THREE.DoubleSide
     });
     triggerLine = new THREE.Mesh(geometry, material);
@@ -624,21 +624,8 @@ function createTriggerLine() {
     triggerLine.position.set(0, 0.02, 2);
     scene.add(triggerLine);
     
-    // 添加触发线的发光效果（额外的光晕层）
-    const glowGeometry = new THREE.PlaneGeometry(LANES * LANE_WIDTH + 1, 1);
-    const glowMaterial = new THREE.MeshBasicMaterial({
-        color: 0xffffff,
-        transparent: true,
-        opacity: 0.2,
-        side: THREE.DoubleSide
-    });
-    const glowMesh = new THREE.Mesh(glowGeometry, glowMaterial);
-    glowMesh.rotation.x = -Math.PI / 2;
-    glowMesh.position.set(0, 0.01, 2);
-    scene.add(glowMesh);
-    
-    // 保存光晕引用用于脉动动画
-    window.triggerLineGlow = glowMesh;
+    // 取消发光效果和脉动动画
+    window.triggerLineGlow = null;
     window.triggerLineMaterial = material;
 }
 
@@ -647,13 +634,13 @@ let trailPositions = [];
 const trailLength = 10;
 let trailSpheres = [];
 
-// 创建玩家（白色发光小球）
+// 创建玩家（白色小球 - 取消光圈）
 function createPlayer() {
     const geometry = new THREE.SphereGeometry(0.25, 32, 32);
     const material = new THREE.MeshStandardMaterial({ 
         color: 0xffffff,
         emissive: 0xffffff,
-        emissiveIntensity: 0.8, // 增强发光
+        emissiveIntensity: 0.2, // 降低发光强度，只保留微光
         metalness: 0.8,
         roughness: 0.2
     });
@@ -662,31 +649,13 @@ function createPlayer() {
     player.castShadow = true;
     scene.add(player);
     
-    // 添加更大的光晕效果
-    const glowGeometry = new THREE.SphereGeometry(0.5, 16, 16);
-    const glowMaterial = new THREE.MeshBasicMaterial({
-        color: 0xffffff,
-        transparent: true,
-        opacity: 0.4
-    });
-    const glowSphere = new THREE.Mesh(glowGeometry, glowMaterial);
-    player.add(glowSphere);
+    // 取消光圈效果，保持画面干净
     
-    // 添加外层光晕
-    const outerGlowGeometry = new THREE.SphereGeometry(0.7, 16, 16);
-    const outerGlowMaterial = new THREE.MeshBasicMaterial({
-        color: 0xffffff,
-        transparent: true,
-        opacity: 0.2
-    });
-    const outerGlowSphere = new THREE.Mesh(outerGlowGeometry, outerGlowMaterial);
-    player.add(outerGlowSphere);
-    
-    // 创建拖尾球体（发光白色）
+    // 创建拖尾球体（半透明，不发光）
     for (let i = 0; i < trailLength; i++) {
         const trailGeometry = new THREE.SphereGeometry(0.2, 16, 16);
         const trailMaterial = new THREE.MeshBasicMaterial({
-            color: 0xffffff,
+            color: 0xcccccc, // 改为浅灰色
             transparent: true,
             opacity: 0
         });
@@ -1451,10 +1420,18 @@ document.addEventListener('touchend', (e) => {
             }
         }
     } else {
-        // 点击 = 跳跃或下落（只在游戏运行时）
+        // 点击操作
+        // 优先级1：如果灵动岛展开，点击空白处收起界面
+        if (isIslandExpanded) {
+            e.preventDefault();
+            dynamicIsland.classList.remove('expanded');
+            isIslandExpanded = false;
+            return;
+        }
+        
+        // 优先级2：游戏运行时，点击跳跃
         if (gameRunning) {
             e.preventDefault();
-            // 立即执行跳跃，不检查状态
             jump();
         }
     }
