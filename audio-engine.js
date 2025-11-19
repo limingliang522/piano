@@ -20,10 +20,10 @@ class AudioEngine {
     // 确保AudioContext已创建
     ensureAudioContext() {
         if (!this.audioContext) {
-            // 使用低延迟模式
+            // 使用平衡模式（性能优化）
             this.audioContext = new (window.AudioContext || window.webkitAudioContext)({
-                latencyHint: 'interactive',
-                sampleRate: 48000 // 高采样率
+                latencyHint: 'balanced', // 平衡延迟和性能
+                sampleRate: 44100 // 标准采样率（降低CPU负担）
             });
             
             // 初始化专业音频处理链
@@ -63,15 +63,15 @@ class AudioEngine {
         this.eqHigh.frequency.value = 6000;
         this.eqHigh.gain.value = 4; // +4dB
         
-        // 3. 卷积混响（音乐厅效果）
+        // 3. 卷积混响（音乐厅效果 - 轻量化）
         this.convolver = ctx.createConvolver();
         this.createReverbImpulse(); // 创建混响脉冲响应
         
-        // 混响干湿比控制
+        // 混响干湿比控制（减少混响，提升性能）
         this.reverbDry = ctx.createGain();
-        this.reverbDry.gain.value = 0.7; // 70% 干声
+        this.reverbDry.gain.value = 0.85; // 85% 干声
         this.reverbWet = ctx.createGain();
-        this.reverbWet.gain.value = 0.3; // 30% 湿声
+        this.reverbWet.gain.value = 0.15; // 15% 湿声（减少混响）
         
         // 4. 限制器（防止削波）
         this.limiter = ctx.createDynamicsCompressor();
@@ -81,9 +81,9 @@ class AudioEngine {
         this.limiter.attack.value = 0.001;
         this.limiter.release.value = 0.1;
         
-        // 5. 主音量
+        // 5. 主音量（提高音量）
         this.masterGain = ctx.createGain();
-        this.masterGain.gain.value = 0.85;
+        this.masterGain.gain.value = 1.2;
         
         // 连接音频处理链：
         // 压缩 → 均衡器 → 混响 → 限制器 → 主音量 → 输出
@@ -119,30 +119,30 @@ class AudioEngine {
         console.log('🎵 专业音频处理链已初始化');
     }
     
-    // 创建音乐厅混响脉冲响应
+    // 创建音乐厅混响脉冲响应（轻量化版本 - 提升性能）
     createReverbImpulse() {
         const ctx = this.audioContext;
         const sampleRate = ctx.sampleRate;
-        const length = sampleRate * 2.5; // 2.5秒混响
+        const length = sampleRate * 1.2; // 1.2秒混响（减少计算量）
         const impulse = ctx.createBuffer(2, length, sampleRate);
         const impulseL = impulse.getChannelData(0);
         const impulseR = impulse.getChannelData(1);
         
-        // 生成逼真的音乐厅混响
+        // 生成轻量级混响（减少随机数生成）
         for (let i = 0; i < length; i++) {
             // 指数衰减
-            const decay = Math.exp(-i / (sampleRate * 0.8));
+            const decay = Math.exp(-i / (sampleRate * 0.5));
             
-            // 早期反射（前 50ms）
+            // 早期反射（前 30ms）
             let earlyReflections = 0;
-            if (i < sampleRate * 0.05) {
-                earlyReflections = (Math.random() * 2 - 1) * 0.5 * decay;
+            if (i < sampleRate * 0.03) {
+                earlyReflections = (Math.random() * 2 - 1) * 0.4 * decay;
             }
             
-            // 后期混响（扩散）
-            const lateReverb = (Math.random() * 2 - 1) * decay * 0.3;
+            // 后期混响（扩散 - 简化）
+            const lateReverb = (Math.random() * 2 - 1) * decay * 0.2;
             
-            // 左右声道略有不同（增加空间感）
+            // 左右声道略有不同
             impulseL[i] = earlyReflections + lateReverb;
             impulseR[i] = earlyReflections + lateReverb * 0.95;
         }
@@ -315,11 +315,11 @@ class AudioEngine {
             
             // === 音量包络（ADSR）===
             const gainNode = ctx.createGain();
-            const baseVolume = (velocity / 127) * 1.2; // 基础音量
+            const baseVolume = (velocity / 127) * 1.5; // 基础音量（提高）
             
             // 根据音高调整音量（高音稍微轻一点）
             const pitchFactor = 1 - (midiNote - 60) / 200;
-            const volume = baseVolume * Math.max(0.7, Math.min(1.3, pitchFactor));
+            const volume = baseVolume * Math.max(0.8, Math.min(1.4, pitchFactor));
             
             // Attack（快速起音，2ms）
             gainNode.gain.setValueAtTime(0, now);
