@@ -115,8 +115,8 @@ function updateFPS(currentTime) {
 function init() {
     // 创建场景
     scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x87ceeb); // 设置背景色和雾一样
-    scene.fog = new THREE.Fog(0x87ceeb, 10, 100);
+    scene.background = new THREE.Color(0x000000); // 纯黑背景
+    scene.fog = new THREE.Fog(0x000000, 20, 80); // 黑色雾效，更远的距离
     
     // 创建相机 - 更宽的视角以显示完整的5条轨道
     const aspect = window.innerWidth / window.innerHeight;
@@ -144,18 +144,28 @@ function init() {
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     
-    // 添加光源
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+    // 添加光源 - 极简风格
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.3); // 降低环境光
     scene.add(ambientLight);
     
-    const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
-    directionalLight.position.set(5, 10, 5);
+    // 主光源（从上方照射）
+    const directionalLight = new THREE.DirectionalLight(0xffffff, 0.5);
+    directionalLight.position.set(0, 15, 0);
     directionalLight.castShadow = true;
     directionalLight.shadow.camera.left = -20;
     directionalLight.shadow.camera.right = 20;
     directionalLight.shadow.camera.top = 20;
     directionalLight.shadow.camera.bottom = -20;
+    directionalLight.shadow.mapSize.width = 2048;
+    directionalLight.shadow.mapSize.height = 2048;
     scene.add(directionalLight);
+    
+    // 添加跟随小球的点光源（发光效果）
+    const playerLight = new THREE.PointLight(0xffffff, 1.5, 15);
+    playerLight.position.set(0, 1, 0);
+    scene.add(playerLight);
+    // 保存引用以便后续更新位置
+    window.playerLight = playerLight;
     
     // 创建地面
     createGround();
@@ -485,7 +495,7 @@ function createAllNoteBlocks() {
     });
 }
 
-// 创建音符方块
+// 创建音符方块（玻璃质感）
 function createNoteBlock(noteData) {
     // 使用预先分配的高度
     const isTall = noteData.isTall;
@@ -493,15 +503,29 @@ function createNoteBlock(noteData) {
     const blockY = isTall ? 1.5 : 0.2; // 超高方块的Y位置也要调整
     
     const geometry = new THREE.BoxGeometry(1.5, blockHeight, 1.2);
-    const material = new THREE.MeshStandardMaterial({ 
-        color: 0x000000, // 黑色
-        emissive: 0x111111,
-        metalness: 0.3,
-        roughness: 0.7,
+    const material = new THREE.MeshPhysicalMaterial({ 
+        color: 0x1a1a1a,
+        metalness: 0.9,
+        roughness: 0.1,
         transparent: true,
-        opacity: 1
+        opacity: 0.8,
+        transmission: 0.3, // 玻璃透射
+        thickness: 0.5,
+        envMapIntensity: 1,
+        clearcoat: 1.0,
+        clearcoatRoughness: 0.1
     });
     const noteBlock = new THREE.Mesh(geometry, material);
+    
+    // 添加发光边缘（白色边框）
+    const edgesGeometry = new THREE.EdgesGeometry(geometry);
+    const edgesMaterial = new THREE.LineBasicMaterial({ 
+        color: 0xffffff,
+        transparent: true,
+        opacity: 0.6
+    });
+    const edges = new THREE.LineSegments(edgesGeometry, edgesMaterial);
+    noteBlock.add(edges);
     
     const x = (noteData.lane - 2) * LANE_WIDTH;
     // 根据时间计算初始Z位置
@@ -527,10 +551,14 @@ function createNoteBlock(noteData) {
 
 // 创建地面
 function createGround() {
+    // 极简风格：深色半透明地面
     const groundGeometry = new THREE.PlaneGeometry(LANES * LANE_WIDTH, GROUND_LENGTH);
     const groundMaterial = new THREE.MeshStandardMaterial({ 
-        color: 0x2c3e50,
-        roughness: 0.8
+        color: 0x0a0a0a,
+        roughness: 0.3,
+        metalness: 0.8,
+        transparent: true,
+        opacity: 0.9
     });
     
     for (let i = 0; i < 3; i++) {
@@ -542,38 +570,53 @@ function createGround() {
         ground.push(groundMesh);
     }
     
-    // 添加轨道线（支持雾效）
-    const lineMaterial = new THREE.LineBasicMaterial({ 
-        color: 0x95a5a6,
-        fog: true  // 让轨道线受雾效影响
+    // 添加发光轨道线（白色霓虹）
+    const lineMaterial = new THREE.MeshBasicMaterial({ 
+        color: 0xffffff,
+        transparent: true,
+        opacity: 0.8,
+        fog: true
     });
+    
     for (let i = 1; i < LANES; i++) {
-        const points = [];
         const x = (i - LANES / 2) * LANE_WIDTH;
-        points.push(new THREE.Vector3(x, 0.01, 50));
-        points.push(new THREE.Vector3(x, 0.01, -200));
-        const lineGeometry = new THREE.BufferGeometry().setFromPoints(points);
-        const line = new THREE.Line(lineGeometry, lineMaterial);
-        scene.add(line);
+        // 使用薄的立方体代替线条，产生发光效果
+        const lineGeometry = new THREE.BoxGeometry(0.05, 0.02, 250);
+        const lineMesh = new THREE.Mesh(lineGeometry, lineMaterial);
+        lineMesh.position.set(x, 0.01, -75);
+        scene.add(lineMesh);
     }
     
-    // 创建触发线（绿色）
+    // 创建触发线（白色发光）
     createTriggerLine();
 }
 
-// 创建触发线
+// 创建触发线（白色发光）
 function createTriggerLine() {
-    const geometry = new THREE.PlaneGeometry(LANES * LANE_WIDTH, 0.3);
+    const geometry = new THREE.PlaneGeometry(LANES * LANE_WIDTH, 0.4);
     const material = new THREE.MeshBasicMaterial({ 
-        color: 0xffffff,  // 改为白色
+        color: 0xffffff,
         transparent: true,
-        opacity: 0.8,
+        opacity: 0.9,
         side: THREE.DoubleSide
     });
     triggerLine = new THREE.Mesh(geometry, material);
     triggerLine.rotation.x = -Math.PI / 2;
     triggerLine.position.set(0, 0.02, 2);
     scene.add(triggerLine);
+    
+    // 添加触发线的发光效果（额外的光晕层）
+    const glowGeometry = new THREE.PlaneGeometry(LANES * LANE_WIDTH + 1, 1);
+    const glowMaterial = new THREE.MeshBasicMaterial({
+        color: 0xffffff,
+        transparent: true,
+        opacity: 0.2,
+        side: THREE.DoubleSide
+    });
+    const glowMesh = new THREE.Mesh(glowGeometry, glowMaterial);
+    glowMesh.rotation.x = -Math.PI / 2;
+    glowMesh.position.set(0, 0.01, 2);
+    scene.add(glowMesh);
 }
 
 // 拖尾效果数组
@@ -581,24 +624,36 @@ let trailPositions = [];
 const trailLength = 10;
 let trailSpheres = [];
 
-// 创建玩家（白色小球）
+// 创建玩家（白色发光小球）
 function createPlayer() {
     const geometry = new THREE.SphereGeometry(0.25, 32, 32);
     const material = new THREE.MeshStandardMaterial({ 
         color: 0xffffff,
-        metalness: 0.3,
-        roughness: 0.7
+        emissive: 0xffffff,
+        emissiveIntensity: 0.5,
+        metalness: 0.8,
+        roughness: 0.2
     });
     player = new THREE.Mesh(geometry, material);
     player.position.set(0, 0.25, 0);
     player.castShadow = true;
     scene.add(player);
     
-    // 创建拖尾球体（纯白色）
+    // 添加小球的光晕效果
+    const glowGeometry = new THREE.SphereGeometry(0.4, 16, 16);
+    const glowMaterial = new THREE.MeshBasicMaterial({
+        color: 0xffffff,
+        transparent: true,
+        opacity: 0.3
+    });
+    const glowSphere = new THREE.Mesh(glowGeometry, glowMaterial);
+    player.add(glowSphere);
+    
+    // 创建拖尾球体（发光白色）
     for (let i = 0; i < trailLength; i++) {
         const trailGeometry = new THREE.SphereGeometry(0.2, 16, 16);
         const trailMaterial = new THREE.MeshBasicMaterial({
-            color: 0xffffff, // 纯白色
+            color: 0xffffff,
             transparent: true,
             opacity: 0
         });
@@ -714,6 +769,11 @@ function updatePlayer() {
     
     // 相机始终看向玩家前方
     camera.lookAt(player.position.x, 0, player.position.z - 8);
+    
+    // 更新跟随小球的点光源位置
+    if (window.playerLight) {
+        window.playerLight.position.set(player.position.x, player.position.y + 0.5, player.position.z);
+    }
     
     // 跳跃物理 - 基于时间，使用重力系统
     if (isJumping) {
@@ -860,9 +920,13 @@ function updateNoteBlocks() {
             // 播放音符（极致音质 - 传递轨道信息用于3D定位）
             audioEngine.playNote(noteData.note, noteData.duration, noteData.velocity * 1.5, noteData.lane);
             
-            // 改变颜色表示已触发（白色）
+            // 改变颜色表示已触发（白色发光）
             noteBlock.material.color.setHex(0xffffff);
-            noteBlock.material.emissive.setHex(0xffffff);
+            noteBlock.material.emissive = new THREE.Color(0xffffff);
+            noteBlock.material.emissiveIntensity = 1.0;
+            
+            // 创建触发时的光波扩散效果
+            createTriggerWave(noteBlock.position.x, noteBlock.position.z);
             
             // 触发效果：放大并淡出
             const originalScale = { x: 1.5, y: 0.4, z: 1.2 };
@@ -1677,6 +1741,38 @@ dynamicIsland.addEventListener('click', (e) => {
         e.stopPropagation();
     }
 });
+
+// 创建触发时的光波扩散效果
+function createTriggerWave(x, z) {
+    const waveGeometry = new THREE.RingGeometry(0.5, 0.8, 32);
+    const waveMaterial = new THREE.MeshBasicMaterial({
+        color: 0xffffff,
+        transparent: true,
+        opacity: 0.8,
+        side: THREE.DoubleSide
+    });
+    const wave = new THREE.Mesh(waveGeometry, waveMaterial);
+    wave.rotation.x = -Math.PI / 2;
+    wave.position.set(x, 0.05, z);
+    scene.add(wave);
+    
+    // 扩散动画
+    let scale = 1;
+    let opacity = 0.8;
+    const expandInterval = setInterval(() => {
+        scale += 0.3;
+        opacity -= 0.08;
+        wave.scale.set(scale, scale, 1);
+        waveMaterial.opacity = Math.max(0, opacity);
+        
+        if (opacity <= 0) {
+            clearInterval(expandInterval);
+            scene.remove(wave);
+            waveGeometry.dispose();
+            waveMaterial.dispose();
+        }
+    }, 30);
+}
 
 // 启动游戏
 init();
