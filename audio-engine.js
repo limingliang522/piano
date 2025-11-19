@@ -140,13 +140,13 @@ class AudioEngine {
         }
     }
     
-    // 创建音乐厅混响脉冲响应（轻量化版本 - 提升性能）
+    // 创建音乐厅混响脉冲响应（高性能版本 - 手机优化）
     createReverbImpulse() {
         console.log('createReverbImpulse: 开始创建混响...');
         try {
             const ctx = this.audioContext;
             const sampleRate = ctx.sampleRate;
-            const length = sampleRate * 1.2; // 1.2秒混响
+            const length = Math.floor(sampleRate * 0.3); // 0.3秒混响（减少75%计算量）
             console.log(`createReverbImpulse: 采样率=${sampleRate}, 长度=${length}`);
             
             const impulse = ctx.createBuffer(2, length, sampleRate);
@@ -154,19 +154,32 @@ class AudioEngine {
             const impulseR = impulse.getChannelData(1);
             
             console.log('createReverbImpulse: 生成混响数据...');
-            // 生成轻量级混响
+            
+            // 预先生成随机数（避免循环中频繁调用Math.random）
+            const randomValues = new Float32Array(length);
             for (let i = 0; i < length; i++) {
-                const decay = Math.exp(-i / (sampleRate * 0.5));
+                randomValues[i] = Math.random() * 2 - 1;
+            }
+            
+            // 优化的混响生成（减少数学运算）
+            const decayFactor = 1 / (sampleRate * 0.15); // 预计算衰减因子
+            const earlyReflectionEnd = Math.floor(sampleRate * 0.03);
+            
+            for (let i = 0; i < length; i++) {
+                // 简化的指数衰减（避免Math.exp）
+                const decay = 1 / (1 + i * decayFactor);
                 
-                let earlyReflections = 0;
-                if (i < sampleRate * 0.03) {
-                    earlyReflections = (Math.random() * 2 - 1) * 0.4 * decay;
+                // 早期反射（只在前30ms）
+                let value = 0;
+                if (i < earlyReflectionEnd) {
+                    value = randomValues[i] * 0.4 * decay;
+                } else {
+                    // 后期混响（简化计算）
+                    value = randomValues[i] * 0.2 * decay;
                 }
                 
-                const lateReverb = (Math.random() * 2 - 1) * decay * 0.2;
-                
-                impulseL[i] = earlyReflections + lateReverb;
-                impulseR[i] = earlyReflections + lateReverb * 0.95;
+                impulseL[i] = value;
+                impulseR[i] = value * 0.95; // 左右声道略有不同
             }
             
             console.log('createReverbImpulse: 设置 convolver buffer...');
