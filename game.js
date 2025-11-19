@@ -293,40 +293,38 @@ async function initMIDISystem() {
             
             try {
                 // 启动音频上下文
-                console.log('=== 开始启动音频系统 ===');
-                console.log('1. 调用 audioEngine.start()...');
-                const startResult = await audioEngine.start();
-                console.log('2. audioEngine.start() 返回:', startResult);
-                console.log('3. 音频上下文启动完成');
+                console.log('启动音频上下文...');
+                console.log('调用 audioEngine.start()...');
+                await audioEngine.start();
+                console.log('audioEngine.start() 返回了');
+                console.log('音频上下文启动完成');
                 
                 loadingElement.textContent = '加载钢琴音色 0/30';
                 
                 // 加载钢琴音色（带进度显示）
-                console.log('4. 开始加载钢琴音色...');
+                console.log('开始加载钢琴音色...');
                 await audioEngine.init((loaded, total) => {
                     loadingElement.textContent = `加载钢琴音色 ${loaded}/${total}`;
                     console.log(`加载进度: ${loaded}/${total}`);
                 });
                 
-                console.log('5. 钢琴音色加载完成！');
+                console.log('钢琴音色加载完成！');
                 
                 // 隐藏加载提示
                 loadingElement.style.display = 'none';
                 
                 // 开始游戏
-                console.log('6. 开始游戏');
                 startMIDIGame();
                 
             } catch (error) {
-                console.error('!!! 音频加载失败 !!!', error);
-                console.error('错误堆栈:', error.stack);
-                loadingElement.textContent = '加载失败: ' + error.message;
+                console.error('音频加载失败:', error);
+                loadingElement.textContent = '加载失败，请刷新重试';
                 setTimeout(() => {
                     loadingElement.style.display = 'none';
                     startButton.style.display = 'block';
                     startButton.addEventListener('click', startGame);
                     startButton.addEventListener('touchstart', startGame, { passive: false });
-                }, 3000);
+                }, 2000);
             }
         };
         startButton.addEventListener('click', startGame);

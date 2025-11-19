@@ -19,37 +19,28 @@ class AudioEngine {
     
     // 确保AudioContext已创建
     ensureAudioContext() {
-        console.log('ensureAudioContext: 检查 audioContext...');
         if (!this.audioContext) {
-            console.log('ensureAudioContext: 创建新的 AudioContext...');
             try {
                 // 使用平衡模式（性能优化）
                 this.audioContext = new (window.AudioContext || window.webkitAudioContext)({
                     latencyHint: 'balanced', // 平衡延迟和性能
                     sampleRate: 44100 // 标准采样率（降低CPU负担）
                 });
-                console.log('ensureAudioContext: AudioContext 创建成功');
                 
                 // 初始化专业音频处理链
-                console.log('ensureAudioContext: 初始化音频处理链...');
                 this.initAudioChain();
-                console.log('ensureAudioContext: 音频处理链初始化完成');
             } catch (error) {
                 console.error('ensureAudioContext: 创建失败:', error);
                 throw error;
             }
-        } else {
-            console.log('ensureAudioContext: audioContext 已存在');
         }
     }
     
     // 初始化专业音频处理链
     initAudioChain() {
-        console.log('initAudioChain: 开始初始化...');
         const ctx = this.audioContext;
         
         try {
-            console.log('initAudioChain: 创建压缩器...');
             // 1. 动态压缩器（平衡音量，增加冲击力 - 柔和设置）
             this.compressor = ctx.createDynamicsCompressor();
             this.compressor.threshold.value = -24;
@@ -140,55 +131,35 @@ class AudioEngine {
         }
     }
     
-    // 创建音乐厅混响脉冲响应（高性能版本 - 手机优化）
+    // 创建音乐厅混响脉冲响应（轻量化版本 - 提升性能）
     createReverbImpulse() {
-        console.log('createReverbImpulse: 开始创建混响...');
-        try {
-            const ctx = this.audioContext;
-            const sampleRate = ctx.sampleRate;
-            const length = Math.floor(sampleRate * 0.3); // 0.3秒混响（减少75%计算量）
-            console.log(`createReverbImpulse: 采样率=${sampleRate}, 长度=${length}`);
+        const ctx = this.audioContext;
+        const sampleRate = ctx.sampleRate;
+        const length = sampleRate * 1.2; // 1.2秒混响（减少计算量）
+        const impulse = ctx.createBuffer(2, length, sampleRate);
+        const impulseL = impulse.getChannelData(0);
+        const impulseR = impulse.getChannelData(1);
+        
+        // 生成轻量级混响（减少随机数生成）
+        for (let i = 0; i < length; i++) {
+            // 指数衰减
+            const decay = Math.exp(-i / (sampleRate * 0.5));
             
-            const impulse = ctx.createBuffer(2, length, sampleRate);
-            const impulseL = impulse.getChannelData(0);
-            const impulseR = impulse.getChannelData(1);
-            
-            console.log('createReverbImpulse: 生成混响数据...');
-            
-            // 预先生成随机数（避免循环中频繁调用Math.random）
-            const randomValues = new Float32Array(length);
-            for (let i = 0; i < length; i++) {
-                randomValues[i] = Math.random() * 2 - 1;
+            // 早期反射（前 30ms）
+            let earlyReflections = 0;
+            if (i < sampleRate * 0.03) {
+                earlyReflections = (Math.random() * 2 - 1) * 0.4 * decay;
             }
             
-            // 优化的混响生成（减少数学运算）
-            const decayFactor = 1 / (sampleRate * 0.15); // 预计算衰减因子
-            const earlyReflectionEnd = Math.floor(sampleRate * 0.03);
+            // 后期混响（扩散 - 简化）
+            const lateReverb = (Math.random() * 2 - 1) * decay * 0.2;
             
-            for (let i = 0; i < length; i++) {
-                // 简化的指数衰减（避免Math.exp）
-                const decay = 1 / (1 + i * decayFactor);
-                
-                // 早期反射（只在前30ms）
-                let value = 0;
-                if (i < earlyReflectionEnd) {
-                    value = randomValues[i] * 0.4 * decay;
-                } else {
-                    // 后期混响（简化计算）
-                    value = randomValues[i] * 0.2 * decay;
-                }
-                
-                impulseL[i] = value;
-                impulseR[i] = value * 0.95; // 左右声道略有不同
-            }
-            
-            console.log('createReverbImpulse: 设置 convolver buffer...');
-            this.convolver.buffer = impulse;
-            console.log('createReverbImpulse: 混响创建完成');
-        } catch (error) {
-            console.error('createReverbImpulse: 创建失败:', error);
-            throw error;
+            // 左右声道略有不同
+            impulseL[i] = earlyReflections + lateReverb;
+            impulseR[i] = earlyReflections + lateReverb * 0.95;
         }
+        
+        this.convolver.buffer = impulse;
     }
 
     // 将 MIDI 音符号转换为音符名称
@@ -470,27 +441,10 @@ class AudioEngine {
 
     // 启动音频上下文
     async start() {
-        console.log('start() 方法开始执行...');
-        try {
-            console.log('调用 ensureAudioContext()...');
-            this.ensureAudioContext();
-            console.log('ensureAudioContext() 完成，audioContext 状态:', this.audioContext ? this.audioContext.state : 'null');
-            
-            if (!this.audioContext) {
-                throw new Error('AudioContext 创建失败');
-            }
-            
-            if (this.audioContext.state === 'suspended') {
-                console.log('音频上下文被挂起，尝试恢复...');
-                await this.audioContext.resume();
-                console.log('音频上下文恢复成功，新状态:', this.audioContext.state);
-            }
-            
-            console.log('start() 方法执行完成');
-            return true;
-        } catch (error) {
-            console.error('start() 方法执行失败:', error);
-            throw error;
+        this.ensureAudioContext();
+        
+        if (this.audioContext.state === 'suspended') {
+            await this.audioContext.resume();
         }
     }
 }
