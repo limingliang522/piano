@@ -266,31 +266,45 @@ async function initMIDISystem() {
         startButton.style.display = 'block';
         
         // 等待用户点击开始按钮
-        const startGame = (e) => {
+        const startGame = async (e) => {
             console.log('播放按钮被点击');
             if (e) e.preventDefault();
             startButton.removeEventListener('click', startGame);
             startButton.removeEventListener('touchstart', startGame);
             startButton.style.display = 'none';
             
-            // 立即开始游戏（不等待任何东西）
-            startMIDIGame();
+            // 显示加载提示
+            loadingElement.style.display = 'block';
+            loadingElement.textContent = '加载钢琴音色中...';
             
-            // 在后台启动音频并加载音色（完全不阻塞）
-            setTimeout(async () => {
-                try {
-                    await audioEngine.start();
-                    audioEngine.init((loaded, total) => {
-                        console.log(`后台加载钢琴音色 ${loaded}/${total}`);
-                    }).then(() => {
-                        console.log('钢琴音色加载完成！');
-                    }).catch(err => {
-                        console.error('音色加载失败:', err);
-                    });
-                } catch (error) {
-                    console.error('音频启动失败:', error);
-                }
-            }, 100);
+            try {
+                // 启动音频上下文
+                await audioEngine.start();
+                
+                // 加载钢琴音色（带进度显示）
+                await audioEngine.init((loaded, total) => {
+                    loadingElement.textContent = `加载钢琴音色 ${loaded}/${total}`;
+                    console.log(`加载钢琴音色 ${loaded}/${total}`);
+                });
+                
+                console.log('钢琴音色加载完成！');
+                
+                // 隐藏加载提示
+                loadingElement.style.display = 'none';
+                
+                // 开始游戏
+                startMIDIGame();
+                
+            } catch (error) {
+                console.error('音频加载失败:', error);
+                loadingElement.textContent = '加载失败，请刷新重试';
+                setTimeout(() => {
+                    loadingElement.style.display = 'none';
+                    startButton.style.display = 'block';
+                    startButton.addEventListener('click', startGame);
+                    startButton.addEventListener('touchstart', startGame, { passive: false });
+                }, 2000);
+            }
         };
         startButton.addEventListener('click', startGame);
         startButton.addEventListener('touchstart', startGame, { passive: false });
@@ -1685,27 +1699,56 @@ async function selectMidi(index) {
         initMidiList();
         
         // 设置播放按钮点击事件
-        const startGame = (e) => {
+        const startGame = async (e) => {
             if (e) e.preventDefault();
             startButton.removeEventListener('click', startGame);
             startButton.removeEventListener('touchstart', startGame);
             startButton.style.display = 'none';
             
-            // 开始游戏
-            gameStartTime = Date.now() / 1000;
-            midiSpeed = originalBaseSpeed;
+            // 显示加载提示
+            loadingElement.style.display = 'block';
+            loadingElement.textContent = '加载钢琴音色中...';
             
-            // 重置音符状态
-            midiNotes.forEach(note => {
-                note.triggered = false;
-                note.collided = false;
-            });
-            
-            // 创建音符方块
-            createAllNoteBlocks();
-            
-            // 开始游戏
-            gameRunning = true;
+            try {
+                // 确保音频已启动
+                await audioEngine.start();
+                
+                // 如果音色未加载，则加载
+                if (!audioEngine.isReady) {
+                    await audioEngine.init((loaded, total) => {
+                        loadingElement.textContent = `加载钢琴音色 ${loaded}/${total}`;
+                    });
+                }
+                
+                // 隐藏加载提示
+                loadingElement.style.display = 'none';
+                
+                // 开始游戏
+                gameStartTime = Date.now() / 1000;
+                midiSpeed = originalBaseSpeed;
+                
+                // 重置音符状态
+                midiNotes.forEach(note => {
+                    note.triggered = false;
+                    note.collided = false;
+                });
+                
+                // 创建音符方块
+                createAllNoteBlocks();
+                
+                // 开始游戏
+                gameRunning = true;
+                
+            } catch (error) {
+                console.error('音频加载失败:', error);
+                loadingElement.textContent = '加载失败，请刷新重试';
+                setTimeout(() => {
+                    loadingElement.style.display = 'none';
+                    startButton.style.display = 'block';
+                    startButton.addEventListener('click', startGame);
+                    startButton.addEventListener('touchstart', startGame, { passive: false });
+                }, 2000);
+            }
         };
         
         startButton.addEventListener('click', startGame);
