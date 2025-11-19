@@ -444,7 +444,23 @@ class AudioEngine {
         this.ensureAudioContext();
         
         if (this.audioContext.state === 'suspended') {
-            await this.audioContext.resume();
+            console.log('音频上下文被挂起，尝试恢复...');
+            
+            // 添加超时处理，防止 resume() 卡住
+            const resumePromise = this.audioContext.resume();
+            const timeoutPromise = new Promise((_, reject) => {
+                setTimeout(() => reject(new Error('resume() 超时')), 3000);
+            });
+            
+            try {
+                await Promise.race([resumePromise, timeoutPromise]);
+                console.log('音频上下文恢复成功，状态:', this.audioContext.state);
+            } catch (error) {
+                console.error('音频上下文恢复失败:', error);
+                // 即使失败也继续，有些浏览器可能不需要 resume
+            }
         }
+        
+        console.log('音频上下文最终状态:', this.audioContext.state);
     }
 }
