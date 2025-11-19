@@ -45,121 +45,137 @@ class AudioEngine {
     
     // 初始化专业音频处理链
     initAudioChain() {
+        console.log('initAudioChain: 开始初始化...');
         const ctx = this.audioContext;
         
-        // 1. 动态压缩器（平衡音量，增加冲击力 - 柔和设置）
-        this.compressor = ctx.createDynamicsCompressor();
-        this.compressor.threshold.value = -24; // 阈值（提高，减少压缩）
-        this.compressor.knee.value = 40; // 更柔和的压缩
-        this.compressor.ratio.value = 4; // 压缩比（降低，避免失真）
-        this.compressor.attack.value = 0.003; // 快速响应
-        this.compressor.release.value = 0.25; // 释放时间
-        
-        // 2. 三段均衡器（精细调音）
-        // 低频增强（温暖厚实）
-        this.eqLow = ctx.createBiquadFilter();
-        this.eqLow.type = 'lowshelf';
-        this.eqLow.frequency.value = 200;
-        this.eqLow.gain.value = 3; // +3dB
-        
-        // 中频塑形（清晰度）
-        this.eqMid = ctx.createBiquadFilter();
-        this.eqMid.type = 'peaking';
-        this.eqMid.frequency.value = 2000;
-        this.eqMid.Q.value = 0.7;
-        this.eqMid.gain.value = 2; // +2dB
-        
-        // 高频提亮（明亮空气感）
-        this.eqHigh = ctx.createBiquadFilter();
-        this.eqHigh.type = 'highshelf';
-        this.eqHigh.frequency.value = 6000;
-        this.eqHigh.gain.value = 4; // +4dB
-        
-        // 3. 卷积混响（音乐厅效果 - 轻量化）
-        this.convolver = ctx.createConvolver();
-        this.createReverbImpulse(); // 创建混响脉冲响应
-        
-        // 混响干湿比控制（减少混响，提升性能）
-        this.reverbDry = ctx.createGain();
-        this.reverbDry.gain.value = 0.85; // 85% 干声
-        this.reverbWet = ctx.createGain();
-        this.reverbWet.gain.value = 0.15; // 15% 湿声（减少混响）
-        
-        // 4. 限制器（防止削波 - 柔和限制）
-        this.limiter = ctx.createDynamicsCompressor();
-        this.limiter.threshold.value = -3; // 提高阈值，减少限制
-        this.limiter.knee.value = 6; // 更柔和的拐点
-        this.limiter.ratio.value = 12; // 降低压缩比
-        this.limiter.attack.value = 0.003;
-        this.limiter.release.value = 0.1;
-        
-        // 5. 主音量（适中音量，避免失真）
-        this.masterGain = ctx.createGain();
-        this.masterGain.gain.value = 1.8;
-        
-        // 连接音频处理链：
-        // 压缩 → 均衡器 → 混响 → 限制器 → 主音量 → 输出
-        this.compressor.connect(this.eqLow);
-        this.eqLow.connect(this.eqMid);
-        this.eqMid.connect(this.eqHigh);
-        
-        // 混响并联处理
-        this.eqHigh.connect(this.reverbDry);
-        this.eqHigh.connect(this.convolver);
-        this.convolver.connect(this.reverbWet);
-        
-        this.reverbDry.connect(this.limiter);
-        this.reverbWet.connect(this.limiter);
-        
-        this.limiter.connect(this.masterGain);
-        this.masterGain.connect(ctx.destination);
-        
-        // 设置 3D 音频监听器位置
-        this.listener = ctx.listener;
-        if (this.listener.positionX) {
-            this.listener.positionX.value = 0;
-            this.listener.positionY.value = 0;
-            this.listener.positionZ.value = 0;
-            this.listener.forwardX.value = 0;
-            this.listener.forwardY.value = 0;
-            this.listener.forwardZ.value = -1;
-            this.listener.upX.value = 0;
-            this.listener.upY.value = 1;
-            this.listener.upZ.value = 0;
+        try {
+            console.log('initAudioChain: 创建压缩器...');
+            // 1. 动态压缩器（平衡音量，增加冲击力 - 柔和设置）
+            this.compressor = ctx.createDynamicsCompressor();
+            this.compressor.threshold.value = -24;
+            this.compressor.knee.value = 40;
+            this.compressor.ratio.value = 4;
+            this.compressor.attack.value = 0.003;
+            this.compressor.release.value = 0.25;
+            
+            console.log('initAudioChain: 创建均衡器...');
+            // 2. 三段均衡器（精细调音）
+            this.eqLow = ctx.createBiquadFilter();
+            this.eqLow.type = 'lowshelf';
+            this.eqLow.frequency.value = 200;
+            this.eqLow.gain.value = 3;
+            
+            this.eqMid = ctx.createBiquadFilter();
+            this.eqMid.type = 'peaking';
+            this.eqMid.frequency.value = 2000;
+            this.eqMid.Q.value = 0.7;
+            this.eqMid.gain.value = 2;
+            
+            this.eqHigh = ctx.createBiquadFilter();
+            this.eqHigh.type = 'highshelf';
+            this.eqHigh.frequency.value = 6000;
+            this.eqHigh.gain.value = 4;
+            
+            console.log('initAudioChain: 创建混响...');
+            // 3. 卷积混响（音乐厅效果 - 轻量化）
+            this.convolver = ctx.createConvolver();
+            this.createReverbImpulse();
+            
+            // 混响干湿比控制
+            this.reverbDry = ctx.createGain();
+            this.reverbDry.gain.value = 0.85;
+            this.reverbWet = ctx.createGain();
+            this.reverbWet.gain.value = 0.15;
+            
+            console.log('initAudioChain: 创建限制器...');
+            // 4. 限制器（防止削波 - 柔和限制）
+            this.limiter = ctx.createDynamicsCompressor();
+            this.limiter.threshold.value = -3;
+            this.limiter.knee.value = 6;
+            this.limiter.ratio.value = 12;
+            this.limiter.attack.value = 0.003;
+            this.limiter.release.value = 0.1;
+            
+            console.log('initAudioChain: 创建主音量...');
+            // 5. 主音量
+            this.masterGain = ctx.createGain();
+            this.masterGain.gain.value = 1.8;
+            
+            console.log('initAudioChain: 连接音频节点...');
+            // 连接音频处理链
+            this.compressor.connect(this.eqLow);
+            this.eqLow.connect(this.eqMid);
+            this.eqMid.connect(this.eqHigh);
+            
+            // 混响并联处理
+            this.eqHigh.connect(this.reverbDry);
+            this.eqHigh.connect(this.convolver);
+            this.convolver.connect(this.reverbWet);
+            
+            this.reverbDry.connect(this.limiter);
+            this.reverbWet.connect(this.limiter);
+            
+            this.limiter.connect(this.masterGain);
+            this.masterGain.connect(ctx.destination);
+            
+            console.log('initAudioChain: 设置 3D 音频监听器...');
+            // 设置 3D 音频监听器位置
+            this.listener = ctx.listener;
+            if (this.listener.positionX) {
+                this.listener.positionX.value = 0;
+                this.listener.positionY.value = 0;
+                this.listener.positionZ.value = 0;
+                this.listener.forwardX.value = 0;
+                this.listener.forwardY.value = 0;
+                this.listener.forwardZ.value = -1;
+                this.listener.upX.value = 0;
+                this.listener.upY.value = 1;
+                this.listener.upZ.value = 0;
+            }
+            
+            console.log('🎵 专业音频处理链已初始化');
+        } catch (error) {
+            console.error('initAudioChain: 初始化失败:', error);
+            throw error;
         }
-        
-        console.log('🎵 专业音频处理链已初始化');
     }
     
     // 创建音乐厅混响脉冲响应（轻量化版本 - 提升性能）
     createReverbImpulse() {
-        const ctx = this.audioContext;
-        const sampleRate = ctx.sampleRate;
-        const length = sampleRate * 1.2; // 1.2秒混响（减少计算量）
-        const impulse = ctx.createBuffer(2, length, sampleRate);
-        const impulseL = impulse.getChannelData(0);
-        const impulseR = impulse.getChannelData(1);
-        
-        // 生成轻量级混响（减少随机数生成）
-        for (let i = 0; i < length; i++) {
-            // 指数衰减
-            const decay = Math.exp(-i / (sampleRate * 0.5));
+        console.log('createReverbImpulse: 开始创建混响...');
+        try {
+            const ctx = this.audioContext;
+            const sampleRate = ctx.sampleRate;
+            const length = sampleRate * 1.2; // 1.2秒混响
+            console.log(`createReverbImpulse: 采样率=${sampleRate}, 长度=${length}`);
             
-            // 早期反射（前 30ms）
-            let earlyReflections = 0;
-            if (i < sampleRate * 0.03) {
-                earlyReflections = (Math.random() * 2 - 1) * 0.4 * decay;
+            const impulse = ctx.createBuffer(2, length, sampleRate);
+            const impulseL = impulse.getChannelData(0);
+            const impulseR = impulse.getChannelData(1);
+            
+            console.log('createReverbImpulse: 生成混响数据...');
+            // 生成轻量级混响
+            for (let i = 0; i < length; i++) {
+                const decay = Math.exp(-i / (sampleRate * 0.5));
+                
+                let earlyReflections = 0;
+                if (i < sampleRate * 0.03) {
+                    earlyReflections = (Math.random() * 2 - 1) * 0.4 * decay;
+                }
+                
+                const lateReverb = (Math.random() * 2 - 1) * decay * 0.2;
+                
+                impulseL[i] = earlyReflections + lateReverb;
+                impulseR[i] = earlyReflections + lateReverb * 0.95;
             }
             
-            // 后期混响（扩散 - 简化）
-            const lateReverb = (Math.random() * 2 - 1) * decay * 0.2;
-            
-            // 左右声道略有不同
-            impulseL[i] = earlyReflections + lateReverb;
-            impulseR[i] = earlyReflections + lateReverb * 0.95;
+            console.log('createReverbImpulse: 设置 convolver buffer...');
+            this.convolver.buffer = impulse;
+            console.log('createReverbImpulse: 混响创建完成');
+        } catch (error) {
+            console.error('createReverbImpulse: 创建失败:', error);
+            throw error;
         }
-        
-        this.convolver.buffer = impulse;
     }
 
     // 将 MIDI 音符号转换为音符名称
