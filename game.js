@@ -38,7 +38,7 @@ const PRELOAD_COUNT = 5; // 预加载5个
 // 跳跃状态
 let isJumping = false;
 let verticalVelocity = 0;
-const gravity = -0.020; // 重力加速度（减小重力，增加漂浮时间）
+const gravity = -0.012; // 重力加速度（减小重力，增加漂浮时间）
 const groundY = 0.25; // 小球的地面高度
 // 超高黑块：底部0，顶部3.0，球半径0.25
 // 让球中心跳到2.6（球顶部到2.85，低于超高黑块顶部3.0）
@@ -64,7 +64,7 @@ const LANE_WIDTH = 2;
 const GROUND_LENGTH = 100;
 
 // 统一的移动速度（调整这个值可以改变所有移动速度）
-const moveSpeed = 0.35;
+const moveSpeed = 0.50;
 
 // 帧率检测和适配
 let targetFPS = 60;
