@@ -1345,18 +1345,6 @@ document.addEventListener('touchend', (e) => {
                     targetLane--;
                 }
             }
-        } else {
-            // 上下滑动切换MIDI文件（只在暂停时）
-            if (!gameRunning) {
-                e.preventDefault();
-                if (diffY < -100) {
-                    // 上滑 - 下一首
-                    switchToNextMidi();
-                } else if (diffY > 100) {
-                    // 下滑 - 上一首
-                    switchToPrevMidi();
-                }
-            }
         }
     } else {
         // 点击 = 跳跃或下落（只在游戏运行时）
