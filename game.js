@@ -1975,8 +1975,9 @@ function updateQualityDisplay() {
     currentQualitySpan.textContent = displayText;
 }
 
-// 初始化画质显示
+// 初始化画质显示和标签页
 setTimeout(() => {
+    initIslandTabs();
     initQualitySettings();
     updateQualityDisplay();
     // 默认选中自动模式
@@ -1991,6 +1992,33 @@ setTimeout(() => {
 // 更新灵动岛标题
 function updateIslandTitle(name) {
     islandTitle.textContent = name;
+}
+
+// 标签页切换功能
+function initIslandTabs() {
+    const tabs = document.querySelectorAll('.island-tab');
+    const tabContents = document.querySelectorAll('.island-tab-content');
+    
+    tabs.forEach(tab => {
+        tab.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const targetTab = tab.dataset.tab;
+            
+            // 移除所有active类
+            tabs.forEach(t => t.classList.remove('active'));
+            tabContents.forEach(tc => tc.classList.remove('active'));
+            
+            // 添加active类到当前标签
+            tab.classList.add('active');
+            
+            // 显示对应内容
+            if (targetTab === 'music') {
+                document.getElementById('musicTab').classList.add('active');
+            } else if (targetTab === 'settings') {
+                document.getElementById('settingsTab').classList.add('active');
+            }
+        });
+    });
 }
 
 // 初始化 MIDI 列表
