@@ -252,15 +252,30 @@ async function initMIDISystem() {
         // 随机选择一个MIDI文件
         currentMidiIndex = Math.floor(Math.random() * midiFiles.length);
         
-        loadingElement.textContent = '加载中...';
+        loadingElement.style.display = 'block';
+        loadingElement.textContent = '加载 MIDI 文件...';
         
         // 并行加载MIDI文件和钢琴音色
         console.log('🚀 开始并行加载 MIDI 文件和钢琴音色...');
+        
+        let midiLoaded = false;
+        let samplesLoaded = 0;
+        let totalSamples = 30;
+        
+        const updateLoadingText = () => {
+            if (!midiLoaded) {
+                loadingElement.textContent = `加载 MIDI 文件... (音色: ${samplesLoaded}/${totalSamples})`;
+            } else {
+                loadingElement.textContent = `加载钢琴音色 ${samplesLoaded}/${totalSamples}`;
+            }
+        };
         
         const [midiSuccess] = await Promise.all([
             // 加载MIDI文件
             loadMidiFile(currentMidiIndex).then(success => {
                 console.log('✅ MIDI 文件加载完成');
+                midiLoaded = true;
+                updateLoadingText();
                 return success;
             }),
             // 加载钢琴音色
@@ -271,7 +286,9 @@ async function initMIDISystem() {
                     
                     // 加载音色（带进度显示）
                     await audioEngine.init((loaded, total) => {
-                        loadingElement.textContent = `加载钢琴音色 ${loaded}/${total}`;
+                        samplesLoaded = loaded;
+                        totalSamples = total;
+                        updateLoadingText();
                     });
                     console.log('✅ 钢琴音色加载完成');
                 } catch (error) {
@@ -309,14 +326,14 @@ async function initMIDISystem() {
                 return;
             }
             
+            // 立即播放开始音效（不等待）
+            audioEngine.playStartSound();
+            
             // 启动音频上下文（在用户交互时）
             console.log('🔊 启动音频上下文...');
             try {
                 await audioEngine.start();
                 console.log('✅ 音频上下文已启动');
-                
-                // 播放开始音效
-                audioEngine.playStartSound();
                 
                 // 开始游戏
                 startMIDIGame();
@@ -1983,14 +2000,14 @@ async function selectMidi(index) {
             startButton.removeEventListener('touchstart', startGame);
             startButton.style.display = 'none';
             
+            // 立即播放开始音效
+            audioEngine.playStartSound();
+            
             // 启动音频上下文（在用户交互时）
             console.log('🔊 启动音频上下文...');
             try {
                 await audioEngine.start();
                 console.log('✅ 音频上下文已启动');
-                
-                // 播放开始音效（音色已经加载完成）
-                audioEngine.playStartSound();
                 
                 // 开始游戏
                 gameStartTime = Date.now() / 1000;
