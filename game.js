@@ -555,7 +555,7 @@ function createAllNoteBlocks() {
     });
 }
 
-// 创建音符方块（玻璃质感）
+// 创建音符方块（实体黑块）
 function createNoteBlock(noteData) {
     // 使用预先分配的高度
     const isTall = noteData.isTall;
@@ -563,17 +563,12 @@ function createNoteBlock(noteData) {
     const blockY = isTall ? 1.5 : 0.2; // 超高方块的Y位置也要调整
     
     const geometry = new THREE.BoxGeometry(1.5, blockHeight, 1.2);
-    const material = new THREE.MeshPhysicalMaterial({ 
-        color: 0x2a2a2a, // 稍微亮一点
-        metalness: 0.9,
-        roughness: 0.1,
-        transparent: true,
-        opacity: 0.85,
-        transmission: 0.3, // 玻璃透射
-        thickness: 0.5,
-        envMapIntensity: 1,
-        clearcoat: 1.0,
-        clearcoatRoughness: 0.1
+    const material = new THREE.MeshStandardMaterial({ 
+        color: 0x1a1a1a, // 深黑色
+        metalness: 0.7,
+        roughness: 0.3,
+        transparent: false, // 实体
+        opacity: 1.0
     });
     const noteBlock = new THREE.Mesh(geometry, material);
     
@@ -698,30 +693,28 @@ let trailSpheres = [];
 let activeIntervals = new Set();
 let activeTimeouts = new Set();
 
-// 创建玩家（半透明白色小球 + 微光边缘）
+// 创建玩家（实体白色小球 + 发光拖尾）
 function createPlayer() {
     const geometry = new THREE.SphereGeometry(0.25, 32, 32);
     const material = new THREE.MeshStandardMaterial({ 
         color: 0xffffff,
         emissive: 0xffffff,
-        emissiveIntensity: 0.4, // 微光
-        metalness: 0.3,
-        roughness: 0.4,
-        transparent: true,
-        opacity: 0.95 // 半透明
+        emissiveIntensity: 0.5,
+        metalness: 0.5,
+        roughness: 0.3,
+        transparent: false, // 实体
+        opacity: 1.0
     });
     player = new THREE.Mesh(geometry, material);
     player.position.set(0, 0.25, 0);
     player.castShadow = true;
     scene.add(player);
     
-    // 取消光圈效果，保持画面干净
-    
-    // 创建拖尾球体（半透明，不发光）
+    // 创建发光拖尾球体
     for (let i = 0; i < trailLength; i++) {
         const trailGeometry = new THREE.SphereGeometry(0.2, 16, 16);
         const trailMaterial = new THREE.MeshBasicMaterial({
-            color: 0xcccccc, // 改为浅灰色
+            color: 0xffffff,
             transparent: true,
             opacity: 0
         });
@@ -731,15 +724,16 @@ function createPlayer() {
     }
 }
 
-// 更新拖尾效果
+// 更新拖尾效果（增强版）
 function updateTrail() {
     for (let i = 0; i < trailSpheres.length; i++) {
         if (i < trailPositions.length) {
             const pos = trailPositions[trailPositions.length - 1 - i];
             trailSpheres[i].position.set(pos.x, pos.y, pos.z);
-            const opacity = (1 - i / trailLength) * 0.8;
+            // 更明显的拖尾效果
+            const opacity = (1 - i / trailLength) * 0.9;
             trailSpheres[i].material.opacity = opacity;
-            const scale = (1 - i / trailLength) * 0.8;
+            const scale = (1 - i / trailLength) * 1.0;
             trailSpheres[i].scale.setScalar(scale);
         } else {
             trailSpheres[i].material.opacity = 0;
@@ -885,8 +879,8 @@ function updatePlayer() {
         player.position.y = groundY;
     }
     
-    // 添加拖尾效果（每3帧添加一次，减少计算）
-    if (frameCount % 3 === 0) {
+    // 添加拖尾效果（每2帧添加一次，更流畅）
+    if (frameCount % 2 === 0) {
         trailPositions.push({
             x: player.position.x,
             y: player.position.y,
@@ -931,7 +925,8 @@ function updateGround() {
 // 更新音符方块
 function updateNoteBlocks() {
     const triggerZ = triggerLine.position.z;
-    const triggerWindow = 0.2; // 触发窗口
+    // 动态触发窗口：根据速度调整，速度越快窗口越大
+    const triggerWindow = Math.max(0.3, midiSpeed * 60 * deltaTime * 2);
     const playerLane = Math.round(currentLane);
     
     // 基于时间的移动速度（每秒移动的距离）
@@ -943,68 +938,45 @@ function updateNoteBlocks() {
         
         const noteData = noteBlock.userData.noteData;
         
-        // 检查是否与玩家碰撞（在触发前检测，避免穿过黑块）
-        if (!noteData.collided && !noteData.triggered && noteData.lane === playerLane) {
-            const distanceToPlayer = Math.abs(noteBlock.position.z - player.position.z);
+        // === 实体碰撞检测（3D包围盒检测）===
+        if (!noteData.collided && !noteData.triggered) {
+            // 创建小球的包围盒（球体半径0.25）
+            const playerBox = new THREE.Box3().setFromCenterAndSize(
+                new THREE.Vector3(player.position.x, player.position.y, player.position.z),
+                new THREE.Vector3(0.5, 0.5, 0.5) // 直径0.5
+            );
             
-            // 在黑块接近玩家时检测碰撞
-            if (distanceToPlayer < 2.0) {
-                const isTall = noteBlock.userData.isTall;
-                const blockHeight = noteBlock.userData.blockHeight;
+            // 创建黑块的包围盒
+            const blockBox = new THREE.Box3().setFromObject(noteBlock);
+            
+            // 检测包围盒是否相交
+            if (playerBox.intersectsBox(blockBox)) {
+                // 碰撞了！
+                noteData.collided = true;
+                collisions++;
+                audioEngine.playCollision();
                 
-                // 玩家的上下边界（小球半径0.25）
-                const playerTop = player.position.y + 0.25;
-                const playerBottom = player.position.y - 0.25;
+                // 记录碰撞的黑块
+                lastCollisionBlock = noteBlock;
                 
-                // 方块的上下边界
-                const blockTop = noteBlock.position.y + blockHeight / 2;
-                const blockBottom = noteBlock.position.y - blockHeight / 2;
-                
-                // 检测碰撞：玩家和方块在垂直方向有重叠
-                const hasVerticalOverlap = playerBottom < blockTop && playerTop > blockBottom;
-                
-                // 调试信息
-                if (hasVerticalOverlap && distanceToPlayer < 0.5) {
-                    console.log('碰撞检测:', {
-                        playerY: player.position.y.toFixed(2),
-                        playerTop: playerTop.toFixed(2),
-                        playerBottom: playerBottom.toFixed(2),
-                        blockY: noteBlock.position.y.toFixed(2),
-                        blockTop: blockTop.toFixed(2),
-                        blockBottom: blockBottom.toFixed(2),
-                        blockHeight: blockHeight,
-                        isTall: isTall,
-                        distance: distanceToPlayer.toFixed(2)
-                    });
+                // 改变颜色表示碰撞
+                noteBlock.material.color.setHex(0xff0000);
+                if (!noteBlock.material.emissive) {
+                    noteBlock.material.emissive = new THREE.Color(0xff0000);
+                } else {
+                    noteBlock.material.emissive.setHex(0xff0000);
                 }
+                noteBlock.material.emissiveIntensity = 1.0;
                 
-                if (hasVerticalOverlap) {
-                    // 碰撞了！
-                    noteData.collided = true;
-                    collisions++;
-                    audioEngine.playCollision();
-                    
-                    // 记录碰撞的黑块
-                    lastCollisionBlock = noteBlock;
-                    
-                    // 改变颜色表示碰撞
-                    noteBlock.material.color.setHex(0xff0000);
-                    if (!noteBlock.material.emissive) {
-                        noteBlock.material.emissive = new THREE.Color(0xff0000);
-                    } else {
-                        noteBlock.material.emissive.setHex(0xff0000);
-                    }
-                    
-                    console.log('游戏结束：碰到黑块！');
-                    
-                    // 游戏结束
-                    gameOver();
-                    return;
-                }
+                console.log('游戏结束：碰到黑块！');
+                
+                // 游戏结束
+                gameOver();
+                return;
             }
         }
         
-        // 检查是否到达触发线（自动触发）
+        // 检查是否到达触发线（自动触发）- 使用动态窗口
         if (!noteData.triggered && noteBlock.position.z >= triggerZ - triggerWindow && 
             noteBlock.position.z <= triggerZ + triggerWindow) {
             

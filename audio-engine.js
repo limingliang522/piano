@@ -80,7 +80,7 @@ class AudioEngine {
             
             // === Makeup Gain（轻微补偿）===
             this.makeupGain = ctx.createGain();
-            this.makeupGain.gain.value = 1.3; // 进一步降低
+            this.makeupGain.gain.value = 1.1; // 降低增益，避免失真
             
             console.log('initAudioChain: 创建均衡器...');
             // 三段均衡器（精细调音）
@@ -123,7 +123,7 @@ class AudioEngine {
             console.log('initAudioChain: 创建主音量...');
             // 主音量（适中音量）
             this.masterGain = ctx.createGain();
-            this.masterGain.gain.value = 1.4; // 进一步降低主音量
+            this.masterGain.gain.value = 1.0; // 降低主音量，避免失真
             
             console.log('initAudioChain: 连接音频节点...');
             // === 连接多段压缩 + 并行压缩链 ===
@@ -344,7 +344,7 @@ class AudioEngine {
             
             // === 音量包络（ADSR - 消除咔嚓声）===
             const gainNode = ctx.createGain();
-            const baseVolume = (velocity / 127) * 1.9; // 降低基础音量
+            const baseVolume = (velocity / 127) * 1.5; // 降低基础音量，避免失真
             
             // 根据音高调整音量（高音稍微轻一点）
             const pitchFactor = 1 - (midiNote - 60) / 200;
