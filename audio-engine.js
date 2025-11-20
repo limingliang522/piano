@@ -33,15 +33,15 @@ class AudioEngine {
         try {
             // === 1. 动态压缩器（防止削波失真）===
             this.compressor = ctx.createDynamicsCompressor();
-            this.compressor.threshold.value = -24;    // 开始压缩的阈值（dB）
-            this.compressor.knee.value = 30;          // 柔和的压缩曲线
-            this.compressor.ratio.value = 12;         // 压缩比例（12:1）
+            this.compressor.threshold.value = -30;    // 更低阈值，更早压缩
+            this.compressor.knee.value = 40;          // 更柔和的压缩曲线
+            this.compressor.ratio.value = 20;         // 更强压缩比（20:1）
             this.compressor.attack.value = 0.003;     // 快速响应（3ms）
             this.compressor.release.value = 0.25;     // 释放时间（250ms）
             
             // === 2. 主增益控制 ===
             this.masterGain = ctx.createGain();
-            this.masterGain.gain.value = 0.9;         // 主音量（0.9 = 90%）
+            this.masterGain.gain.value = 1.5;         // 主音量提升到 150%
             
             // === 3. 音频链路 ===
             // 所有音符 → 压缩器 → 主增益 → 输出
@@ -186,7 +186,7 @@ class AudioEngine {
             
             // === 音量包络（ADSR）===
             const gainNode = ctx.createGain();
-            const volume = (velocity / 127) * 0.6; // 提高单音符音量（压缩器会保护）
+            const volume = (velocity / 127) * 0.8; // 进一步提高单音符音量
             
             // Attack（快速起音，5ms）
             gainNode.gain.setValueAtTime(0, now);
