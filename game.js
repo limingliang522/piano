@@ -79,7 +79,7 @@ const moveSpeed = 0.50;
 const GRAPHICS_CONFIG = {
     shadowsEnabled: true,
     shadowType: THREE.PCFSoftShadowMap,
-    pixelRatio: Math.min(window.devicePixelRatio, 2),
+    pixelRatio: Math.min(window.devicePixelRatio, 3), // 提高到3倍，支持高分辨率屏幕
     fogDistance: 80,
     trailLength: 10,
     playerSegments: 32,
@@ -135,9 +135,8 @@ function init() {
         precision: "highp"
     });
     
-    // 设置像素比以提高画质（最高2倍，避免过度消耗性能）
-    const pixelRatio = Math.min(window.devicePixelRatio, 2);
-    renderer.setPixelRatio(pixelRatio);
+    // 设置像素比以提高画质（最高3倍，支持高分辨率屏幕）
+    renderer.setPixelRatio(GRAPHICS_CONFIG.pixelRatio);
     renderer.setSize(window.innerWidth, window.innerHeight);
     
     // 设置透明背景
@@ -1402,8 +1401,7 @@ function onWindowResize() {
     // 根据屏幕比例调整FOV
     camera.fov = aspect < 1 ? 75 : 60;
     camera.updateProjectionMatrix();
-    const pixelRatio = Math.min(window.devicePixelRatio, 2);
-    renderer.setPixelRatio(pixelRatio);
+    renderer.setPixelRatio(GRAPHICS_CONFIG.pixelRatio);
     renderer.setSize(window.innerWidth, window.innerHeight);
 }
 
