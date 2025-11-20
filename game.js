@@ -305,6 +305,7 @@ const RUNE_COLORS = {
 // Three.js 场景设置
 let scene, camera, renderer;
 let player, ground = [];
+let groundTexture = null; // 保存地面纹理引用
 let obstacles = [];
 let coins = [];
 let gameRunning = false;
@@ -918,16 +919,16 @@ function createGround() {
     const groundGeometry = new THREE.PlaneGeometry(LANES * LANE_WIDTH, GROUND_LENGTH);
     
     // 使用 PixelTextureGenerator 创建云层纹理
-    const cloudTexture = PixelTextureGenerator.createPatternTexture(CLOUD_PATTERN, CLOUD_COLORS, 32);
+    groundTexture = PixelTextureGenerator.createPatternTexture(CLOUD_PATTERN, CLOUD_COLORS, 32);
     
     // 设置纹理重复
-    cloudTexture.wrapS = THREE.RepeatWrapping;
-    cloudTexture.wrapT = THREE.RepeatWrapping;
-    cloudTexture.repeat.set(4, 20); // 横向4次，纵向20次
+    groundTexture.wrapS = THREE.RepeatWrapping;
+    groundTexture.wrapT = THREE.RepeatWrapping;
+    groundTexture.repeat.set(4, 20); // 横向4次，纵向20次
     
     // 使用 MeshLambertMaterial 替代 MeshStandardMaterial
     const groundMaterial = new THREE.MeshLambertMaterial({ 
-        map: cloudTexture,
+        map: groundTexture,
         side: THREE.DoubleSide
     });
     
@@ -1218,13 +1219,13 @@ function roll() {
 
 // 更新地面
 function updateGround() {
-    const moveSpeed = speed * 60; // 转换为每秒的速度
-    ground.forEach(g => {
-        g.position.z += moveSpeed * deltaTime;
-        if (g.position.z > GROUND_LENGTH) {
-            g.position.z -= GROUND_LENGTH * 3;
-        }
-    });
+    // 通过纹理偏移实现移动效果，而不是移动几何体
+    // 这样云层纹理看起来是静止的
+    if (groundTexture) {
+        const moveSpeed = speed * 60; // 转换为每秒的速度
+        // 调整偏移速度，使其与游戏速度匹配
+        groundTexture.offset.y += (moveSpeed * deltaTime) / GROUND_LENGTH * 20;
+    }
 }
 
 // 更新音符方块
