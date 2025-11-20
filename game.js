@@ -1,59 +1,59 @@
-// ========== 像素纹理生成系统 ==========
-class PixelTextureGenerator {
-    /**
-     * 创建纯色像素纹理
-     * @param {number} color - 颜色值（十六进制）
-     * @param {number} size - 纹理尺寸（默认16x16）
-     * @returns {THREE.Texture}
-     */
-    static createSolidTexture(color, size = 16) {
-        const canvas = document.createElement('canvas');
-        canvas.width = size;
-        canvas.height = size;
-        const ctx = canvas.getContext('2d');
-        
-        // 填充纯色
-        ctx.fillStyle = '#' + color.toString(16).padStart(6, '0');
-        ctx.fillRect(0, 0, size, size);
-        
-        const texture = new THREE.CanvasTexture(canvas);
-        texture.magFilter = THREE.NearestFilter;
-        texture.minFilter = THREE.NearestFilter;
-        texture.needsUpdate = true;
-        
-        return texture;
-    }
+// ========== 简单钢琴游戏 ==========
+
+// Three.js 场景设置
+let scene, camera, renderer;
+let pianoKeys = [];
+let gameRunning = false;
+
+// MIDI 音乐系统
+let midiParser = null;
+let audioEngine = null;
+let midiNotes = [];
+let gameStartTime = 0;
+let notesTriggered = 0;
+let totalNotes = 0;
+
+// UI 元素
+const loadingElement = document.getElementById('loading');
+const startButton = document.getElementById('startButton');
+
+// MIDI文件列表
+let midiFiles = [];
+let currentMidiIndex = 0;
+
+// 钢琴配置
+const PIANO_KEYS = 88; // 标准钢琴88键
+const WHITE_KEY_WIDTH = 0.5;
+const WHITE_KEY_HEIGHT = 3;
+const WHITE_KEY_DEPTH = 0.2;
+const BLACK_KEY_WIDTH = 0.3;
+const BLACK_KEY_HEIGHT = 2;
+const BLACK_KEY_DEPTH = 0.15;
+
+// 初始化 Three.js 场景
+function init() {
+    // 创建场景
+    scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x1a1a1a);
     
-    /**
-     * 创建精灵纹理（从像素数据数组）
-     * @param {Array} spriteData - 二维数组，每个元素是颜色索引
-     * @param {Object} colorMap - 颜色映射表 {索引: 颜色值}
-     * @param {number} pixelSize - 每个像素的实际大小（默认1）
-     * @returns {THREE.Texture}
-     */
-    static createSpriteTexture(spriteData, colorMap, pixelSize = 1) {
-        const height = spriteData.length;
-        const width = spriteData[0].length;
-        const canvas = document.createElement('canvas');
-        canvas.width = width * pixelSize;
-        canvas.height = height * pixelSize;
-        const ctx = canvas.getContext('2d');
-        
-        // 绘制每个像素
-        for (let y = 0; y < height; y++) {
-            for (let x = 0; x < width; x++) {
-                const colorIndex = spriteData[y][x];
-                if (colorIndex === 0 || colorIndex === 'transparent') {
-                    // 透明像素，跳过
-                    continue;
-                }
-                
-                const color = colorMap[colorIndex];
-                if (color) {
-                    ctx.fillStyle = color;
-                    ctx.fillRect(x * pixelSize, y * pixelSize, pixelSize, pixelSize);
-                }
-            }
+    // 创建相机
+    camera = new THREE.PerspectiveCamera(
+        60,
+        window.innerWidth / window.innerHeight,
+        0.1,
+        1000
+    );
+    camera.position.set(0, 15, 20);
+    camera.lookAt(0, 0, 0);
+    
+    // 创建渲染器
+    const canvas = document.getElementById('gameCanvas');
+    renderer = new THREE.WebGLRenderer({ 
+        canvas: canvas,
+        antialias: true
+    });
+    renderer.setPixelRatio(window.devicePixelRatio);
+    renderer.setSize(window.innerWidth, window.innerHe
         }
         
         const texture = new THREE.CanvasTexture(canvas);
