@@ -33,7 +33,7 @@ class AudioEngine {
         try {
             // 只保留主音量控制，不添加任何效果处理
             this.masterGain = ctx.createGain();
-            this.masterGain.gain.value = 1.5; // 提升50%音量
+            this.masterGain.gain.value = 2.0; // 提升100%音量（安全范围内）
             
             // 直接连接到输出
             this.masterGain.connect(ctx.destination);
