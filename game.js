@@ -330,7 +330,7 @@ async function initMIDISystem() {
         
         // 等待用户点击开始按钮
         const startGame = async (e) => {
-            console.log('播放按钮被点击');
+            console.log('🎮 播放按钮被点击');
             if (e) e.preventDefault();
             startButton.removeEventListener('click', startGame);
             startButton.removeEventListener('touchstart', startGame);
@@ -343,31 +343,28 @@ async function initMIDISystem() {
                 return;
             }
             
-            console.log('audioEngine 存在:', audioEngine);
+            // 立即启动音频上下文（在用户交互时）
+            console.log('🔊 立即启动音频上下文（消除延迟）...');
+            try {
+                await audioEngine.start();
+                console.log('✅ 音频上下文已启动');
+            } catch (error) {
+                console.warn('音频上下文启动失败:', error);
+            }
             
             // 显示加载提示
             loadingElement.style.display = 'block';
-            loadingElement.textContent = '启动音频系统...';
-            console.log('开始加载音色...');
+            loadingElement.textContent = '加载钢琴音色 0/30';
             
             try {
-                // 启动音频上下文
-                console.log('启动音频上下文...');
-                console.log('调用 audioEngine.start()...');
-                await audioEngine.start();
-                console.log('audioEngine.start() 返回了');
-                console.log('音频上下文启动完成');
-                
-                loadingElement.textContent = '加载钢琴音色 0/30';
                 
                 // 加载钢琴音色（带进度显示）
-                console.log('开始加载钢琴音色...');
+                console.log('🎹 开始加载钢琴音色...');
                 await audioEngine.init((loaded, total) => {
                     loadingElement.textContent = `加载钢琴音色 ${loaded}/${total}`;
-                    console.log(`加载进度: ${loaded}/${total}`);
                 });
                 
-                console.log('钢琴音色加载完成！');
+                console.log('✅ 钢琴音色加载完成（已预热）！');
                 
                 // 隐藏加载提示
                 loadingElement.style.display = 'none';
@@ -1971,13 +1968,20 @@ async function selectMidi(index) {
             startButton.removeEventListener('touchstart', startGame);
             startButton.style.display = 'none';
             
+            // 立即启动音频上下文（在用户交互时）
+            console.log('🔊 立即启动音频上下文...');
+            try {
+                await audioEngine.start();
+                console.log('✅ 音频上下文已启动');
+            } catch (error) {
+                console.warn('音频上下文启动失败:', error);
+            }
+            
             // 显示加载提示
             loadingElement.style.display = 'block';
             loadingElement.textContent = '加载钢琴音色中...';
             
             try {
-                // 确保音频已启动
-                await audioEngine.start();
                 
                 // 如果音色未加载，则加载
                 if (!audioEngine.isReady) {

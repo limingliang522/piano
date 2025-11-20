@@ -248,7 +248,45 @@ class AudioEngine {
         console.log(`钢琴采样加载完成！共 ${this.samples.size}/30 个音符`);
         
         this.isReady = true;
+        
+        // 播放一个静音测试音符，预热音频管道
+        console.log('🔊 预热音频管道...');
+        await this.warmupWithSample();
+        
         return true;
+    }
+    
+    // 使用真实采样预热（更彻底）
+    async warmupWithSample() {
+        try {
+            // 找到中音区的采样（C4）
+            const warmupNote = this.samples.get('C4') || this.samples.values().next().value;
+            if (!warmupNote) return;
+            
+            const ctx = this.audioContext;
+            const now = ctx.currentTime;
+            
+            // 创建一个极短、极小音量的音符
+            const source = ctx.createBufferSource();
+            source.buffer = warmupNote;
+            
+            const gainNode = ctx.createGain();
+            gainNode.gain.setValueAtTime(0.001, now); // 几乎听不见
+            gainNode.gain.exponentialRampToValueAtTime(0.0001, now + 0.05);
+            
+            source.connect(gainNode);
+            gainNode.connect(this.compressor);
+            
+            source.start(now);
+            source.stop(now + 0.05);
+            
+            // 等待播放完成
+            await new Promise(resolve => setTimeout(resolve, 100));
+            
+            console.log('✅ 音频管道预热完成');
+        } catch (error) {
+            console.warn('采样预热失败（不影响使用）:', error);
+        }
     }
 
     // 找到最接近的采样音符
@@ -513,5 +551,34 @@ class AudioEngine {
         }
         
         console.log('音频上下文最终状态:', this.audioContext.state);
+        
+        // 播放静音音符预热音频系统（消除"咔"声）
+        this.warmupAudio();
+    }
+    
+    // 预热音频系统（消除第一次播放的"咔"声）
+    warmupAudio() {
+        try {
+            const ctx = this.audioContext;
+            const now = ctx.currentTime;
+            
+            // 创建一个极短的静音振荡器
+            const oscillator = ctx.createOscillator();
+            const gainNode = ctx.createGain();
+            
+            oscillator.frequency.value = 440; // A4
+            gainNode.gain.setValueAtTime(0.001, now); // 极小音量
+            gainNode.gain.exponentialRampToValueAtTime(0.0001, now + 0.01);
+            
+            oscillator.connect(gainNode);
+            gainNode.connect(this.masterGain);
+            
+            oscillator.start(now);
+            oscillator.stop(now + 0.01);
+            
+            console.log('✅ 音频系统预热完成');
+        } catch (error) {
+            console.warn('音频预热失败（不影响使用）:', error);
+        }
     }
 }
