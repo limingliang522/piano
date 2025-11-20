@@ -319,8 +319,9 @@ class AudioEngine {
     }
 
     // 播放钢琴音符（极致音质版 - 3D空间音频）
-    // 添加性能模式参数
-    playNote(midiNote, duration = 0.5, velocity = 100, lane = 2, performanceMode = 'high') {
+    playNote(midiNote, duration = 0.5, velocity = 100, lane = 2) {
+        // 固定使用高性能模式
+        const performanceMode = 'high';
         if (!this.isReady || this.samples.size === 0) {
             console.warn('钢琴采样尚未加载完成');
             return;

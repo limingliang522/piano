@@ -1086,8 +1086,8 @@ function updateNoteBlocks() {
             score += 100;
             
             // 播放音符（极致音质 - 传递轨道信息用于3D定位）
-            // 使用原始velocity，完美还原MIDI，并传递性能模式
-            audioEngine.playNote(noteData.note, noteData.duration, noteData.velocity, noteData.lane, performanceMode);
+            // 使用原始velocity，完美还原MIDI
+            audioEngine.playNote(noteData.note, noteData.duration, noteData.velocity, noteData.lane);
             
             // 改变颜色表示已触发（白色发光）
             noteBlock.material.color.setHex(0xffffff);
