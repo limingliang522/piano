@@ -90,7 +90,11 @@
   - 移除 metalness 和 roughness 属性
   - _Requirements: 3.1, 3.3, 5.3_
 
-- [ ] 7. 改造轨道线为金色像素风格
+- [x] 7. 改造轨道线为金色像素风格
+
+
+
+
   - 修改 createGround() 中的轨道线创建代码
   - 将轨道线颜色改为 PIXEL_PALETTE.UI_GOLD
   - 增加轨道线宽度（0.03 → 0.1）

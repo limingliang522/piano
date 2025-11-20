@@ -940,41 +940,41 @@ function createGround() {
         ground.push(groundMesh);
     }
     
-    // 添加轨道线（深灰色，低调）
+    // 添加轨道线（金色像素风格）
     const lineMaterial = new THREE.MeshBasicMaterial({ 
-        color: 0x444444, // 深灰色
+        color: PIXEL_PALETTE.UI_GOLD, // 金色
         transparent: true,
-        opacity: 0.5,
+        opacity: 1.0, // 完全不透明
         fog: true
     });
     
     // 添加轨道分隔线（4条）
     for (let i = 1; i < LANES; i++) {
         const x = (i - LANES / 2) * LANE_WIDTH;
-        const lineGeometry = new THREE.BoxGeometry(0.03, 0.01, 250);
+        const lineGeometry = new THREE.BoxGeometry(0.1, 0.05, 250); // 增加宽度和高度
         const lineMesh = new THREE.Mesh(lineGeometry, lineMaterial);
-        lineMesh.position.set(x, 0.01, -75);
+        lineMesh.position.set(x, 0.03, -75); // 提高Y位置使其更明显
         scene.add(lineMesh);
     }
     
-    // 添加两侧边界线（让5条轨道更明显）
+    // 添加两侧边界线（金色像素风格，让5条轨道更明显）
     const edgeMaterial = new THREE.MeshBasicMaterial({
-        color: 0x444444, // 深灰色
+        color: PIXEL_PALETTE.UI_GOLD, // 金色
         transparent: true,
-        opacity: 0.4,
+        opacity: 1.0, // 完全不透明
         fog: true
     });
     
     // 左边界
-    const leftEdge = new THREE.BoxGeometry(0.05, 0.02, 250);
+    const leftEdge = new THREE.BoxGeometry(0.1, 0.05, 250); // 增加宽度和高度
     const leftMesh = new THREE.Mesh(leftEdge, edgeMaterial);
-    leftMesh.position.set(-LANES * LANE_WIDTH / 2, 0.01, -75);
+    leftMesh.position.set(-LANES * LANE_WIDTH / 2, 0.03, -75); // 提高Y位置
     scene.add(leftMesh);
     
     // 右边界
-    const rightEdge = new THREE.BoxGeometry(0.05, 0.02, 250);
+    const rightEdge = new THREE.BoxGeometry(0.1, 0.05, 250); // 增加宽度和高度
     const rightMesh = new THREE.Mesh(rightEdge, edgeMaterial);
-    rightMesh.position.set(LANES * LANE_WIDTH / 2, 0.01, -75);
+    rightMesh.position.set(LANES * LANE_WIDTH / 2, 0.03, -75); // 提高Y位置
     scene.add(rightMesh);
     
     // 创建触发线（白色发光）
