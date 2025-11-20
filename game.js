@@ -1941,6 +1941,34 @@ function initMidiList(filterText = '') {
         
         midiList.appendChild(item);
     });
+    
+    // 自动滚动到当前播放的音乐（居中显示）
+    scrollToCurrentMidi();
+}
+
+// 滚动到当前音乐（居中显示）
+function scrollToCurrentMidi() {
+    // 使用 requestAnimationFrame 确保 DOM 已更新
+    requestAnimationFrame(() => {
+        const container = document.querySelector('.midi-list-container');
+        const activeItem = document.querySelector('.midi-item.active');
+        
+        if (!container || !activeItem) return;
+        
+        // 计算需要滚动的位置，使当前音乐居中
+        const containerWidth = container.offsetWidth;
+        const itemLeft = activeItem.offsetLeft;
+        const itemWidth = activeItem.offsetWidth;
+        
+        // 计算居中位置：元素左边距 + 元素宽度的一半 - 容器宽度的一半
+        const scrollPosition = itemLeft + (itemWidth / 2) - (containerWidth / 2);
+        
+        // 平滑滚动到目标位置
+        container.scrollTo({
+            left: scrollPosition,
+            behavior: 'smooth'
+        });
+    });
 }
 
 // 初始化搜索功能
