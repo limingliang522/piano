@@ -1,21 +1,10 @@
-// 极致音质钢琴音频引擎 - 专业级空间音频处理
+// 钢琴音频引擎 - 完美还原MIDI
 class AudioEngine {
     constructor() {
         this.audioContext = null;
         this.masterGain = null;
         this.samples = new Map();
         this.isReady = false;
-        
-        // 专业音频处理链
-        this.convolver = null; // 卷积混响
-        this.compressor = null; // 动态压缩
-        this.limiter = null; // 限制器
-        this.softClipper = null; // 软削波器（抖音级音质）
-        this.eqLow = null; // 低频均衡
-        this.eqMid = null; // 中频均衡
-        this.eqHigh = null; // 高频均衡
-        this.stereoEnhancer = null; // 立体声增强
-        this.listener = null; // 3D 音频监听器
     }
     
     // 确保AudioContext已创建
@@ -37,160 +26,26 @@ class AudioEngine {
         }
     }
     
-    // 初始化专业音频处理链
+    // 初始化音频处理链（完美还原MIDI）
     initAudioChain() {
         const ctx = this.audioContext;
         
         try {
-            // 1. 动态压缩器（平衡音量，增加冲击力 - 温和设置）
-            this.compressor = ctx.createDynamicsCompressor();
-            this.compressor.threshold.value = -20;
-            this.compressor.knee.value = 40;
-            this.compressor.ratio.value = 3;
-            this.compressor.attack.value = 0.003;
-            this.compressor.release.value = 0.25;
-            
-            // 1.5. Makeup Gain（补偿压缩损失的音量）
-            this.makeupGain = ctx.createGain();
-            this.makeupGain.gain.value = 1.4;
-            
-            console.log('initAudioChain: 创建均衡器...');
-            // 2. 三段均衡器（精细调音）
-            this.eqLow = ctx.createBiquadFilter();
-            this.eqLow.type = 'lowshelf';
-            this.eqLow.frequency.value = 200;
-            this.eqLow.gain.value = 0;
-            
-            this.eqMid = ctx.createBiquadFilter();
-            this.eqMid.type = 'peaking';
-            this.eqMid.frequency.value = 2000;
-            this.eqMid.Q.value = 0.7;
-            this.eqMid.gain.value = 0;
-            
-            this.eqHigh = ctx.createBiquadFilter();
-            this.eqHigh.type = 'highshelf';
-            this.eqHigh.frequency.value = 6000;
-            this.eqHigh.gain.value = 0;
-            
-            console.log('initAudioChain: 创建混响...');
-            // 3. 卷积混响（音乐厅效果 - 轻量化）
-            this.convolver = ctx.createConvolver();
-            this.createReverbImpulse();
-            
-            // 混响干湿比控制（关闭混响以完美还原MIDI）
-            this.reverbDry = ctx.createGain();
-            this.reverbDry.gain.value = 1.0;
-            this.reverbWet = ctx.createGain();
-            this.reverbWet.gain.value = 0;
-            
-            console.log('initAudioChain: 创建限制器...');
-            // 4. 限制器（防止削波 - 平衡限制）
-            this.limiter = ctx.createDynamicsCompressor();
-            this.limiter.threshold.value = -2;
-            this.limiter.knee.value = 2;
-            this.limiter.ratio.value = 15;
-            this.limiter.attack.value = 0.003;
-            this.limiter.release.value = 0.1;
-            
-            console.log('initAudioChain: 创建软削波器（抖音级）...');
-            // 4.5. 软削波器（模拟抖音的音频处理）
-            this.softClipper = ctx.createWaveShaper();
-            this.softClipper.curve = this.makeSoftClipCurve();
-            this.softClipper.oversample = '4x'; // 高质量过采样
-            
-            console.log('initAudioChain: 创建主音量...');
-            // 5. 主音量（平衡响度）
+            // 只保留主音量控制，不添加任何效果处理
             this.masterGain = ctx.createGain();
-            this.masterGain.gain.value = 2.0;
+            this.masterGain.gain.value = 1.0;
             
-            console.log('initAudioChain: 连接音频节点...');
-            // 连接音频处理链
-            this.compressor.connect(this.makeupGain);
-            this.makeupGain.connect(this.eqLow);
-            this.eqLow.connect(this.eqMid);
-            this.eqMid.connect(this.eqHigh);
-            
-            // 混响并联处理
-            this.eqHigh.connect(this.reverbDry);
-            this.eqHigh.connect(this.convolver);
-            this.convolver.connect(this.reverbWet);
-            
-            this.reverbDry.connect(this.limiter);
-            this.reverbWet.connect(this.limiter);
-            
-            this.limiter.connect(this.softClipper);
-            this.softClipper.connect(this.masterGain);
+            // 直接连接到输出
             this.masterGain.connect(ctx.destination);
             
-            console.log('initAudioChain: 设置 3D 音频监听器...');
-            // 设置 3D 音频监听器位置
-            this.listener = ctx.listener;
-            if (this.listener.positionX) {
-                this.listener.positionX.value = 0;
-                this.listener.positionY.value = 0;
-                this.listener.positionZ.value = 0;
-                this.listener.forwardX.value = 0;
-                this.listener.forwardY.value = 0;
-                this.listener.forwardZ.value = -1;
-                this.listener.upX.value = 0;
-                this.listener.upY.value = 1;
-                this.listener.upZ.value = 0;
-            }
-            
-            console.log('🎵 专业音频处理链已初始化');
+            console.log('🎵 音频处理链已初始化（完美还原模式）');
         } catch (error) {
             console.error('initAudioChain: 初始化失败:', error);
             throw error;
         }
     }
     
-    // 创建音乐厅混响脉冲响应（轻量化版本 - 提升性能）
-    createReverbImpulse() {
-        const ctx = this.audioContext;
-        const sampleRate = ctx.sampleRate;
-        const length = sampleRate * 1.2; // 1.2秒混响（减少计算量）
-        const impulse = ctx.createBuffer(2, length, sampleRate);
-        const impulseL = impulse.getChannelData(0);
-        const impulseR = impulse.getChannelData(1);
-        
-        // 生成轻量级混响（减少随机数生成）
-        for (let i = 0; i < length; i++) {
-            // 指数衰减
-            const decay = Math.exp(-i / (sampleRate * 0.5));
-            
-            // 早期反射（前 30ms）
-            let earlyReflections = 0;
-            if (i < sampleRate * 0.03) {
-                earlyReflections = (Math.random() * 2 - 1) * 0.4 * decay;
-            }
-            
-            // 后期混响（扩散 - 简化）
-            const lateReverb = (Math.random() * 2 - 1) * decay * 0.2;
-            
-            // 左右声道略有不同
-            impulseL[i] = earlyReflections + lateReverb;
-            impulseR[i] = earlyReflections + lateReverb * 0.95;
-        }
-        
-        this.convolver.buffer = impulse;
-    }
-    
-    // 创建软削波曲线（温和版）
-    makeSoftClipCurve() {
-        const samples = 2048;
-        const curve = new Float32Array(samples);
-        const drive = 0.8; // 降低驱动强度（从 1.2 降到 0.8）
-        
-        for (let i = 0; i < samples; i++) {
-            const x = (i / samples) * 2 - 1; // -1 到 1
-            const driven = x * drive;
-            
-            // 使用 tanh 软削波（平滑过渡，不失真）
-            curve[i] = Math.tanh(driven) / Math.tanh(drive);
-        }
-        
-        return curve;
-    }
+
 
     // 将 MIDI 音符号转换为音符名称
     midiToNoteName(midiNote) {
@@ -280,7 +135,7 @@ class AudioEngine {
         return { noteName: closestNote, semitoneOffset: targetMidi - noteToMidi(closestNote) };
     }
 
-    // 播放钢琴音符（极致音质版 - 3D空间音频）
+    // 播放钢琴音符（完美还原MIDI）
     playNote(midiNote, duration = 0.5, velocity = 100, lane = 2) {
         if (!this.isReady || this.samples.size === 0) {
             console.warn('钢琴采样尚未加载完成');
@@ -314,68 +169,31 @@ class AudioEngine {
             const playbackRate = Math.pow(2, semitoneOffset / 12);
             source.playbackRate.value = playbackRate;
             
-            // === 3D 空间音频定位 ===
-            const panner = ctx.createPanner();
-            panner.panningModel = 'HRTF'; // 使用头部相关传输函数（最真实）
-            panner.distanceModel = 'inverse'; // 距离衰减模型
-            panner.refDistance = 1;
-            panner.maxDistance = 10000;
-            panner.rolloffFactor = 1;
-            panner.coneInnerAngle = 360;
-            panner.coneOuterAngle = 360;
-            panner.coneOuterGain = 0;
-            
-            // 根据轨道位置设置 3D 空间位置
-            // 5条轨道：lane 0-4，中间是 lane 2
-            const laneWidth = 3; // 轨道间距
-            const xPosition = (lane - 2) * laneWidth; // -6, -3, 0, 3, 6
-            const yPosition = 0; // 水平高度
-            const zPosition = -5; // 音符从前方传来
-            
-            if (panner.positionX) {
-                panner.positionX.value = xPosition;
-                panner.positionY.value = yPosition;
-                panner.positionZ.value = zPosition;
-            } else {
-                panner.setPosition(xPosition, yPosition, zPosition);
-            }
-            
-            // === 立体声增强 ===
+            // === 立体声声像（根据轨道位置）===
             const stereoPanner = ctx.createStereoPanner();
-            // 根据轨道位置设置立体声像（-1左 到 +1右）
             const panValue = (lane - 2) / 2; // -1, -0.5, 0, 0.5, 1
             stereoPanner.pan.value = Math.max(-1, Math.min(1, panValue));
             
-            // === 音量包络（ADSR - 消除咔嚓声）===
+            // === 音量包络（ADSR）===
             const gainNode = ctx.createGain();
-            const baseVolume = (velocity / 127) * 2.4; // 基础音量（平衡）
+            const volume = (velocity / 127) * 1.0; // 完美还原MIDI力度
             
-            // 根据音高调整音量（高音稍微轻一点）
-            const pitchFactor = 1 - (midiNote - 60) / 200;
-            const volume = baseVolume * Math.max(0.9, Math.min(1.5, pitchFactor));
-            
-            // Attack（柔和起音，10ms - 消除咔嚓声）
+            // Attack（快速起音，5ms）
             gainNode.gain.setValueAtTime(0, now);
-            gainNode.gain.linearRampToValueAtTime(volume, now + 0.01);
+            gainNode.gain.linearRampToValueAtTime(volume, now + 0.005);
             
-            // Decay + Sustain（保持）
-            const sustainTime = Math.max(noteDuration - 0.08, 0.02);
-            gainNode.gain.setValueAtTime(volume, now + 0.01);
-            // 自然衰减
-            gainNode.gain.linearRampToValueAtTime(volume * 0.7, now + 0.01 + sustainTime);
+            // Sustain（保持）
+            const sustainTime = Math.max(noteDuration - 0.055, 0.01);
+            gainNode.gain.setValueAtTime(volume, now + 0.005);
             
-            // Release（柔和释放，70ms - 消除咔嚓声）
+            // Release（自然释放，50ms）
             gainNode.gain.linearRampToValueAtTime(0, now + noteDuration);
             
-            // === 完美还原MIDI，不添加随机音高偏移 ===
-            // 已移除随机 detune，保持音高精确
-            
             // === 连接音频处理链 ===
-            // 音源 → 3D定位 → 立体声 → 音量包络 → 压缩器 → [效果链] → 输出
-            source.connect(panner);
-            panner.connect(stereoPanner);
+            // 音源 → 立体声 → 音量包络 → 主音量 → 输出
+            source.connect(stereoPanner);
             stereoPanner.connect(gainNode);
-            gainNode.connect(this.compressor);
+            gainNode.connect(this.masterGain);
             
             // 播放
             source.start(now);
@@ -385,7 +203,6 @@ class AudioEngine {
             source.onended = () => {
                 try {
                     source.disconnect();
-                    panner.disconnect();
                     stereoPanner.disconnect();
                     gainNode.disconnect();
                 } catch (e) {
@@ -398,74 +215,28 @@ class AudioEngine {
         }
     }
 
-    // 播放碰撞音效（增强版 - 更有冲击力）
+    // 播放碰撞音效
     playCollision() {
         const ctx = this.audioContext;
         const now = ctx.currentTime;
         
-        // === 低频冲击 ===
+        // 低频冲击
         const bass = ctx.createOscillator();
         bass.type = 'sine';
         bass.frequency.setValueAtTime(80, now);
-        bass.frequency.exponentialRampToValueAtTime(30, now + 0.4);
+        bass.frequency.exponentialRampToValueAtTime(30, now + 0.3);
         
         const bassGain = ctx.createGain();
-        bassGain.gain.setValueAtTime(0.5, now);
-        bassGain.gain.exponentialRampToValueAtTime(0.001, now + 0.4);
+        bassGain.gain.setValueAtTime(0.3, now);
+        bassGain.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
         
-        // === 中频撞击声 ===
-        const mid = ctx.createOscillator();
-        mid.type = 'square';
-        mid.frequency.setValueAtTime(200, now);
-        mid.frequency.exponentialRampToValueAtTime(80, now + 0.2);
-        
-        const midGain = ctx.createGain();
-        midGain.gain.setValueAtTime(0.3, now);
-        midGain.gain.exponentialRampToValueAtTime(0.001, now + 0.2);
-        
-        // === 高频碎裂声（噪音） ===
-        const noiseBuffer = ctx.createBuffer(1, ctx.sampleRate * 0.1, ctx.sampleRate);
-        const noiseData = noiseBuffer.getChannelData(0);
-        for (let i = 0; i < noiseData.length; i++) {
-            noiseData[i] = Math.random() * 2 - 1;
-        }
-        
-        const noise = ctx.createBufferSource();
-        noise.buffer = noiseBuffer;
-        
-        const noiseFilter = ctx.createBiquadFilter();
-        noiseFilter.type = 'highpass';
-        noiseFilter.frequency.value = 2000;
-        
-        const noiseGain = ctx.createGain();
-        noiseGain.gain.setValueAtTime(0.2, now);
-        noiseGain.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
-        
-        // === 低通滤波器（模拟撞击的闷响）===
-        const filter = ctx.createBiquadFilter();
-        filter.type = 'lowpass';
-        filter.frequency.setValueAtTime(1000, now);
-        filter.Q.value = 5;
-        
-        // 连接音频节点
+        // 连接到主音量
         bass.connect(bassGain);
-        mid.connect(midGain);
-        noise.connect(noiseFilter);
-        noiseFilter.connect(noiseGain);
-        
-        bassGain.connect(filter);
-        midGain.connect(filter);
-        noiseGain.connect(filter);
-        
-        filter.connect(this.compressor);
+        bassGain.connect(this.masterGain);
         
         // 播放
         bass.start(now);
-        bass.stop(now + 0.4);
-        mid.start(now);
-        mid.stop(now + 0.2);
-        noise.start(now);
-        noise.stop(now + 0.15);
+        bass.stop(now + 0.3);
     }
 
     // 启动音频上下文
