@@ -31,13 +31,13 @@ class AudioEngine {
         const ctx = this.audioContext;
         
         try {
-            // 创建压缩器（防止失真）
-            this.compressor = ctx.createDynamicsCompressor();
-            this.compressor.threshold.value = -12; // 温和阈值
-            this.compressor.knee.value = 30; // 平滑过渡
-            this.compressor.ratio.value = 4; // 温和压缩比，保持音质
-            this.compressor.attack.value = 0.003; // 自然响应
-            this.compressor.release.value = 0.25; // 自然释放
+            // 创建限幅器（仅防止削波，完全透明）
+            this.limiter = ctx.createDynamicsCompressor();
+            this.limiter.threshold.value = -0.5; // 仅在接近削波时工作
+            this.limiter.knee.value = 0; // 硬限制，无过渡（透明）
+            this.limiter.ratio.value = 20; // 砖墙限制
+            this.limiter.attack.value = 0.001; // 瞬时响应
+            this.limiter.release.value = 0.25; // 自然释放
             
             // 创建主音量控制节点
             this.masterGain = ctx.createGain();
