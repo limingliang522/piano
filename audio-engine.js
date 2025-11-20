@@ -31,14 +31,23 @@ class AudioEngine {
         const ctx = this.audioContext;
         
         try {
-            // 仅创建主音量控制节点
+            // 创建压缩器（防止失真）
+            this.compressor = ctx.createDynamicsCompressor();
+            this.compressor.threshold.value = -24; // 阈值
+            this.compressor.knee.value = 30; // 柔和压缩
+            this.compressor.ratio.value = 12; // 压缩比
+            this.compressor.attack.value = 0.003; // 快速响应
+            this.compressor.release.value = 0.25; // 释放时间
+            
+            // 创建主音量控制节点
             this.masterGain = ctx.createGain();
-            this.masterGain.gain.value = 2.5; // 增大音量 2.5 倍
+            this.masterGain.gain.value = 3.5; // 增大音量 3.5 倍（压缩器会防止失真）
             
-            // 直接连接到输出
-            this.masterGain.connect(ctx.destination);
+            // 音频链：主音量 → 压缩器 → 输出
+            this.masterGain.connect(this.compressor);
+            this.compressor.connect(ctx.destination);
             
-            console.log('🎵 零后处理音频链已初始化 - 完美还原MIDI');
+            console.log('🎵 零后处理音频链已初始化 - 完美还原MIDI + 动态压缩');
         } catch (error) {
             console.error('initAudioChain: 初始化失败:', error);
             throw error;
@@ -169,7 +178,7 @@ class AudioEngine {
             
             // 音量控制（基于力度）
             const gainNode = ctx.createGain();
-            const volume = (velocity / 127) * 0.4; // 降低单音符音量以配合主增益，避免失真
+            const volume = (velocity / 127) * 0.6; // 提高单音符音量，压缩器会防止失真
             
             // 简单的淡入淡出（消除咔嚓声）
             gainNode.gain.setValueAtTime(0, now);
