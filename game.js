@@ -82,18 +82,39 @@ let frameCount = 0;
 let fpsCheckTime = 0;
 let fpsHistory = [];
 let currentFPS = 0;
-let performanceMode = 'high'; // high, medium, low
+let performanceMode = 'high'; // ultra, high, medium, low, potato
+let detectionComplete = false; // 检测是否完成
+let lastQualityAdjustTime = 0; // 上次调整画质的时间
+
+// 检测浏览器类型
+const isFirefox = navigator.userAgent.includes('Firefox');
+const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+const isChrome = /Chrome/.test(navigator.userAgent) && !navigator.userAgent.includes('Edge');
+const isEdge = navigator.userAgent.includes('Edge') || navigator.userAgent.includes('Edg/');
+const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+
+console.log(`浏览器检测: ${isSafari ? 'Safari' : isFirefox ? 'Firefox' : isEdge ? 'Edge' : isChrome ? 'Chrome' : '其他'}`);
+console.log(`设备类型: ${isMobile ? '移动端' : '桌面端'}`);
 
 function detectRefreshRate() {
     // 计算平均FPS
     const avgFPS = fpsHistory.reduce((a, b) => a + b, 0) / fpsHistory.length;
     
-    if (avgFPS > 110) {
+    // 根据浏览器和FPS判断性能模式
+    if (isFirefox && isMobile) {
+        // Firefox 移动端性能差，强制低画质
+        targetFPS = 60;
+        performanceMode = 'low';
+        console.log('检测到 Firefox 移动端，强制低画质模式');
+    } else if (avgFPS > 130) {
+        targetFPS = 144;
+        performanceMode = isSafari || !isMobile ? 'ultra' : 'high';
+    } else if (avgFPS > 110) {
         targetFPS = 120;
         performanceMode = 'high';
     } else if (avgFPS > 80) {
         targetFPS = 90;
-        performanceMode = 'medium'; // 修复：90Hz 应该是 medium
+        performanceMode = 'medium';
     } else if (avgFPS > 50) {
         targetFPS = 60;
         performanceMode = 'medium';
@@ -102,48 +123,70 @@ function detectRefreshRate() {
         performanceMode = 'low';
     } else {
         targetFPS = 30;
-        performanceMode = 'potato'; // 超低端模式
+        performanceMode = 'potato';
     }
     
+    detectionComplete = true;
     console.log(`检测到屏幕刷新率: ${targetFPS}Hz (平均FPS: ${avgFPS.toFixed(1)})`);
     console.log(`性能模式: ${performanceMode}`);
     fpsElement.textContent = `${targetFPS}Hz`;
     
     // 根据性能调整画质
     adjustQuality();
+    
+    // 更新画质显示
+    if (typeof updateQualityDisplay === 'function') {
+        updateQualityDisplay();
+    }
 }
 
 function adjustQuality() {
+    const oldMode = performanceMode;
+    
     if (performanceMode === 'potato') {
         // 超低端：极致优化
         renderer.shadowMap.enabled = false;
-        renderer.setPixelRatio(0.75); // 更低分辨率
+        renderer.setPixelRatio(0.75);
         scene.fog.far = 30;
-        trailLength = 3; // 减少拖尾长度
-        console.log('已切换到超低画质模式');
+        trailLength = 3;
+        console.log('🎨 已切换到超低画质模式 (Potato)');
     } else if (performanceMode === 'low') {
         // 低端设备：关闭阴影，降低像素比
         renderer.shadowMap.enabled = false;
         renderer.setPixelRatio(1);
-        scene.fog.far = 40;
+        scene.fog.far = 50;
         trailLength = 5;
-        console.log('已切换到低画质模式');
+        console.log('🎨 已切换到低画质模式 (Low)');
     } else if (performanceMode === 'medium') {
         // 中端设备：简化阴影，适中像素比
         renderer.shadowMap.enabled = true;
-        renderer.shadowMap.type = THREE.BasicShadowMap; // 简化阴影
+        renderer.shadowMap.type = THREE.BasicShadowMap;
         renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
-        scene.fog.far = 60;
+        scene.fog.far = 65;
         trailLength = 8;
-        console.log('已切换到中画质模式');
-    } else {
-        // high 模式：最高画质
+        console.log('🎨 已切换到中画质模式 (Medium)');
+    } else if (performanceMode === 'high') {
+        // 高画质模式
         renderer.shadowMap.enabled = true;
         renderer.shadowMap.type = THREE.PCFSoftShadowMap;
         renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
         scene.fog.far = 80;
         trailLength = 10;
-        console.log('已切换到高画质模式');
+        console.log('🎨 已切换到高画质模式 (High)');
+    } else if (performanceMode === 'ultra') {
+        // 超高画质模式（144Hz 设备）
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        // 144Hz 模式下降低像素比以保证帧率
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, isMobile ? 1.5 : 2));
+        scene.fog.far = 80;
+        trailLength = 10;
+        console.log('🎨 已切换到超高画质模式 (Ultra 144Hz)');
+    }
+    
+    // 如果画质模式改变，需要重新创建材质
+    if (oldMode !== performanceMode && noteObjects.length > 0) {
+        console.log('🔄 画质模式改变，将在下次创建方块时应用新材质');
     }
 }
 
@@ -607,7 +650,44 @@ function createAllNoteBlocks() {
     console.log(`✅ 创建完成！实际创建了 ${noteObjects.length} 个方块`);
 }
 
-// 创建音符方块（玻璃质感）
+// 根据性能模式创建材质
+function createNoteMaterial() {
+    if (performanceMode === 'ultra' || performanceMode === 'high') {
+        // 高画质：玻璃质感（MeshPhysicalMaterial）
+        return new THREE.MeshPhysicalMaterial({ 
+            color: 0x2a2a2a,
+            metalness: 0.9,
+            roughness: 0.1,
+            transparent: true,
+            opacity: 0.85,
+            transmission: 0.3, // 玻璃透射
+            thickness: 0.5,
+            envMapIntensity: 1,
+            clearcoat: 1.0,
+            clearcoatRoughness: 0.1
+        });
+    } else if (performanceMode === 'medium') {
+        // 中画质：标准材质（MeshStandardMaterial）
+        return new THREE.MeshStandardMaterial({ 
+            color: 0x2a2a2a,
+            metalness: 0.8,
+            roughness: 0.2,
+            transparent: true,
+            opacity: 0.9,
+            emissive: 0x111111,
+            emissiveIntensity: 0.3
+        });
+    } else {
+        // 低画质：基础材质（MeshBasicMaterial）
+        return new THREE.MeshBasicMaterial({ 
+            color: 0x333333,
+            transparent: true,
+            opacity: 0.95
+        });
+    }
+}
+
+// 创建音符方块（根据性能模式使用不同材质）
 function createNoteBlock(noteData) {
     // 使用预先分配的高度
     const isTall = noteData.isTall;
@@ -615,30 +695,21 @@ function createNoteBlock(noteData) {
     const blockY = isTall ? 1.5 : 0.2; // 超高方块的Y位置也要调整
     
     const geometry = new THREE.BoxGeometry(1.5, blockHeight, 1.2);
-    const material = new THREE.MeshPhysicalMaterial({ 
-        color: 0x2a2a2a, // 稍微亮一点
-        metalness: 0.9,
-        roughness: 0.1,
-        transparent: true,
-        opacity: 0.85,
-        transmission: 0.3, // 玻璃透射
-        thickness: 0.5,
-        envMapIntensity: 1,
-        clearcoat: 1.0,
-        clearcoatRoughness: 0.1
-    });
+    const material = createNoteMaterial();
     const noteBlock = new THREE.Mesh(geometry, material);
     
-    // 添加更亮的发光边缘（白色边框）
-    const edgesGeometry = new THREE.EdgesGeometry(geometry);
-    const edgesMaterial = new THREE.LineBasicMaterial({ 
-        color: 0xffffff,
-        transparent: true,
-        opacity: 0.9, // 提高不透明度
-        linewidth: 2
-    });
-    const edges = new THREE.LineSegments(edgesGeometry, edgesMaterial);
-    noteBlock.add(edges);
+    // 添加发光边缘（低画质模式下跳过以提升性能）
+    if (performanceMode !== 'potato' && performanceMode !== 'low') {
+        const edgesGeometry = new THREE.EdgesGeometry(geometry);
+        const edgesMaterial = new THREE.LineBasicMaterial({ 
+            color: 0xffffff,
+            transparent: true,
+            opacity: performanceMode === 'medium' ? 0.7 : 0.9,
+            linewidth: 2
+        });
+        const edges = new THREE.LineSegments(edgesGeometry, edgesMaterial);
+        noteBlock.add(edges);
+    }
     
     const x = (noteData.lane - 2) * LANE_WIDTH;
     // 根据时间计算初始Z位置
@@ -647,7 +718,11 @@ function createNoteBlock(noteData) {
     const bufferDistance = 30; // 缓冲距离，让黑块从迷雾中出现
     const zPosition = 2 - (noteData.time * originalBaseSpeed * 60) - bufferDistance;
     noteBlock.position.set(x, blockY, zPosition);
-    noteBlock.castShadow = true;
+    
+    // 只在中高画质下启用阴影
+    if (performanceMode !== 'potato' && performanceMode !== 'low') {
+        noteBlock.castShadow = true;
+    }
     
     noteBlock.userData = {
         noteData: noteData,
@@ -748,28 +823,34 @@ let trailSpheres = [];
 
 // 创建玩家（半透明白色小球 + 微光边缘）
 function createPlayer() {
-    const geometry = new THREE.SphereGeometry(0.25, 32, 32);
+    // 根据性能模式调整球体细节
+    const segments = performanceMode === 'potato' ? 16 : performanceMode === 'low' ? 24 : 32;
+    const geometry = new THREE.SphereGeometry(0.25, segments, segments);
+    
     const material = new THREE.MeshStandardMaterial({ 
         color: 0xffffff,
         emissive: 0xffffff,
-        emissiveIntensity: 0.4, // 微光
+        emissiveIntensity: 0.4,
         metalness: 0.3,
         roughness: 0.4,
         transparent: true,
-        opacity: 0.95 // 半透明
+        opacity: 0.95
     });
     player = new THREE.Mesh(geometry, material);
     player.position.set(0, 0.25, 0);
-    player.castShadow = true;
+    
+    // 只在中高画质下启用阴影
+    if (performanceMode !== 'potato' && performanceMode !== 'low') {
+        player.castShadow = true;
+    }
     scene.add(player);
     
-    // 取消光圈效果，保持画面干净
-    
-    // 创建拖尾球体（半透明，不发光）
+    // 创建拖尾球体（根据性能模式调整数量）
+    const trailSegments = performanceMode === 'potato' || performanceMode === 'low' ? 12 : 16;
     for (let i = 0; i < trailLength; i++) {
-        const trailGeometry = new THREE.SphereGeometry(0.2, 16, 16);
+        const trailGeometry = new THREE.SphereGeometry(0.2, trailSegments, trailSegments);
         const trailMaterial = new THREE.MeshBasicMaterial({
-            color: 0xcccccc, // 改为浅灰色
+            color: 0xcccccc,
             transparent: true,
             opacity: 0
         });
@@ -918,15 +999,25 @@ function cleanupObjects(objectArray) {
 function logPerformanceStats() {
     if (renderer && renderer.info) {
         const info = renderer.info;
-        console.log('=== 性能统计 ===');
-        console.log(`渲染调用: ${info.render.calls}`);
-        console.log(`三角形数: ${info.render.triangles}`);
-        console.log(`几何体: ${info.memory.geometries}`);
-        console.log(`纹理: ${info.memory.textures}`);
-        console.log(`场景物体: ${scene.children.length}`);
-        console.log(`音符方块: ${noteObjects.length}`);
-        console.log(`当前FPS: ${currentFPS}`);
-        console.log(`性能模式: ${performanceMode}`);
+        console.log('╔═══════════════════════════════════════╗');
+        console.log('║         🎮 性能统计面板               ║');
+        console.log('╠═══════════════════════════════════════╣');
+        console.log(`║ 浏览器: ${isSafari ? 'Safari' : isFirefox ? 'Firefox' : isEdge ? 'Edge' : isChrome ? 'Chrome' : '其他'} (${isMobile ? '移动端' : '桌面端'})`);
+        console.log(`║ 性能模式: ${performanceMode.toUpperCase()}`);
+        console.log(`║ 目标FPS: ${targetFPS}Hz | 当前FPS: ${currentFPS}`);
+        console.log(`║ 像素比: ${renderer.getPixelRatio().toFixed(2)}x`);
+        console.log(`║ 阴影: ${renderer.shadowMap.enabled ? '✅ 开启' : '❌ 关闭'}`);
+        console.log(`║ 阴影类型: ${renderer.shadowMap.enabled ? (renderer.shadowMap.type === THREE.PCFSoftShadowMap ? 'PCF柔和' : '基础') : 'N/A'}`);
+        console.log('╠═══════════════════════════════════════╣');
+        console.log(`║ 渲染调用: ${info.render.calls}`);
+        console.log(`║ 三角形数: ${info.render.triangles.toLocaleString()}`);
+        console.log(`║ 几何体: ${info.memory.geometries}`);
+        console.log(`║ 纹理: ${info.memory.textures}`);
+        console.log(`║ 场景物体: ${scene.children.length}`);
+        console.log(`║ 音符方块: ${noteObjects.length}`);
+        console.log(`║ 拖尾长度: ${trailLength}`);
+        console.log(`║ 雾效距离: ${scene.fog.far}`);
+        console.log('╚═══════════════════════════════════════╝');
     }
 }
 
@@ -1457,24 +1548,52 @@ function animate(currentTime) {
     // 更新FPS统计
     updateFPS(currentTime);
     
-    // 帧率检测（前200帧，在第150帧检测）
-    if (frameCount < 200) {
+    // 帧率检测（前500帧，在第300帧检测，更准确）
+    if (frameCount < 500) {
         frameCount++;
-        if (frameCount === 150) {
+        if (frameCount === 300 && !detectionComplete) {
             detectRefreshRate();
         }
     }
     
-    // 动态性能监控（每5秒检查一次）
-    if (frameCount > 200 && frameCount % 300 === 0) {
-        const recentAvgFPS = fpsHistory.slice(-30).reduce((a, b) => a + b, 0) / 30;
-        if (recentAvgFPS < targetFPS * 0.7 && performanceMode !== 'potato') {
-            console.warn(`FPS 掉帧严重 (${recentAvgFPS.toFixed(1)}/${targetFPS})，自动降低画质`);
-            // 降级性能模式
-            if (performanceMode === 'high') performanceMode = 'medium';
-            else if (performanceMode === 'medium') performanceMode = 'low';
-            else if (performanceMode === 'low') performanceMode = 'potato';
-            adjustQuality();
+    // 动态性能监控（每5秒检查一次，支持升降级）
+    // 只在自动模式下才动态调整
+    if (manualQualityMode === null && detectionComplete && frameCount > 500 && frameCount % 300 === 0) {
+        const now = Date.now();
+        // 至少间隔10秒才能调整画质，避免频繁切换
+        if (now - lastQualityAdjustTime > 10000) {
+            const recentAvgFPS = fpsHistory.slice(-30).reduce((a, b) => a + b, 0) / 30;
+            
+            // 降级逻辑：FPS < 目标的70%
+            if (recentAvgFPS < targetFPS * 0.7 && performanceMode !== 'potato') {
+                console.warn(`⚠️ FPS 掉帧严重 (${recentAvgFPS.toFixed(1)}/${targetFPS})，自动降低画质`);
+                if (performanceMode === 'ultra') performanceMode = 'high';
+                else if (performanceMode === 'high') performanceMode = 'medium';
+                else if (performanceMode === 'medium') performanceMode = 'low';
+                else if (performanceMode === 'low') performanceMode = 'potato';
+                adjustQuality();
+                updateQualityDisplay();
+                lastQualityAdjustTime = now;
+            }
+            // 升级逻辑：FPS > 目标的90%，且持续稳定
+            else if (recentAvgFPS > targetFPS * 0.9 && performanceMode !== 'ultra') {
+                // 检查是否有升级空间
+                const canUpgrade = (performanceMode === 'potato' && recentAvgFPS > 50) ||
+                                 (performanceMode === 'low' && recentAvgFPS > 70) ||
+                                 (performanceMode === 'medium' && recentAvgFPS > 100) ||
+                                 (performanceMode === 'high' && recentAvgFPS > 130);
+                
+                if (canUpgrade) {
+                    console.log(`✅ FPS 稳定 (${recentAvgFPS.toFixed(1)}/${targetFPS})，自动提升画质`);
+                    if (performanceMode === 'potato') performanceMode = 'low';
+                    else if (performanceMode === 'low') performanceMode = 'medium';
+                    else if (performanceMode === 'medium') performanceMode = 'high';
+                    else if (performanceMode === 'high') performanceMode = 'ultra';
+                    adjustQuality();
+                    updateQualityDisplay();
+                    lastQualityAdjustTime = now;
+                }
+            }
         }
     }
     
@@ -1837,7 +1956,90 @@ restartButton.addEventListener('touchend', handleRestart);
 
 // 继续功能已取消
 
+// ========== 画质设置功能 ==========
 
+let manualQualityMode = null; // null = 自动，否则为手动设置的模式
+const qualityButton = document.getElementById('qualityButton');
+const qualityPanel = document.getElementById('qualityPanel');
+const currentQualitySpan = document.getElementById('currentQuality');
+
+// 切换画质面板
+qualityButton.addEventListener('click', (e) => {
+    e.stopPropagation();
+    qualityPanel.classList.toggle('show');
+});
+
+// 点击其他地方关闭面板
+document.addEventListener('click', (e) => {
+    if (!qualityPanel.contains(e.target) && e.target !== qualityButton) {
+        qualityPanel.classList.remove('show');
+    }
+});
+
+// 画质选项点击事件
+document.querySelectorAll('.quality-option').forEach(option => {
+    option.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const mode = option.dataset.mode;
+        
+        // 移除所有active类
+        document.querySelectorAll('.quality-option').forEach(opt => {
+            opt.classList.remove('active');
+        });
+        option.classList.add('active');
+        
+        if (mode === 'auto') {
+            // 自动模式
+            manualQualityMode = null;
+            console.log('🤖 切换到自动画质模式');
+            // 重新检测
+            if (fpsHistory.length > 30) {
+                detectRefreshRate();
+            }
+        } else {
+            // 手动模式
+            manualQualityMode = mode;
+            performanceMode = mode;
+            console.log(`🎨 手动设置画质: ${mode.toUpperCase()}`);
+            
+            // 设置对应的目标FPS
+            if (mode === 'ultra') targetFPS = 144;
+            else if (mode === 'high') targetFPS = 120;
+            else if (mode === 'medium') targetFPS = 90;
+            else if (mode === 'low') targetFPS = 60;
+            else if (mode === 'potato') targetFPS = 30;
+            
+            adjustQuality();
+        }
+        
+        updateQualityDisplay();
+        qualityPanel.classList.remove('show');
+    });
+});
+
+// 更新画质显示
+function updateQualityDisplay() {
+    const modeNames = {
+        'ultra': '💎 超高 (144Hz)',
+        'high': '⭐ 高 (120Hz)',
+        'medium': '✨ 中 (90Hz)',
+        'low': '💨 低 (60Hz)',
+        'potato': '🥔 超低 (30Hz)'
+    };
+    
+    const displayText = manualQualityMode === null 
+        ? `🤖 自动 (${modeNames[performanceMode] || performanceMode})`
+        : modeNames[performanceMode] || performanceMode;
+    
+    currentQualitySpan.textContent = displayText;
+}
+
+// 初始化画质显示
+setTimeout(() => {
+    updateQualityDisplay();
+    // 默认选中自动模式
+    document.querySelector('.quality-option[data-mode="auto"]').classList.add('active');
+}, 1000);
 
 // ========== 灵动岛功能 ==========
 
