@@ -63,8 +63,16 @@ const instructionsElement = document.getElementById('instructions');
 const dynamicIsland = document.getElementById('dynamicIsland');
 const islandTitle = document.getElementById('islandTitle');
 const midiList = document.getElementById('midiList');
-let isIslandExpanded = false;
+let isIslandExpanded = true; // 初始状态为展开
 let wasGameRunningBeforePause = false; // 记录暂停前的游戏状态
+
+// 初始展开灵动岛
+setTimeout(() => {
+    dynamicIsland.classList.add('expanded');
+    if (midiFiles.length > 0) {
+        initMidiList();
+    }
+}, 500);
 
 
 // 游戏配置
@@ -2116,9 +2124,10 @@ dynamicIsland.addEventListener('click', (e) => {
     }
 });
 
-// 点击空白处关闭（优先级更高）
+// 点击空白处关闭（优先级最高）
 document.addEventListener('click', (e) => {
     if (isIslandExpanded && !dynamicIsland.contains(e.target)) {
+        e.preventDefault();
         e.stopPropagation();
         // 调用toggleIsland统一处理收起逻辑
         toggleIsland();
