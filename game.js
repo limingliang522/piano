@@ -1284,26 +1284,13 @@ function updateNoteBlocks() {
             // 使用原始velocity，完美还原MIDI
             audioEngine.playNote(noteData.note, noteData.duration, noteData.velocity, noteData.lane);
             
-            // 改变颜色表示已触发（白色发光）
-            noteBlock.material.color.setHex(0xffffff);
-            noteBlock.material.emissive = new THREE.Color(0xffffff);
-            noteBlock.material.emissiveIntensity = 1.0;
+            // 创建像素爆炸特效
+            createPixelExplosion(noteBlock.position.x, noteBlock.position.y, noteBlock.position.z);
             
-            // 创建触发时的光波扩散效果
-            createTriggerWave(noteBlock.position.x, noteBlock.position.z);
-            
-            // 触发效果：放大并淡出
-            const originalScale = { x: 1.5, y: 0.4, z: 1.2 };
-            let scaleTime = 0;
-            const scaleInterval = setInterval(() => {
-                scaleTime += 0.05;
-                const scale = 1 + scaleTime * 2;
-                noteBlock.scale.set(originalScale.x * scale, originalScale.y * scale, originalScale.z * scale);
-                noteBlock.material.opacity = Math.max(0, 1 - scaleTime * 2);
-                if (scaleTime >= 0.5) {
-                    clearInterval(scaleInterval);
-                }
-            }, 50);
+            // 立即移除方块（不再使用放大淡出动画）
+            scene.remove(noteBlock);
+            noteObjects.splice(i, 1);
+            continue; // 跳过后续处理，因为方块已被移除
         }
         
         // 移除屏幕外的方块
@@ -2180,6 +2167,69 @@ function createTriggerWave(x, z) {
             waveMaterial.dispose();
         }
     }, 30);
+}
+
+// 创建像素爆炸特效
+function createPixelExplosion(x, y, z) {
+    const particles = [];
+    const colors = [
+        PIXEL_PALETTE.EFFECT_WHITE,
+        PIXEL_PALETTE.EFFECT_YELLOW,
+        PIXEL_PALETTE.EFFECT_ORANGE,
+        PIXEL_PALETTE.WUKONG_GOLD
+    ];
+    
+    // 创建8个小方块
+    for (let i = 0; i < 8; i++) {
+        const geometry = new THREE.BoxGeometry(0.1, 0.1, 0.1);
+        const material = new THREE.MeshBasicMaterial({
+            color: colors[Math.floor(Math.random() * colors.length)],
+            transparent: true,
+            opacity: 1.0
+        });
+        const particle = new THREE.Mesh(geometry, material);
+        
+        // 计算向外飞散的方向（8个方向均匀分布）
+        const angle = (Math.PI * 2 * i) / 8;
+        particle.userData.velocity = {
+            x: Math.cos(angle) * 0.1,
+            y: 0.1, // 初始向上速度
+            z: Math.sin(angle) * 0.1
+        };
+        
+        particle.position.set(x, y, z);
+        scene.add(particle);
+        particles.push(particle);
+    }
+    
+    // 动画：飞散、重力、淡出
+    let frame = 0;
+    const maxFrames = 30; // 约0.5秒（30帧）
+    const interval = setInterval(() => {
+        frame++;
+        particles.forEach(p => {
+            // 更新位置
+            p.position.x += p.userData.velocity.x;
+            p.position.y += p.userData.velocity.y;
+            p.position.z += p.userData.velocity.z;
+            
+            // 应用重力
+            p.userData.velocity.y -= 0.01;
+            
+            // 淡出
+            p.material.opacity = 1 - frame / maxFrames;
+        });
+        
+        // 动画结束，清理
+        if (frame >= maxFrames) {
+            clearInterval(interval);
+            particles.forEach(p => {
+                scene.remove(p);
+                p.geometry.dispose();
+                p.material.dispose();
+            });
+        }
+    }, 33); // 约30fps
 }
 
 // 启动游戏

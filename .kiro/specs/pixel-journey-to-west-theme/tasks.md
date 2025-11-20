@@ -57,7 +57,17 @@
   - 使用 PIXEL_PALETTE 中的颜色
   - _Requirements: 2.1, 2.2, 2.5, 5.3_
 
-- [ ] 5. 重新设计音符触发特效
+- [x] 5. 重新设计音符触发特效
+
+
+
+
+
+
+
+
+
+
   - 修改 updateNoteBlocks() 中的触发效果代码
   - 移除当前的放大淡出动画
   - 创建 createPixelExplosion() 函数实现像素爆炸效果
