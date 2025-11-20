@@ -1440,13 +1440,6 @@ function animate(currentTime) {
     deltaTime = (currentTime - lastUpdateTime) / 1000; // 转换为秒
     lastUpdateTime = currentTime;
     
-    // 触发线脉动动画
-    if (window.triggerLineGlow && window.triggerLineMaterial) {
-        const pulse = Math.sin(currentTime * 0.003) * 0.1 + 0.3;
-        window.triggerLineGlow.material.opacity = pulse;
-        window.triggerLineMaterial.opacity = 0.8 + Math.sin(currentTime * 0.003) * 0.2;
-    }
-    
     // 更新FPS统计
     updateFPS(currentTime);
     
