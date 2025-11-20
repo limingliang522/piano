@@ -26,19 +26,29 @@ class AudioEngine {
         }
     }
     
-    // 初始化音频处理链（纯净大音量模式）
+    // 初始化音频处理链（专业级动态压缩）
     initAudioChain() {
         const ctx = this.audioContext;
         
         try {
-            // === 只用纯增益，不做任何处理 ===
-            this.masterGain = ctx.createGain();
-            this.masterGain.gain.value = 6.0; // 6倍增益
+            // === 1. 动态压缩器（防止削波失真）===
+            this.compressor = ctx.createDynamicsCompressor();
+            this.compressor.threshold.value = -24;    // 开始压缩的阈值（dB）
+            this.compressor.knee.value = 30;          // 柔和的压缩曲线
+            this.compressor.ratio.value = 12;         // 压缩比例（12:1）
+            this.compressor.attack.value = 0.003;     // 快速响应（3ms）
+            this.compressor.release.value = 0.25;     // 释放时间（250ms）
             
-            // 直接连接到输出
+            // === 2. 主增益控制 ===
+            this.masterGain = ctx.createGain();
+            this.masterGain.gain.value = 0.9;         // 主音量（0.9 = 90%）
+            
+            // === 3. 音频链路 ===
+            // 所有音符 → 压缩器 → 主增益 → 输出
+            this.compressor.connect(this.masterGain);
             this.masterGain.connect(ctx.destination);
             
-            console.log('🔊 纯净大音量模式已初始化（6x增益，零处理）');
+            console.log('🎚️ 专业音频链已初始化（Compressor + Master Gain）');
         } catch (error) {
             console.error('initAudioChain: 初始化失败:', error);
             throw error;
@@ -176,7 +186,7 @@ class AudioEngine {
             
             // === 音量包络（ADSR）===
             const gainNode = ctx.createGain();
-            const volume = (velocity / 127) * 0.3; // 降低单音符音量，避免叠加时削波
+            const volume = (velocity / 127) * 0.6; // 提高单音符音量（压缩器会保护）
             
             // Attack（快速起音，5ms）
             gainNode.gain.setValueAtTime(0, now);
@@ -190,10 +200,10 @@ class AudioEngine {
             gainNode.gain.linearRampToValueAtTime(0, now + noteDuration);
             
             // === 连接音频处理链 ===
-            // 音源 → 立体声 → 音量包络 → 主音量 → 输出
+            // 音源 → 立体声 → 音量包络 → 压缩器 → 主音量 → 输出
             source.connect(stereoPanner);
             stereoPanner.connect(gainNode);
-            gainNode.connect(this.masterGain);
+            gainNode.connect(this.compressor);
             
             // 播放
             source.start(now);
@@ -230,9 +240,9 @@ class AudioEngine {
         bassGain.gain.setValueAtTime(0.3, now);
         bassGain.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
         
-        // 连接到主音量
+        // 连接到压缩器
         bass.connect(bassGain);
-        bassGain.connect(this.masterGain);
+        bassGain.connect(this.compressor);
         
         // 播放
         bass.start(now);
