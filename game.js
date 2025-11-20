@@ -75,15 +75,15 @@ const GROUND_LENGTH = 100;
 // 统一的移动速度（调整这个值可以改变所有移动速度）
 const moveSpeed = 0.50;
 
-// 固定高画质配置（极简方案）
+// 固定最高画质配置（无限制）
 const GRAPHICS_CONFIG = {
     shadowsEnabled: true,
     shadowType: THREE.PCFSoftShadowMap,
-    pixelRatio: Math.min(window.devicePixelRatio, 3), // 提高到3倍，支持高分辨率屏幕
-    fogDistance: 80,
-    trailLength: 10,
-    playerSegments: 32,
-    trailSegments: 16
+    pixelRatio: window.devicePixelRatio, // 使用设备原生像素比，无限制
+    fogDistance: 100,
+    trailLength: 12,
+    playerSegments: 64, // 提高球体细节
+    trailSegments: 32   // 提高拖尾细节
 };
 
 // FPS 监控（仅用于显示，不影响画质）
@@ -125,14 +125,17 @@ function init() {
     camera.position.set(0, 5.5, 8);
     camera.lookAt(0, 0, -8);
     
-    // 创建渲染器 - 高画质设置（透明背景）
+    // 创建渲染器 - 最高画质设置（透明背景）
     const canvas = document.getElementById('gameCanvas');
     renderer = new THREE.WebGLRenderer({ 
         canvas: canvas,
         antialias: true,
         alpha: true, // 启用透明背景
         powerPreference: "high-performance",
-        precision: "highp"
+        precision: "highp",
+        stencil: true,
+        depth: true,
+        logarithmicDepthBuffer: true // 提高深度精度
     });
     
     // 设置像素比以提高画质（最高3倍，支持高分辨率屏幕）
@@ -158,8 +161,9 @@ function init() {
     directionalLight.shadow.camera.right = 20;
     directionalLight.shadow.camera.top = 20;
     directionalLight.shadow.camera.bottom = -20;
-    directionalLight.shadow.mapSize.width = 2048;
-    directionalLight.shadow.mapSize.height = 2048;
+    directionalLight.shadow.mapSize.width = 4096; // 提高到4K阴影
+    directionalLight.shadow.mapSize.height = 4096;
+    directionalLight.shadow.bias = -0.0001; // 减少阴影瑕疵
     scene.add(directionalLight);
     
     // 取消点光源，避免白色光柱
