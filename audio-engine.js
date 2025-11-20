@@ -52,7 +52,7 @@ class AudioEngine {
             
             // 1.5. Makeup Gain（补偿压缩损失的音量）
             this.makeupGain = ctx.createGain();
-            this.makeupGain.gain.value = 1.8; // 增加补偿增益，提升响度
+            this.makeupGain.gain.value = 1.6; // 适中补偿增益，平衡音量和音质
             
             console.log('initAudioChain: 创建均衡器...');
             // 2. 三段均衡器（精细调音）
@@ -84,13 +84,13 @@ class AudioEngine {
             this.reverbWet.gain.value = 0.15; // 15% 湿声（轻微混响）
             
             console.log('initAudioChain: 创建限制器...');
-            // 4. 限制器（防止削波 - 强力保护）
+            // 4. 限制器（防止削波 - 温和保护）
             this.limiter = ctx.createDynamicsCompressor();
-            this.limiter.threshold.value = -1; // 提高阈值，允许更大音量
-            this.limiter.knee.value = 1; // 更硬的拐点，快速限制
-            this.limiter.ratio.value = 20; // 更高压缩比，强力防止失真
-            this.limiter.attack.value = 0.001; // 极快响应
-            this.limiter.release.value = 0.05; // 快速释放
+            this.limiter.threshold.value = -1.5; // 稍微降低阈值，更早介入
+            this.limiter.knee.value = 3; // 更柔和的拐点，减少失真感
+            this.limiter.ratio.value = 12; // 适中压缩比，保持自然
+            this.limiter.attack.value = 0.002; // 稍慢响应，保留瞬态
+            this.limiter.release.value = 0.08; // 适中释放
             
             console.log('initAudioChain: 创建软削波器（抖音级）...');
             // 4.5. 软削波器（模拟抖音的音频处理）
@@ -101,7 +101,7 @@ class AudioEngine {
             console.log('initAudioChain: 创建主音量...');
             // 5. 主音量（提升响度，限制器会防止失真）
             this.masterGain = ctx.createGain();
-            this.masterGain.gain.value = 2.5; // 提升主音量，限制器会保护
+            this.masterGain.gain.value = 2.3; // 轻微降低主音量，减少沙哑感
             
             console.log('initAudioChain: 连接音频节点...');
             // 连接音频处理链
@@ -175,11 +175,11 @@ class AudioEngine {
         this.convolver.buffer = impulse;
     }
     
-    // 创建软削波曲线（温和版 - 允许更大音量）
+    // 创建软削波曲线（温和版 - 平衡音量和音质）
     makeSoftClipCurve() {
         const samples = 2048;
         const curve = new Float32Array(samples);
-        const drive = 1.0; // 适中驱动强度，平衡音量和音质
+        const drive = 0.9; // 轻微降低驱动，减少沙哑感
         
         for (let i = 0; i < samples; i++) {
             const x = (i / samples) * 2 - 1; // -1 到 1
