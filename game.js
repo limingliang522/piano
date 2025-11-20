@@ -27,6 +27,7 @@ let starsEarned = 0; // 获得的星星数
 let speedIncreaseRate = 0.000005; // 每帧速度增长率（更缓慢）
 let isCompletingRound = false; // 防止重复触发完成
 let lastCollisionBlock = null; // 记录最后碰撞的黑块
+let blocksCreated = false; // 防止重复创建方块
 
 // MIDI文件列表
 let midiFiles = [];
@@ -571,9 +572,25 @@ function startNormalGame() {
 
 // 创建所有音符方块
 function createAllNoteBlocks() {
+    // 防止重复创建
+    if (blocksCreated && noteObjects.length > 0) {
+        console.warn(`⚠️ 阻止重复创建！当前已有 ${noteObjects.length} 个方块`);
+        return;
+    }
+    
+    // 先清理已存在的方块
+    if (noteObjects.length > 0) {
+        console.warn(`清理 ${noteObjects.length} 个旧方块`);
+        cleanupObjects(noteObjects);
+    }
+    
+    // 创建新方块
+    console.log(`✅ 开始创建 ${midiNotes.length} 个音符方块`);
     midiNotes.forEach(noteData => {
         createNoteBlock(noteData);
     });
+    blocksCreated = true;
+    console.log(`✅ 创建完成！实际创建了 ${noteObjects.length} 个方块`);
 }
 
 // 创建音符方块（玻璃质感）
@@ -870,10 +887,17 @@ function disposeObject(obj) {
 function cleanupObjects(objectArray) {
     if (!objectArray || objectArray.length === 0) return;
     
+    const count = objectArray.length;
     for (let i = objectArray.length - 1; i >= 0; i--) {
         disposeObject(objectArray[i]);
     }
     objectArray.length = 0; // 清空数组
+    
+    // 如果清理的是音符方块，重置标志
+    if (objectArray === noteObjects) {
+        blocksCreated = false;
+        console.log(`🧹 清理了 ${count} 个音符方块，重置创建标志`);
+    }
 }
 
 // 性能统计（调试用）
@@ -1327,6 +1351,7 @@ function restart() {
     cleanupObjects(obstacles);
     cleanupObjects(coins);
     cleanupObjects(noteObjects);
+    blocksCreated = false; // 重置创建标志
     
     // 重置游戏状态
     score = 0;
@@ -1487,7 +1512,12 @@ function animate(currentTime) {
         const currentSpeedRatio = (midiSpeed / originalBaseSpeed).toFixed(2);
         scoreElement.textContent = `⭐ ${starsEarned} | 音符: ${notesTriggered}/${totalNotes}`;
         distanceElement.textContent = `速度: ${currentSpeedRatio}x`;
-        accuracyElement.textContent = `剩余: ${noteObjects.length}`;
+        accuracyElement.textContent = `方块: ${noteObjects.length}`;
+        
+        // 异常检测：如果方块数量超过预期，警告
+        if (noteObjects.length > totalNotes * 1.5) {
+            console.error(`❌ 方块数量异常！预期: ${totalNotes}, 实际: ${noteObjects.length}`);
+        }
     } else {
         // 普通模式
         distance += speed * 2;
@@ -1706,6 +1736,7 @@ async function loadAndStartNewMidi() {
     cleanupObjects(obstacles);
     cleanupObjects(coins);
     cleanupObjects(noteObjects);
+    blocksCreated = false; // 重置创建标志
     
     // 清理拖尾效果
     trailPositions = [];
@@ -1845,6 +1876,7 @@ async function selectMidi(index) {
     cleanupObjects(obstacles);
     cleanupObjects(coins);
     cleanupObjects(noteObjects);
+    blocksCreated = false; // 重置创建标志
     
     // 清理拖尾效果
     trailPositions = [];
@@ -1853,10 +1885,11 @@ async function selectMidi(index) {
     });
     
     // 输出清理后的内存状态
-    console.log('切换曲子后内存状态:', {
+    console.log('🔄 切换曲子后内存状态:', {
         几何体: renderer.info.memory.geometries,
         纹理: renderer.info.memory.textures,
-        场景物体: scene.children.length
+        场景物体: scene.children.length,
+        音符方块: noteObjects.length
     });
     
     // 等待一帧，确保清理完成
