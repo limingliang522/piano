@@ -42,46 +42,46 @@ class AudioEngine {
         const ctx = this.audioContext;
         
         try {
-            // 1. 动态压缩器（平衡音量，增加冲击力 - 温和设置）
+            // 1. 动态压缩器（温和压缩，保留动态范围）
             this.compressor = ctx.createDynamicsCompressor();
-            this.compressor.threshold.value = -20;
-            this.compressor.knee.value = 40;
-            this.compressor.ratio.value = 3;
-            this.compressor.attack.value = 0.003;
-            this.compressor.release.value = 0.25;
+            this.compressor.threshold.value = -24; // 更高阈值，减少压缩
+            this.compressor.knee.value = 30; // 更柔和的拐点
+            this.compressor.ratio.value = 2.5; // 更低压缩比
+            this.compressor.attack.value = 0.005; // 稍慢的起音，保留瞬态
+            this.compressor.release.value = 0.15; // 更快的释放
             
             // 1.5. Makeup Gain（补偿压缩损失的音量）
             this.makeupGain = ctx.createGain();
-            this.makeupGain.gain.value = 1.4;
+            this.makeupGain.gain.value = 1.2; // 降低补偿增益，避免过响
             
             console.log('initAudioChain: 创建均衡器...');
             // 2. 三段均衡器（精细调音）
             this.eqLow = ctx.createBiquadFilter();
             this.eqLow.type = 'lowshelf';
             this.eqLow.frequency.value = 200;
-            this.eqLow.gain.value = 0;
+            this.eqLow.gain.value = 1.5; // 轻微增强低频温暖感
             
             this.eqMid = ctx.createBiquadFilter();
             this.eqMid.type = 'peaking';
-            this.eqMid.frequency.value = 2000;
-            this.eqMid.Q.value = 0.7;
-            this.eqMid.gain.value = 0;
+            this.eqMid.frequency.value = 2500; // 提高到2.5kHz，增强清晰度
+            this.eqMid.Q.value = 0.8;
+            this.eqMid.gain.value = 1.0; // 轻微提升中频
             
             this.eqHigh = ctx.createBiquadFilter();
             this.eqHigh.type = 'highshelf';
-            this.eqHigh.frequency.value = 6000;
-            this.eqHigh.gain.value = 0;
+            this.eqHigh.frequency.value = 8000; // 提高到8kHz
+            this.eqHigh.gain.value = 2.0; // 增强高频明亮度
             
             console.log('initAudioChain: 创建混响...');
             // 3. 卷积混响（音乐厅效果 - 轻量化）
             this.convolver = ctx.createConvolver();
             this.createReverbImpulse();
             
-            // 混响干湿比控制（关闭混响以完美还原MIDI）
+            // 混响干湿比控制（轻微混响，增加空间感）
             this.reverbDry = ctx.createGain();
-            this.reverbDry.gain.value = 1.0;
+            this.reverbDry.gain.value = 0.85; // 85% 干声
             this.reverbWet = ctx.createGain();
-            this.reverbWet.gain.value = 0;
+            this.reverbWet.gain.value = 0.15; // 15% 湿声（轻微混响）
             
             console.log('initAudioChain: 创建限制器...');
             // 4. 限制器（防止削波 - 平衡限制）
@@ -101,7 +101,7 @@ class AudioEngine {
             console.log('initAudioChain: 创建主音量...');
             // 5. 主音量（平衡响度）
             this.masterGain = ctx.createGain();
-            this.masterGain.gain.value = 2.0;
+            this.masterGain.gain.value = 1.8; // 降低主音量，避免过载
             
             console.log('initAudioChain: 连接音频节点...');
             // 连接音频处理链
@@ -144,32 +144,32 @@ class AudioEngine {
         }
     }
     
-    // 创建音乐厅混响脉冲响应（轻量化版本 - 提升性能）
+    // 创建自然混响脉冲响应（钢琴房效果）
     createReverbImpulse() {
         const ctx = this.audioContext;
         const sampleRate = ctx.sampleRate;
-        const length = sampleRate * 1.2; // 1.2秒混响（减少计算量）
+        const length = sampleRate * 0.8; // 0.8秒混响（更短，更自然）
         const impulse = ctx.createBuffer(2, length, sampleRate);
         const impulseL = impulse.getChannelData(0);
         const impulseR = impulse.getChannelData(1);
         
-        // 生成轻量级混响（减少随机数生成）
+        // 生成自然混响（钢琴房效果）
         for (let i = 0; i < length; i++) {
-            // 指数衰减
-            const decay = Math.exp(-i / (sampleRate * 0.5));
+            // 更快的指数衰减（模拟小房间）
+            const decay = Math.exp(-i / (sampleRate * 0.3));
             
-            // 早期反射（前 30ms）
+            // 早期反射（前 20ms）- 更清晰
             let earlyReflections = 0;
-            if (i < sampleRate * 0.03) {
-                earlyReflections = (Math.random() * 2 - 1) * 0.4 * decay;
+            if (i < sampleRate * 0.02) {
+                earlyReflections = (Math.random() * 2 - 1) * 0.3 * decay;
             }
             
-            // 后期混响（扩散 - 简化）
-            const lateReverb = (Math.random() * 2 - 1) * decay * 0.2;
+            // 后期混响（更轻微）
+            const lateReverb = (Math.random() * 2 - 1) * decay * 0.15;
             
             // 左右声道略有不同
             impulseL[i] = earlyReflections + lateReverb;
-            impulseR[i] = earlyReflections + lateReverb * 0.95;
+            impulseR[i] = earlyReflections + lateReverb * 0.92;
         }
         
         this.convolver.buffer = impulse;
@@ -340,32 +340,41 @@ class AudioEngine {
                 panner.setPosition(xPosition, yPosition, zPosition);
             }
             
-            // === 立体声增强 ===
+            // === 立体声增强（更自然的声像）===
             const stereoPanner = ctx.createStereoPanner();
-            // 根据轨道位置设置立体声像（-1左 到 +1右）
-            const panValue = (lane - 2) / 2; // -1, -0.5, 0, 0.5, 1
-            stereoPanner.pan.value = Math.max(-1, Math.min(1, panValue));
+            // 根据轨道位置设置立体声像，但不要太极端
+            const panValue = (lane - 2) / 3; // -0.67, -0.33, 0, 0.33, 0.67（更温和）
+            stereoPanner.pan.value = Math.max(-0.8, Math.min(0.8, panValue)); // 限制在±0.8
             
-            // === 音量包络（ADSR - 消除咔嚓声）===
+            // === 音量包络（ADSR - 完美还原MIDI力度）===
             const gainNode = ctx.createGain();
-            const baseVolume = (velocity / 127) * 2.4; // 基础音量（平衡）
+            // 使用更精确的velocity映射（MIDI标准：velocity 0-127）
+            const velocityFactor = Math.pow(velocity / 127, 1.5); // 使用指数曲线，更自然
+            const baseVolume = velocityFactor * 2.2;
             
-            // 根据音高调整音量（高音稍微轻一点）
-            const pitchFactor = 1 - (midiNote - 60) / 200;
-            const volume = baseVolume * Math.max(0.9, Math.min(1.5, pitchFactor));
+            // 根据音高调整音量（模拟真实钢琴）
+            let pitchFactor = 1.0;
+            if (midiNote < 48) {
+                // 低音区：稍微增强
+                pitchFactor = 1.1;
+            } else if (midiNote > 84) {
+                // 高音区：稍微减弱
+                pitchFactor = 0.9;
+            }
+            const volume = baseVolume * pitchFactor;
             
-            // Attack（柔和起音，10ms - 消除咔嚓声）
+            // Attack（快速起音，5ms - 保留钢琴的瞬态特性）
             gainNode.gain.setValueAtTime(0, now);
-            gainNode.gain.linearRampToValueAtTime(volume, now + 0.01);
+            gainNode.gain.linearRampToValueAtTime(volume, now + 0.005);
             
-            // Decay + Sustain（保持）
-            const sustainTime = Math.max(noteDuration - 0.08, 0.02);
-            gainNode.gain.setValueAtTime(volume, now + 0.01);
-            // 自然衰减
-            gainNode.gain.linearRampToValueAtTime(volume * 0.7, now + 0.01 + sustainTime);
+            // Decay + Sustain（自然衰减）
+            const sustainTime = Math.max(noteDuration - 0.06, 0.02);
+            gainNode.gain.setValueAtTime(volume, now + 0.005);
+            // 钢琴的自然衰减（指数衰减更自然）
+            gainNode.gain.exponentialRampToValueAtTime(volume * 0.6, now + 0.005 + sustainTime);
             
-            // Release（柔和释放，70ms - 消除咔嚓声）
-            gainNode.gain.linearRampToValueAtTime(0, now + noteDuration);
+            // Release（快速释放，50ms）
+            gainNode.gain.exponentialRampToValueAtTime(0.001, now + noteDuration);
             
             // === 完美还原MIDI，不添加随机音高偏移 ===
             // 已移除随机 detune，保持音高精确
