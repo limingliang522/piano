@@ -296,9 +296,6 @@ async function initMIDISystem() {
             try {
                 await audioEngine.start();
                 console.log('✅ 音频上下文已启动');
-                
-                // 播放开始音效
-                audioEngine.playStartSound();
             } catch (error) {
                 console.warn('音频上下文启动失败:', error);
             }
@@ -316,6 +313,9 @@ async function initMIDISystem() {
                 });
                 
                 console.log('✅ 钢琴音色加载完成（已预热）！');
+                
+                // 播放开始音效（在音色加载完成后）
+                audioEngine.playStartSound();
                 
                 // 隐藏加载提示
                 loadingElement.style.display = 'none';
