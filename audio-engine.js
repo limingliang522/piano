@@ -26,47 +26,23 @@ class AudioEngine {
         }
     }
     
-    // 初始化音频处理链（极致响度 - 零失真模式）
+    // 初始化音频处理链（纯净大音量模式）
     initAudioChain() {
         const ctx = this.audioContext;
         
         try {
-            // === 软削波处理器（使用 WaveShaper 实现平滑限幅）===
-            this.softClipper = ctx.createWaveShaper();
-            this.softClipper.curve = this.makeSoftClipCurve(4096);
-            this.softClipper.oversample = '4x'; // 高质量过采样，避免混叠失真
-            
-            // === 主增益（8倍提升）===
+            // === 只用纯增益，不做任何处理 ===
             this.masterGain = ctx.createGain();
-            this.masterGain.gain.value = 8.0;
+            this.masterGain.gain.value = 6.0; // 6倍增益
             
-            // === 连接信号链 ===
-            // 音源 → 软削波 → 主增益 → 输出
-            this.softClipper.connect(this.masterGain);
+            // 直接连接到输出
             this.masterGain.connect(ctx.destination);
             
-            // 预增益节点（供音符连接）
-            this.preGain = this.softClipper;
-            
-            console.log('🔊 极致响度音频链已初始化（8x增益 + 软削波保护）');
+            console.log('🔊 纯净大音量模式已初始化（6x增益，零处理）');
         } catch (error) {
             console.error('initAudioChain: 初始化失败:', error);
             throw error;
         }
-    }
-    
-    // 生成软削波曲线（双曲正切函数，平滑限幅）
-    makeSoftClipCurve(samples) {
-        const curve = new Float32Array(samples);
-        const deg = Math.PI / 180;
-        
-        for (let i = 0; i < samples; i++) {
-            const x = (i * 2) / samples - 1; // -1 到 1
-            // 使用 tanh 函数实现平滑削波（保持音色纯净）
-            curve[i] = Math.tanh(x * 1.5); // 1.5 是削波强度
-        }
-        
-        return curve;
     }
     
 
@@ -200,7 +176,7 @@ class AudioEngine {
             
             // === 音量包络（ADSR）===
             const gainNode = ctx.createGain();
-            const volume = (velocity / 127) * 0.8; // 完美还原MIDI力度，配合主音量增益
+            const volume = (velocity / 127) * 0.3; // 降低单音符音量，避免叠加时削波
             
             // Attack（快速起音，5ms）
             gainNode.gain.setValueAtTime(0, now);
@@ -214,10 +190,10 @@ class AudioEngine {
             gainNode.gain.linearRampToValueAtTime(0, now + noteDuration);
             
             // === 连接音频处理链 ===
-            // 音源 → 立体声 → 音量包络 → 预增益 → 压缩链 → 输出
+            // 音源 → 立体声 → 音量包络 → 主音量 → 输出
             source.connect(stereoPanner);
             stereoPanner.connect(gainNode);
-            gainNode.connect(this.preGain);
+            gainNode.connect(this.masterGain);
             
             // 播放
             source.start(now);
@@ -254,9 +230,9 @@ class AudioEngine {
         bassGain.gain.setValueAtTime(0.3, now);
         bassGain.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
         
-        // 连接到预增益（经过完整处理链）
+        // 连接到主音量
         bass.connect(bassGain);
-        bassGain.connect(this.preGain);
+        bassGain.connect(this.masterGain);
         
         // 播放
         bass.start(now);
