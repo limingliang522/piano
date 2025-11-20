@@ -80,7 +80,7 @@ const GRAPHICS_CONFIG = {
     shadowsEnabled: true,
     shadowType: THREE.PCFSoftShadowMap,
     pixelRatio: window.devicePixelRatio, // 使用设备原生像素比，无限制
-    fogDistance: 100,
+    fogDistance: 120,
     trailLength: 12,
     playerSegments: 64, // 提高球体细节
     trailSegments: 32   // 提高拖尾细节
@@ -115,13 +115,13 @@ function init() {
     // 创建场景
     scene = new THREE.Scene();
     // 不设置背景色，让背景透明，显示body的背景图
-    scene.fog = new THREE.Fog(0x000000, 20, 80); // 黑色雾效，更远的距离
+    scene.fog = new THREE.Fog(0x000000, 30, 120); // 黑色雾效，更远更平滑的过渡
     
     // 创建相机 - 更宽的视角以显示完整的5条轨道
     const aspect = window.innerWidth / window.innerHeight;
     // 根据屏幕比例调整FOV，手机竖屏需要更大的FOV
     const fov = aspect < 1 ? 75 : 60;
-    camera = new THREE.PerspectiveCamera(fov, aspect, 0.1, 1000);
+    camera = new THREE.PerspectiveCamera(fov, aspect, 0.1, 2000); // 增加远裁剪面
     camera.position.set(0, 5.5, 8);
     camera.lookAt(0, 0, -8);
     
@@ -135,8 +135,14 @@ function init() {
         precision: "highp",
         stencil: true,
         depth: true,
-        logarithmicDepthBuffer: true // 提高深度精度
+        logarithmicDepthBuffer: true, // 提高深度精度
+        premultipliedAlpha: false // 改善透明度渲染
     });
+    
+    // 启用高质量渲染
+    renderer.sortObjects = true; // 正确排序透明物体
+    renderer.toneMapping = THREE.ACESFilmicToneMapping; // 电影级色调映射
+    renderer.toneMappingExposure = 1.0;
     
     // 设置像素比以提高画质（最高3倍，支持高分辨率屏幕）
     renderer.setPixelRatio(GRAPHICS_CONFIG.pixelRatio);
