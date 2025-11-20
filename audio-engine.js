@@ -52,7 +52,7 @@ class AudioEngine {
             
             // 1.5. Makeup Gain（补偿压缩损失的音量）
             this.makeupGain = ctx.createGain();
-            this.makeupGain.gain.value = 1.2; // 降低补偿增益，避免过响
+            this.makeupGain.gain.value = 1.8; // 增加补偿增益，提升响度
             
             console.log('initAudioChain: 创建均衡器...');
             // 2. 三段均衡器（精细调音）
@@ -84,13 +84,13 @@ class AudioEngine {
             this.reverbWet.gain.value = 0.15; // 15% 湿声（轻微混响）
             
             console.log('initAudioChain: 创建限制器...');
-            // 4. 限制器（防止削波 - 平衡限制）
+            // 4. 限制器（防止削波 - 强力保护）
             this.limiter = ctx.createDynamicsCompressor();
-            this.limiter.threshold.value = -2;
-            this.limiter.knee.value = 2;
-            this.limiter.ratio.value = 15;
-            this.limiter.attack.value = 0.003;
-            this.limiter.release.value = 0.1;
+            this.limiter.threshold.value = -1; // 提高阈值，允许更大音量
+            this.limiter.knee.value = 1; // 更硬的拐点，快速限制
+            this.limiter.ratio.value = 20; // 更高压缩比，强力防止失真
+            this.limiter.attack.value = 0.001; // 极快响应
+            this.limiter.release.value = 0.05; // 快速释放
             
             console.log('initAudioChain: 创建软削波器（抖音级）...');
             // 4.5. 软削波器（模拟抖音的音频处理）
@@ -99,9 +99,9 @@ class AudioEngine {
             this.softClipper.oversample = '4x'; // 高质量过采样
             
             console.log('initAudioChain: 创建主音量...');
-            // 5. 主音量（平衡响度）
+            // 5. 主音量（提升响度，限制器会防止失真）
             this.masterGain = ctx.createGain();
-            this.masterGain.gain.value = 1.8; // 降低主音量，避免过载
+            this.masterGain.gain.value = 2.5; // 提升主音量，限制器会保护
             
             console.log('initAudioChain: 连接音频节点...');
             // 连接音频处理链
@@ -175,11 +175,11 @@ class AudioEngine {
         this.convolver.buffer = impulse;
     }
     
-    // 创建软削波曲线（温和版）
+    // 创建软削波曲线（温和版 - 允许更大音量）
     makeSoftClipCurve() {
         const samples = 2048;
         const curve = new Float32Array(samples);
-        const drive = 0.8; // 降低驱动强度（从 1.2 降到 0.8）
+        const drive = 1.0; // 适中驱动强度，平衡音量和音质
         
         for (let i = 0; i < samples; i++) {
             const x = (i / samples) * 2 - 1; // -1 到 1
@@ -350,7 +350,7 @@ class AudioEngine {
             const gainNode = ctx.createGain();
             // 使用更精确的velocity映射（MIDI标准：velocity 0-127）
             const velocityFactor = Math.pow(velocity / 127, 1.5); // 使用指数曲线，更自然
-            const baseVolume = velocityFactor * 2.2;
+            const baseVolume = velocityFactor * 2.8; // 提升基础音量（从2.2到2.8）
             
             // 根据音高调整音量（模拟真实钢琴）
             let pitchFactor = 1.0;
