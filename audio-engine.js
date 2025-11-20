@@ -52,7 +52,7 @@ class AudioEngine {
             
             // 1.5. Makeup Gain（补偿压缩损失的音量）
             this.makeupGain = ctx.createGain();
-            this.makeupGain.gain.value = 2.8; // 大幅提升补偿增益，最大化响度
+            this.makeupGain.gain.value = 2.4; // 提升补偿增益，平衡响度和音质
             
             console.log('initAudioChain: 创建均衡器...');
             // 2. 三段均衡器（精细调音）
@@ -99,9 +99,9 @@ class AudioEngine {
             this.softClipper.oversample = '4x'; // 高质量过采样
             
             console.log('initAudioChain: 创建主音量...');
-            // 5. 主音量（最大化响度，限制器会防止失真）
+            // 5. 主音量（提升响度，限制器会防止失真）
             this.masterGain = ctx.createGain();
-            this.masterGain.gain.value = 3.5; // 大幅提升主音量，限制器保证不失真
+            this.masterGain.gain.value = 3.0; // 适度提升主音量，保持清晰度
             
             console.log('initAudioChain: 连接音频节点...');
             // 连接音频处理链
@@ -175,11 +175,11 @@ class AudioEngine {
         this.convolver.buffer = impulse;
     }
     
-    // 创建软削波曲线（激进版 - 最大化响度）
+    // 创建软削波曲线（平衡版 - 响度与音质平衡）
     makeSoftClipCurve() {
         const samples = 2048;
         const curve = new Float32Array(samples);
-        const drive = 1.5; // 提高驱动，增加响度
+        const drive = 1.2; // 适度驱动，平衡响度和清晰度
         
         for (let i = 0; i < samples; i++) {
             const x = (i / samples) * 2 - 1; // -1 到 1
@@ -594,7 +594,7 @@ class AudioEngine {
         const clampedVolume = Math.max(0, Math.min(1, volume));
         
         // 使用原始音量值乘以基础增益
-        const baseGain = 3.5; // 提升基础增益，匹配新的主音量
+        const baseGain = 3.0; // 适度基础增益，匹配新的主音量
         this.masterGain.gain.value = clampedVolume * baseGain;
         
         console.log(`🔊 主音量设置为: ${Math.round(clampedVolume * 100)}%`);
