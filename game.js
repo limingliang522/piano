@@ -1,3 +1,307 @@
+// ========== 像素纹理生成系统 ==========
+class PixelTextureGenerator {
+    /**
+     * 创建纯色像素纹理
+     * @param {number} color - 颜色值（十六进制）
+     * @param {number} size - 纹理尺寸（默认16x16）
+     * @returns {THREE.Texture}
+     */
+    static createSolidTexture(color, size = 16) {
+        const canvas = document.createElement('canvas');
+        canvas.width = size;
+        canvas.height = size;
+        const ctx = canvas.getContext('2d');
+        
+        // 填充纯色
+        ctx.fillStyle = '#' + color.toString(16).padStart(6, '0');
+        ctx.fillRect(0, 0, size, size);
+        
+        const texture = new THREE.CanvasTexture(canvas);
+        texture.magFilter = THREE.NearestFilter;
+        texture.minFilter = THREE.NearestFilter;
+        texture.needsUpdate = true;
+        
+        return texture;
+    }
+    
+    /**
+     * 创建精灵纹理（从像素数据数组）
+     * @param {Array} spriteData - 二维数组，每个元素是颜色索引
+     * @param {Object} colorMap - 颜色映射表 {索引: 颜色值}
+     * @param {number} pixelSize - 每个像素的实际大小（默认1）
+     * @returns {THREE.Texture}
+     */
+    static createSpriteTexture(spriteData, colorMap, pixelSize = 1) {
+        const height = spriteData.length;
+        const width = spriteData[0].length;
+        const canvas = document.createElement('canvas');
+        canvas.width = width * pixelSize;
+        canvas.height = height * pixelSize;
+        const ctx = canvas.getContext('2d');
+        
+        // 绘制每个像素
+        for (let y = 0; y < height; y++) {
+            for (let x = 0; x < width; x++) {
+                const colorIndex = spriteData[y][x];
+                if (colorIndex === 0 || colorIndex === 'transparent') {
+                    // 透明像素，跳过
+                    continue;
+                }
+                
+                const color = colorMap[colorIndex];
+                if (color) {
+                    ctx.fillStyle = color;
+                    ctx.fillRect(x * pixelSize, y * pixelSize, pixelSize, pixelSize);
+                }
+            }
+        }
+        
+        const texture = new THREE.CanvasTexture(canvas);
+        texture.magFilter = THREE.NearestFilter;
+        texture.minFilter = THREE.NearestFilter;
+        texture.needsUpdate = true;
+        
+        return texture;
+    }
+    
+    /**
+     * 创建重复图案纹理
+     * @param {Array} pattern - 图案数据（二维数组）
+     * @param {Object} colorMap - 颜色映射表
+     * @param {number} size - 纹理尺寸（默认32x32）
+     * @returns {THREE.Texture}
+     */
+    static createPatternTexture(pattern, colorMap, size = 32) {
+        const patternHeight = pattern.length;
+        const patternWidth = pattern[0].length;
+        const canvas = document.createElement('canvas');
+        canvas.width = size;
+        canvas.height = size;
+        const ctx = canvas.getContext('2d');
+        
+        // 计算每个图案单元的大小
+        const cellWidth = Math.floor(size / patternWidth);
+        const cellHeight = Math.floor(size / patternHeight);
+        
+        // 绘制图案
+        for (let y = 0; y < patternHeight; y++) {
+            for (let x = 0; x < patternWidth; x++) {
+                const colorIndex = pattern[y][x];
+                if (colorIndex === 0 || colorIndex === 'transparent') {
+                    continue;
+                }
+                
+                const color = colorMap[colorIndex];
+                if (color) {
+                    ctx.fillStyle = color;
+                    ctx.fillRect(x * cellWidth, y * cellHeight, cellWidth, cellHeight);
+                }
+            }
+        }
+        
+        const texture = new THREE.CanvasTexture(canvas);
+        texture.magFilter = THREE.NearestFilter;
+        texture.minFilter = THREE.NearestFilter;
+        texture.wrapS = THREE.RepeatWrapping;
+        texture.wrapT = THREE.RepeatWrapping;
+        texture.needsUpdate = true;
+        
+        return texture;
+    }
+}
+
+// ========== 像素色板定义 ==========
+const PIXEL_PALETTE = {
+    // 主色调
+    SKY_BLUE: 0x87CEEB,
+    CLOUD_WHITE: 0xF0F8FF,
+    GROUND_BROWN: 0x8B4513,
+    
+    // 角色色
+    WUKONG_GOLD: 0xFFD700,
+    WUKONG_RED: 0xFF4500,
+    WUKONG_SKIN: 0xFFE4B5,
+    WUKONG_BROWN: 0x8B4513,
+    WUKONG_BLACK: 0x000000,
+    
+    // 音符方块色
+    MONSTER_RED: 0xFF0000,
+    MONSTER_PURPLE: 0x9400D3,
+    MONSTER_GREEN: 0x00FF00,
+    MONSTER_BLUE: 0x0000FF,
+    OBSTACLE_ORANGE: 0xFF8C00,
+    
+    // UI色
+    UI_GOLD: 0xFFD700,
+    UI_BROWN: 0x8B4513,
+    UI_RED: 0xFF4500,
+    
+    // 特效色
+    EFFECT_WHITE: 0xFFFFFF,
+    EFFECT_YELLOW: 0xFFFF00,
+    EFFECT_ORANGE: 0xFFA500
+};
+
+// ========== 孙悟空精灵像素数据 (16x16) ==========
+const WUKONG_SPRITE = [
+    [0,0,0,0,0,1,1,1,1,1,1,0,0,0,0,0],
+    [0,0,0,1,1,1,1,1,1,1,1,1,1,0,0,0],
+    [0,0,1,1,2,2,2,2,2,2,2,2,1,1,0,0],
+    [0,1,1,2,2,2,2,2,2,2,2,2,2,1,1,0],
+    [0,1,2,2,3,3,2,2,2,2,3,3,2,2,1,0],
+    [0,1,2,2,3,3,2,2,2,2,3,3,2,2,1,0],
+    [0,1,2,2,2,2,2,3,3,2,2,2,2,2,1,0],
+    [0,1,2,2,2,2,3,3,3,3,2,2,2,2,1,0],
+    [0,0,1,2,2,2,2,2,2,2,2,2,2,1,0,0],
+    [0,0,1,1,2,2,2,2,2,2,2,2,1,1,0,0],
+    [0,0,0,1,1,1,1,1,1,1,1,1,1,0,0,0],
+    [0,0,0,0,4,4,4,4,4,4,4,4,0,0,0,0],
+    [0,0,0,4,4,4,4,4,4,4,4,4,4,0,0,0],
+    [0,0,4,4,4,4,4,4,4,4,4,4,4,4,0,0],
+    [0,0,5,5,5,0,0,0,0,0,0,5,5,5,0,0],
+    [0,0,5,5,5,0,0,0,0,0,0,5,5,5,0,0]
+];
+
+// 孙悟空颜色映射
+const WUKONG_COLORS = {
+    0: 'transparent',
+    1: '#8B4513', // 棕色（头发/头箍）
+    2: '#FFE4B5', // 肤色
+    3: '#000000', // 黑色（眼睛/嘴巴）
+    4: '#FF4500', // 红色（衣服）
+    5: '#FFD700'  // 金色（鞋子）
+};
+
+// ========== 妖怪精灵像素数据 ==========
+// 妖怪1 - 牛魔王 (16x16)
+const MONSTER_SPRITE_1 = [
+    [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+    [0,0,0,1,1,0,0,0,0,0,0,1,1,0,0,0],
+    [0,0,1,1,1,1,0,0,0,0,1,1,1,1,0,0],
+    [0,1,1,2,2,1,1,0,0,1,1,2,2,1,1,0],
+    [0,1,2,2,2,2,1,0,0,1,2,2,2,2,1,0],
+    [0,0,1,2,2,1,1,1,1,1,1,2,2,1,0,0],
+    [0,0,0,1,1,1,2,2,2,2,1,1,1,0,0,0],
+    [0,0,0,1,2,2,2,2,2,2,2,2,1,0,0,0],
+    [0,0,1,2,2,3,3,2,2,3,3,2,2,1,0,0],
+    [0,0,1,2,2,3,3,2,2,3,3,2,2,1,0,0],
+    [0,0,1,2,2,2,2,2,2,2,2,2,2,1,0,0],
+    [0,0,1,2,2,2,4,4,4,4,2,2,2,1,0,0],
+    [0,0,0,1,2,2,4,4,4,4,2,2,1,0,0,0],
+    [0,0,0,0,1,1,2,2,2,2,1,1,0,0,0,0],
+    [0,0,0,0,0,1,1,1,1,1,1,0,0,0,0,0],
+    [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
+];
+
+const MONSTER_1_COLORS = {
+    0: 'transparent',
+    1: '#8B4513', // 棕色（牛角）
+    2: '#FF0000', // 红色（脸）
+    3: '#FFFF00', // 黄色（眼睛）
+    4: '#000000'  // 黑色（嘴巴）
+};
+
+// 妖怪2 - 白骨精 (16x16)
+const MONSTER_SPRITE_2 = [
+    [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+    [0,0,0,0,1,1,1,1,1,1,1,1,0,0,0,0],
+    [0,0,0,1,1,1,1,1,1,1,1,1,1,0,0,0],
+    [0,0,1,1,2,2,1,1,1,1,2,2,1,1,0,0],
+    [0,0,1,2,2,2,2,1,1,2,2,2,2,1,0,0],
+    [0,0,1,2,3,3,2,1,1,2,3,3,2,1,0,0],
+    [0,0,1,2,3,3,2,1,1,2,3,3,2,1,0,0],
+    [0,0,1,1,2,2,1,1,1,1,2,2,1,1,0,0],
+    [0,0,0,1,1,1,1,1,1,1,1,1,1,0,0,0],
+    [0,0,0,1,1,4,4,4,4,4,4,1,1,0,0,0],
+    [0,0,0,1,1,1,4,4,4,4,1,1,1,0,0,0],
+    [0,0,0,0,1,1,1,1,1,1,1,1,0,0,0,0],
+    [0,0,0,0,1,1,1,1,1,1,1,1,0,0,0,0],
+    [0,0,0,1,1,1,0,0,0,0,1,1,1,0,0,0],
+    [0,0,0,1,1,0,0,0,0,0,0,1,1,0,0,0],
+    [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
+];
+
+const MONSTER_2_COLORS = {
+    0: 'transparent',
+    1: '#FFFFFF', // 白色（骨头）
+    2: '#E0E0E0', // 浅灰（阴影）
+    3: '#9400D3', // 紫色（眼睛）
+    4: '#000000'  // 黑色（嘴巴）
+};
+
+// 妖怪3 - 蜘蛛精 (16x16)
+const MONSTER_SPRITE_3 = [
+    [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+    [0,0,0,0,0,1,1,1,1,1,1,0,0,0,0,0],
+    [0,0,0,0,1,1,2,2,2,2,1,1,0,0,0,0],
+    [0,0,0,1,1,2,2,2,2,2,2,1,1,0,0,0],
+    [0,0,1,1,2,2,3,3,3,3,2,2,1,1,0,0],
+    [0,1,1,2,2,3,4,4,4,4,3,2,2,1,1,0],
+    [0,1,2,2,3,4,4,4,4,4,4,3,2,2,1,0],
+    [0,1,2,2,3,4,5,5,5,5,4,3,2,2,1,0],
+    [0,1,2,2,3,4,5,5,5,5,4,3,2,2,1,0],
+    [0,1,2,2,3,4,4,4,4,4,4,3,2,2,1,0],
+    [0,1,1,2,2,3,4,4,4,4,3,2,2,1,1,0],
+    [0,0,1,1,2,2,3,3,3,3,2,2,1,1,0,0],
+    [0,0,0,1,1,2,2,2,2,2,2,1,1,0,0,0],
+    [0,0,1,0,0,1,1,1,1,1,1,0,0,1,0,0],
+    [0,1,0,0,0,0,0,0,0,0,0,0,0,0,1,0],
+    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1]
+];
+
+const MONSTER_3_COLORS = {
+    0: 'transparent',
+    1: '#000000', // 黑色（腿）
+    2: '#8B008B', // 深紫（身体外层）
+    3: '#9400D3', // 紫色（身体）
+    4: '#00FF00', // 绿色（眼睛区域）
+    5: '#FF0000'  // 红色（眼睛）
+};
+
+// 妖怪精灵数组
+const MONSTER_SPRITES = [
+    { data: MONSTER_SPRITE_1, colors: MONSTER_1_COLORS },
+    { data: MONSTER_SPRITE_2, colors: MONSTER_2_COLORS },
+    { data: MONSTER_SPRITE_3, colors: MONSTER_3_COLORS }
+];
+
+// ========== 云层图案 (8x8) ==========
+const CLOUD_PATTERN = [
+    [0,0,1,1,1,1,0,0],
+    [0,1,1,2,2,1,1,0],
+    [1,1,2,2,2,2,1,1],
+    [1,2,2,2,2,2,2,1],
+    [1,2,2,2,2,2,2,1],
+    [1,1,2,2,2,2,1,1],
+    [0,1,1,2,2,1,1,0],
+    [0,0,1,1,1,1,0,0]
+];
+
+const CLOUD_COLORS = {
+    0: '#87CEEB', // 天蓝色（背景）
+    1: '#E0F0FF', // 浅蓝白（云边缘）
+    2: '#F0F8FF'  // 云白色（云中心）
+};
+
+// ========== 符文图案 (8x8) ==========
+const RUNE_PATTERN = [
+    [0,0,1,1,1,1,0,0],
+    [0,1,2,2,2,2,1,0],
+    [1,2,2,3,3,2,2,1],
+    [1,2,3,2,2,3,2,1],
+    [1,2,3,2,2,3,2,1],
+    [1,2,2,3,3,2,2,1],
+    [0,1,2,2,2,2,1,0],
+    [0,0,1,1,1,1,0,0]
+];
+
+const RUNE_COLORS = {
+    0: 'transparent',
+    1: '#FF8C00', // 橙色（外圈）
+    2: '#FFD700', // 金色（中圈）
+    3: '#FFFF00'  // 黄色（内圈）
+};
+
 // Three.js 场景设置
 let scene, camera, renderer;
 let player, ground = [];
@@ -688,59 +992,54 @@ function createTriggerLine() {
     window.triggerLineMaterial = material;
 }
 
-// 拖尾效果数组
-let trailPositions = [];
-const trailLength = 10;
-let trailSpheres = [];
+// 拖尾效果数组（已移除，保持像素风格简洁）
+// let trailPositions = [];
+// const trailLength = 10;
+// let trailSpheres = [];
 
-// 创建玩家（半透明白色小球 + 微光边缘）
+// 创建玩家（像素风格的孙悟空）
 function createPlayer() {
-    const geometry = new THREE.SphereGeometry(0.25, 32, 32);
-    const material = new THREE.MeshStandardMaterial({ 
-        color: 0xffffff,
-        emissive: 0xffffff,
-        emissiveIntensity: 0.4, // 微光
-        metalness: 0.3,
-        roughness: 0.4,
-        transparent: true,
-        opacity: 0.95 // 半透明
+    // 使用 PixelTextureGenerator 创建孙悟空纹理
+    const wukongTexture = PixelTextureGenerator.createSpriteTexture(
+        WUKONG_SPRITE,
+        WUKONG_COLORS,
+        2 // 每个像素放大2倍，使纹理更清晰
+    );
+    
+    // 使用 Sprite 创建孙悟空角色
+    const material = new THREE.SpriteMaterial({ 
+        map: wukongTexture,
+        transparent: true
     });
-    player = new THREE.Mesh(geometry, material);
+    
+    player = new THREE.Sprite(material);
+    player.scale.set(0.6, 0.6, 1); // 调整大小使角色合适
     player.position.set(0, 0.25, 0);
-    player.castShadow = true;
+    
+    // 保持碰撞体积不变（使用原来的球体半径0.25）
+    player.userData.collisionRadius = 0.25;
+    
     scene.add(player);
     
-    // 取消光圈效果，保持画面干净
-    
-    // 创建拖尾球体（半透明，不发光）
-    for (let i = 0; i < trailLength; i++) {
-        const trailGeometry = new THREE.SphereGeometry(0.2, 16, 16);
-        const trailMaterial = new THREE.MeshBasicMaterial({
-            color: 0xcccccc, // 改为浅灰色
-            transparent: true,
-            opacity: 0
-        });
-        const trailSphere = new THREE.Mesh(trailGeometry, trailMaterial);
-        scene.add(trailSphere);
-        trailSpheres.push(trailSphere);
-    }
+    // 移除原有的拖尾球体创建代码
+    // 拖尾效果已被移除，保持像素风格的简洁
 }
 
-// 更新拖尾效果
-function updateTrail() {
-    for (let i = 0; i < trailSpheres.length; i++) {
-        if (i < trailPositions.length) {
-            const pos = trailPositions[trailPositions.length - 1 - i];
-            trailSpheres[i].position.set(pos.x, pos.y, pos.z);
-            const opacity = (1 - i / trailLength) * 0.8;
-            trailSpheres[i].material.opacity = opacity;
-            const scale = (1 - i / trailLength) * 0.8;
-            trailSpheres[i].scale.setScalar(scale);
-        } else {
-            trailSpheres[i].material.opacity = 0;
-        }
-    }
-}
+// 更新拖尾效果（已移除，保持像素风格简洁）
+// function updateTrail() {
+//     for (let i = 0; i < trailSpheres.length; i++) {
+//         if (i < trailPositions.length) {
+//             const pos = trailPositions[trailPositions.length - 1 - i];
+//             trailSpheres[i].position.set(pos.x, pos.y, pos.z);
+//             const opacity = (1 - i / trailLength) * 0.8;
+//             trailSpheres[i].material.opacity = opacity;
+//             const scale = (1 - i / trailLength) * 0.8;
+//             trailSpheres[i].scale.setScalar(scale);
+//         } else {
+//             trailSpheres[i].material.opacity = 0;
+//         }
+//     }
+// }
 
 // 创建障碍物
 function createObstacle() {
@@ -848,22 +1147,22 @@ function updatePlayer() {
         verticalVelocity += gravityPerSecond * deltaTime;
         player.position.y += velocityPerSecond * deltaTime;
         
-        // 添加跳跃时的轻微旋转动画
-        player.rotation.x = Math.min(verticalVelocity * 0.5, 0.3);
+        // Sprite 不支持 rotation.x，移除旋转动画
+        // player.rotation.x = Math.min(verticalVelocity * 0.5, 0.3);
         
         // 落地
         if (player.position.y <= groundY) {
             player.position.y = groundY;
             isJumping = false;
             verticalVelocity = 0;
-            player.rotation.x = 0;
-            player.scale.set(1, 1, 1);
+            // player.rotation.x = 0;
+            player.scale.set(0.6, 0.6, 1);
             
-            // 落地时的轻微压缩效果
-            player.scale.set(1.1, 0.9, 1.1);
+            // 落地时的轻微压缩效果（Sprite 只能在 x,y 方向缩放）
+            player.scale.set(0.66, 0.54, 1);
             setTimeout(() => {
                 if (!isJumping) {
-                    player.scale.set(1, 1, 1);
+                    player.scale.set(0.6, 0.6, 1);
                 }
             }, 100);
         }
@@ -871,23 +1170,23 @@ function updatePlayer() {
     
     // 确保在地面时恢复正常状态
     if (!isJumping) {
-        player.scale.set(1, 1, 1);
+        player.scale.set(0.6, 0.6, 1);
         player.position.y = groundY;
     }
     
-    // 添加拖尾效果
-    trailPositions.push({
-        x: player.position.x,
-        y: player.position.y,
-        z: player.position.z
-    });
-    
-    if (trailPositions.length > trailLength) {
-        trailPositions.shift();
-    }
-    
-    // 更新拖尾球体
-    updateTrail();
+    // 拖尾效果已移除，保持像素风格简洁
+    // trailPositions.push({
+    //     x: player.position.x,
+    //     y: player.position.y,
+    //     z: player.position.z
+    // });
+    // 
+    // if (trailPositions.length > trailLength) {
+    //     trailPositions.shift();
+    // }
+    // 
+    // // 更新拖尾球体
+    // updateTrail();
 }
 
 // 跳跃函数 - 极速响应，在空中只能快速下落
