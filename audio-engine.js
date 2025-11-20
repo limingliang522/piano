@@ -600,101 +600,41 @@ class AudioEngine {
         console.log(`🔊 主音量设置为: ${Math.round(clampedVolume * 100)}%`);
     }
     
-    // 播放UI点击音效
+    // 播放UI点击音效（使用钢琴音色）
     playClickSound() {
-        if (!this.audioContext || !this.masterGain) {
+        if (!this.isReady || this.samples.size === 0) {
+            console.warn('钢琴采样尚未加载，无法播放点击音效');
             return;
         }
         
         try {
-            const ctx = this.audioContext;
-            const now = ctx.currentTime;
+            // 随机选择一个高音区音符（C5-C6）
+            const highNotes = [72, 74, 76, 77, 79, 81, 83, 84]; // C5, D5, E5, F5, G5, A5, B5, C6
+            const randomNote = highNotes[Math.floor(Math.random() * highNotes.length)];
             
-            // 创建一个清脆的点击音（使用两个频率叠加）
-            const osc1 = ctx.createOscillator();
-            const osc2 = ctx.createOscillator();
-            const gainNode = ctx.createGain();
-            const filter = ctx.createBiquadFilter();
-            
-            // 主频率（高音）
-            osc1.type = 'sine';
-            osc1.frequency.setValueAtTime(1200, now);
-            osc1.frequency.exponentialRampToValueAtTime(800, now + 0.05);
-            
-            // 副频率（增加厚度）
-            osc2.type = 'sine';
-            osc2.frequency.setValueAtTime(2400, now);
-            osc2.frequency.exponentialRampToValueAtTime(1600, now + 0.05);
-            
-            // 音量包络（快速衰减）
-            gainNode.gain.setValueAtTime(0.15, now);
-            gainNode.gain.exponentialRampToValueAtTime(0.01, now + 0.08);
-            
-            // 低通滤波器（让声音更柔和）
-            filter.type = 'lowpass';
-            filter.frequency.setValueAtTime(3000, now);
-            filter.Q.value = 1;
-            
-            // 连接节点
-            osc1.connect(filter);
-            osc2.connect(filter);
-            filter.connect(gainNode);
-            gainNode.connect(this.masterGain);
-            
-            // 播放
-            osc1.start(now);
-            osc2.start(now);
-            osc1.stop(now + 0.1);
-            osc2.stop(now + 0.1);
+            // 播放短促的钢琴音
+            this.playNote(randomNote, 0.3, 80, 2);
             
         } catch (error) {
             console.warn('播放点击音效失败:', error);
         }
     }
     
-    // 播放开始游戏音效（更有仪式感）
+    // 播放开始游戏音效（使用钢琴音色的上升音阶）
     playStartSound() {
-        if (!this.audioContext || !this.masterGain) {
+        if (!this.isReady || this.samples.size === 0) {
+            console.warn('钢琴采样尚未加载，无法播放开始音效');
             return;
         }
         
         try {
-            const ctx = this.audioContext;
-            const now = ctx.currentTime;
+            // 播放上升音阶（C5-E5-G5，大三和弦）
+            const chordNotes = [72, 76, 79]; // C5, E5, G5
             
-            // 创建上升音阶（C-E-G，大三和弦）
-            const frequencies = [523.25, 659.25, 783.99]; // C5, E5, G5
-            
-            frequencies.forEach((freq, index) => {
-                const osc = ctx.createOscillator();
-                const gainNode = ctx.createGain();
-                const filter = ctx.createBiquadFilter();
-                
-                osc.type = 'sine';
-                osc.frequency.value = freq;
-                
-                // 每个音符延迟播放
-                const startTime = now + index * 0.08;
-                const duration = 0.15;
-                
-                // 音量包络
-                gainNode.gain.setValueAtTime(0, startTime);
-                gainNode.gain.linearRampToValueAtTime(0.12, startTime + 0.01);
-                gainNode.gain.exponentialRampToValueAtTime(0.01, startTime + duration);
-                
-                // 滤波器
-                filter.type = 'lowpass';
-                filter.frequency.value = 4000;
-                filter.Q.value = 1;
-                
-                // 连接
-                osc.connect(filter);
-                filter.connect(gainNode);
-                gainNode.connect(this.masterGain);
-                
-                // 播放
-                osc.start(startTime);
-                osc.stop(startTime + duration);
+            chordNotes.forEach((note, index) => {
+                setTimeout(() => {
+                    this.playNote(note, 0.4, 90, 2);
+                }, index * 80); // 每个音符间隔80ms
             });
             
         } catch (error) {
