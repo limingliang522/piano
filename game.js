@@ -576,19 +576,15 @@ function createAllNoteBlocks() {
     console.log(`✅ 创建完成！实际创建了 ${noteObjects.length} 个方块`);
 }
 
-// 固定高画质材质（玻璃质感）
+// 固定高画质材质（不透明黑块）
 function createNoteMaterial() {
-    return new THREE.MeshPhysicalMaterial({ 
-        color: 0x2a2a2a,
+    return new THREE.MeshStandardMaterial({ 
+        color: 0x1a1a1a, // 深黑色
         metalness: 0.9,
-        roughness: 0.1,
-        transparent: true,
-        opacity: 0.85,
-        transmission: 0.3, // 玻璃透射
-        thickness: 0.5,
-        envMapIntensity: 1,
-        clearcoat: 1.0,
-        clearcoatRoughness: 0.1
+        roughness: 0.2,
+        transparent: false, // 不透明
+        emissive: 0x0a0a0a,
+        emissiveIntensity: 0.2
     });
 }
 
