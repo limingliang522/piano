@@ -1983,30 +1983,14 @@ async function selectMidi(index) {
             startButton.removeEventListener('touchstart', startGame);
             startButton.style.display = 'none';
             
-            // 立即启动音频上下文（在用户交互时）
-            console.log('🔊 立即启动音频上下文...');
+            // 启动音频上下文（在用户交互时）
+            console.log('🔊 启动音频上下文...');
             try {
                 await audioEngine.start();
                 console.log('✅ 音频上下文已启动');
-            } catch (error) {
-                console.warn('音频上下文启动失败:', error);
-            }
-            
-            // 显示加载提示
-            loadingElement.style.display = 'block';
-            loadingElement.textContent = '加载钢琴音色中...';
-            
-            try {
                 
-                // 如果音色未加载，则加载
-                if (!audioEngine.isReady) {
-                    await audioEngine.init((loaded, total) => {
-                        loadingElement.textContent = `加载钢琴音色 ${loaded}/${total}`;
-                    });
-                }
-                
-                // 隐藏加载提示
-                loadingElement.style.display = 'none';
+                // 播放开始音效（音色已经加载完成）
+                audioEngine.playStartSound();
                 
                 // 开始游戏
                 gameStartTime = Date.now() / 1000;
@@ -2025,14 +2009,8 @@ async function selectMidi(index) {
                 gameRunning = true;
                 
             } catch (error) {
-                console.error('音频加载失败:', error);
-                loadingElement.textContent = '加载失败，请刷新重试';
-                setTimeout(() => {
-                    loadingElement.style.display = 'none';
-                    startButton.style.display = 'block';
-                    startButton.addEventListener('click', startGame);
-                    startButton.addEventListener('touchstart', startGame, { passive: false });
-                }, 2000);
+                console.error('启动失败:', error);
+                alert('启动失败，请刷新页面重试');
             }
         };
         
