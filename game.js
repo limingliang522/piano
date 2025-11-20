@@ -947,7 +947,8 @@ function updateNoteBlocks() {
         if (!noteData.collided && noteData.lane === playerLane) {
             const distanceToPlayer = Math.abs(noteBlock.position.z - player.position.z);
             
-            if (distanceToPlayer < 1.0) {
+            // 扩大碰撞检测范围，确保能检测到
+            if (distanceToPlayer < 1.5) {
                 const isTall = noteBlock.userData.isTall;
                 const blockHeight = noteBlock.userData.blockHeight;
                 
@@ -960,7 +961,9 @@ function updateNoteBlocks() {
                 const blockBottom = noteBlock.position.y - blockHeight / 2;
                 
                 // 检测碰撞：玩家和方块在垂直方向有重叠
-                if (playerBottom < blockTop && playerTop > blockBottom) {
+                const hasVerticalOverlap = playerBottom < blockTop && playerTop > blockBottom;
+                
+                if (hasVerticalOverlap) {
                     // 碰撞了！
                     noteData.collided = true;
                     collisions++;
@@ -971,7 +974,11 @@ function updateNoteBlocks() {
                     
                     // 改变颜色表示碰撞
                     noteBlock.material.color.setHex(0xff0000);
-                    noteBlock.material.emissive.setHex(0xff0000);
+                    if (!noteBlock.material.emissive) {
+                        noteBlock.material.emissive = new THREE.Color(0xff0000);
+                    } else {
+                        noteBlock.material.emissive.setHex(0xff0000);
+                    }
                     
                     // 游戏结束
                     gameOver();
