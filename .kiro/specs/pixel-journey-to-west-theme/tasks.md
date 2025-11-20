@@ -32,6 +32,7 @@
 
 
 
+
   - 修改 createPlayer() 函数
   - 使用 PixelTextureGenerator.createSpriteTexture() 创建孙悟空纹理
   - 将 SphereGeometry 替换为 THREE.Sprite 或 PlaneGeometry
