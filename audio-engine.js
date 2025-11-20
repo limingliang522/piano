@@ -33,7 +33,7 @@ class AudioEngine {
         try {
             // 仅创建主音量控制节点
             this.masterGain = ctx.createGain();
-            this.masterGain.gain.value = 1.0; // 保持原始音量
+            this.masterGain.gain.value = 2.5; // 增大音量 2.5 倍
             
             // 直接连接到输出
             this.masterGain.connect(ctx.destination);
@@ -169,7 +169,7 @@ class AudioEngine {
             
             // 音量控制（基于力度）
             const gainNode = ctx.createGain();
-            const volume = (velocity / 127) * 1.0; // 保持原始音量比例
+            const volume = (velocity / 127) * 0.4; // 降低单音符音量以配合主增益，避免失真
             
             // 简单的淡入淡出（消除咔嚓声）
             gainNode.gain.setValueAtTime(0, now);
