@@ -33,7 +33,7 @@ class AudioEngine {
         try {
             // 只保留主音量控制，不添加任何效果处理
             this.masterGain = ctx.createGain();
-            this.masterGain.gain.value = 1.0;
+            this.masterGain.gain.value = 1.5; // 提升50%音量
             
             // 直接连接到输出
             this.masterGain.connect(ctx.destination);
@@ -176,7 +176,7 @@ class AudioEngine {
             
             // === 音量包络（ADSR）===
             const gainNode = ctx.createGain();
-            const volume = (velocity / 127) * 1.0; // 完美还原MIDI力度
+            const volume = (velocity / 127) * 0.8; // 完美还原MIDI力度，配合主音量增益
             
             // Attack（快速起音，5ms）
             gainNode.gain.setValueAtTime(0, now);
