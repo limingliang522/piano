@@ -821,6 +821,61 @@ function createCoin() {
     coins.push(coin);
 }
 
+// 正确清理 Three.js 对象（防止内存泄漏）
+function disposeObject(obj) {
+    if (!obj) return;
+    
+    // 递归清理子对象
+    if (obj.children && obj.children.length > 0) {
+        for (let i = obj.children.length - 1; i >= 0; i--) {
+            disposeObject(obj.children[i]);
+        }
+    }
+    
+    // 释放几何体
+    if (obj.geometry) {
+        obj.geometry.dispose();
+    }
+    
+    // 释放材质
+    if (obj.material) {
+        if (Array.isArray(obj.material)) {
+            obj.material.forEach(mat => {
+                if (mat.map) mat.map.dispose();
+                if (mat.lightMap) mat.lightMap.dispose();
+                if (mat.bumpMap) mat.bumpMap.dispose();
+                if (mat.normalMap) mat.normalMap.dispose();
+                if (mat.specularMap) mat.specularMap.dispose();
+                if (mat.envMap) mat.envMap.dispose();
+                mat.dispose();
+            });
+        } else {
+            if (obj.material.map) obj.material.map.dispose();
+            if (obj.material.lightMap) obj.material.lightMap.dispose();
+            if (obj.material.bumpMap) obj.material.bumpMap.dispose();
+            if (obj.material.normalMap) obj.material.normalMap.dispose();
+            if (obj.material.specularMap) obj.material.specularMap.dispose();
+            if (obj.material.envMap) obj.material.envMap.dispose();
+            obj.material.dispose();
+        }
+    }
+    
+    // 从场景中移除
+    if (obj.parent) {
+        obj.parent.remove(obj);
+    }
+}
+
+// 批量清理对象数组
+function cleanupObjects(objectArray) {
+    if (!objectArray || objectArray.length === 0) return;
+    
+    for (let i = objectArray.length - 1; i >= 0; i--) {
+        disposeObject(objectArray[i]);
+    }
+    objectArray.length = 0; // 清空数组
+}
+
 // 性能统计（调试用）
 function logPerformanceStats() {
     if (renderer && renderer.info) {
@@ -1051,9 +1106,9 @@ function updateNoteBlocks() {
             }, 50);
         }
         
-        // 移除屏幕外的方块
+        // 移除屏幕外的方块（正确释放内存）
         if (noteBlock.position.z > 10) {
-            scene.remove(noteBlock);
+            disposeObject(noteBlock);
             noteObjects.splice(i, 1);
         }
     }
@@ -1075,7 +1130,7 @@ function updateObstacles() {
         obstacle.rotation.y += 0.02 * (deltaTime * 60);
         
         if (obstacle.position.z > 5) {
-            scene.remove(obstacle);
+            disposeObject(obstacle);
             obstacles.splice(i, 1);
         }
     }
@@ -1090,7 +1145,7 @@ function updateCoins() {
         coin.rotation.z += 0.1 * (deltaTime * 60);
         
         if (coin.position.z > 5) {
-            scene.remove(coin);
+            disposeObject(coin);
             coins.splice(i, 1);
         }
     }
@@ -1136,7 +1191,7 @@ function checkCollision() {
             const playerY = player.position.y;
             
             if (Math.abs(playerY - coinY) < 1.5) {
-                scene.remove(coin);
+                disposeObject(coin);
                 coins.splice(i, 1);
                 score += 10;
                 scoreElement.textContent = `分数: ${score}`;
@@ -1164,9 +1219,8 @@ function completeRound() {
 
 // 重新开始一轮（不重置星星和速度）
 function restartRound() {
-    // 清理音符方块
-    noteObjects.forEach(obj => scene.remove(obj));
-    noteObjects = [];
+    // 正确清理音符方块（释放内存）
+    cleanupObjects(noteObjects);
     
     // 重置音符状态
     notesTriggered = 0;
@@ -1269,13 +1323,10 @@ function continueGame() {
 
 // 重新开始
 function restart() {
-    // 清理场景
-    obstacles.forEach(obj => scene.remove(obj));
-    coins.forEach(obj => scene.remove(obj));
-    noteObjects.forEach(obj => scene.remove(obj));
-    obstacles = [];
-    coins = [];
-    noteObjects = [];
+    // 正确清理场景（释放内存）
+    cleanupObjects(obstacles);
+    cleanupObjects(coins);
+    cleanupObjects(noteObjects);
     
     // 重置游戏状态
     score = 0;
@@ -1564,6 +1615,8 @@ document.addEventListener('touchend', (e) => {
 
 // 切换MIDI文件的动画
 let isSwitchingMidi = false;
+let lastSwitchTime = 0;
+const SWITCH_COOLDOWN = 1000; // 1秒冷却时间
 
 // 切换到下一个MIDI文件
 async function switchToNextMidi() {
@@ -1649,13 +1702,16 @@ function playSlideAnimation(direction) {
 
 // 加载并开始新的MIDI
 async function loadAndStartNewMidi() {
-    // 重置游戏状态
-    obstacles.forEach(obj => scene.remove(obj));
-    coins.forEach(obj => scene.remove(obj));
-    noteObjects.forEach(obj => scene.remove(obj));
-    obstacles = [];
-    coins = [];
-    noteObjects = [];
+    // 正确清理游戏对象（释放内存）
+    cleanupObjects(obstacles);
+    cleanupObjects(coins);
+    cleanupObjects(noteObjects);
+    
+    // 清理拖尾效果
+    trailPositions = [];
+    trailSpheres.forEach(sphere => {
+        sphere.material.opacity = 0;
+    });
     
     score = 0;
     distance = 0;
@@ -1672,6 +1728,13 @@ async function loadAndStartNewMidi() {
     verticalVelocity = 0;
     currentLane = 2;
     targetLane = 2;
+    
+    // 输出清理后的内存状态
+    console.log('加载新曲子后内存状态:', {
+        几何体: renderer.info.memory.geometries,
+        纹理: renderer.info.memory.textures,
+        场景物体: scene.children.length
+    });
     
     // 加载新的MIDI文件
     const success = await loadMidiFile(currentMidiIndex);
@@ -1760,6 +1823,14 @@ function initMidiList() {
 
 // 选择 MIDI 文件 - 随时可点击
 async function selectMidi(index) {
+    // 检查冷却时间
+    const now = Date.now();
+    if (now - lastSwitchTime < SWITCH_COOLDOWN) {
+        console.log('切换太快，请稍候...');
+        return;
+    }
+    lastSwitchTime = now;
+    
     // 先收起动画
     dynamicIsland.classList.remove('expanded');
     isIslandExpanded = false;
@@ -1770,13 +1841,26 @@ async function selectMidi(index) {
     // 停止当前游戏
     gameRunning = false;
     
-    // 清理场景
-    obstacles.forEach(obj => scene.remove(obj));
-    coins.forEach(obj => scene.remove(obj));
-    noteObjects.forEach(obj => scene.remove(obj));
-    obstacles = [];
-    coins = [];
-    noteObjects = [];
+    // 正确清理场景（释放内存）
+    cleanupObjects(obstacles);
+    cleanupObjects(coins);
+    cleanupObjects(noteObjects);
+    
+    // 清理拖尾效果
+    trailPositions = [];
+    trailSpheres.forEach(sphere => {
+        sphere.material.opacity = 0;
+    });
+    
+    // 输出清理后的内存状态
+    console.log('切换曲子后内存状态:', {
+        几何体: renderer.info.memory.geometries,
+        纹理: renderer.info.memory.textures,
+        场景物体: scene.children.length
+    });
+    
+    // 等待一帧，确保清理完成
+    await new Promise(resolve => requestAnimationFrame(resolve));
     
     // 重置游戏状态
     score = 0;
