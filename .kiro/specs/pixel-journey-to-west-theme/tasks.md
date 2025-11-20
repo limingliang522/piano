@@ -76,7 +76,11 @@
   - 添加简单的重力和淡出动画
   - _Requirements: 2.3, 7.1, 7.4_
 
-- [ ] 6. 改造地面为云层像素风格
+- [x] 6. 改造地面为云层像素风格
+
+
+
+
   - 修改 createGround() 函数
   - 使用 PixelTextureGenerator.createPatternTexture() 创建云层纹理
   - 将纹理应用到地面 PlaneGeometry

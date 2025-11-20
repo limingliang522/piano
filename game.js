@@ -914,14 +914,21 @@ function createNoteBlock(noteData) {
 
 // 创建地面
 function createGround() {
-    // 极简风格：深蓝灰色地面
+    // 西游记像素风格：云层地面
     const groundGeometry = new THREE.PlaneGeometry(LANES * LANE_WIDTH, GROUND_LENGTH);
-    const groundMaterial = new THREE.MeshStandardMaterial({ 
-        color: 0x1a1a2e, // 深蓝灰色
-        roughness: 0.3,
-        metalness: 0.8,
-        transparent: true,
-        opacity: 0.9
+    
+    // 使用 PixelTextureGenerator 创建云层纹理
+    const cloudTexture = PixelTextureGenerator.createPatternTexture(CLOUD_PATTERN, CLOUD_COLORS, 32);
+    
+    // 设置纹理重复
+    cloudTexture.wrapS = THREE.RepeatWrapping;
+    cloudTexture.wrapT = THREE.RepeatWrapping;
+    cloudTexture.repeat.set(4, 20); // 横向4次，纵向20次
+    
+    // 使用 MeshLambertMaterial 替代 MeshStandardMaterial
+    const groundMaterial = new THREE.MeshLambertMaterial({ 
+        map: cloudTexture,
+        side: THREE.DoubleSide
     });
     
     for (let i = 0; i < 3; i++) {
