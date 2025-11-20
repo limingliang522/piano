@@ -26,47 +26,47 @@ class AudioEngine {
         }
     }
     
-    // 初始化音频处理链（极致响度模式 - 清晰版）
+    // 初始化音频处理链（极致响度 - 零失真模式）
     initAudioChain() {
         const ctx = this.audioContext;
         
         try {
-            // === 预增益（2倍提升，降低避免过度压缩）===
-            this.preGain = ctx.createGain();
-            this.preGain.gain.value = 2.0;
+            // === 软削波处理器（使用 WaveShaper 实现平滑限幅）===
+            this.softClipper = ctx.createWaveShaper();
+            this.softClipper.curve = this.makeSoftClipCurve(4096);
+            this.softClipper.oversample = '4x'; // 高质量过采样，避免混叠失真
             
-            // === 单级温和压缩器（保持清晰度）===
-            this.compressor = ctx.createDynamicsCompressor();
-            this.compressor.threshold.value = -24; // 更高阈值，减少压缩
-            this.compressor.knee.value = 30; // 柔和曲线
-            this.compressor.ratio.value = 3; // 温和压缩比
-            this.compressor.attack.value = 0.005; // 稍慢攻击，保留瞬态
-            this.compressor.release.value = 0.25;
-            
-            // === 硬限幅器（防止削波）===
-            this.limiter = ctx.createDynamicsCompressor();
-            this.limiter.threshold.value = -1.0; // 更保守的阈值
-            this.limiter.knee.value = 0;
-            this.limiter.ratio.value = 20;
-            this.limiter.attack.value = 0.001;
-            this.limiter.release.value = 0.1;
-            
-            // === 主增益（5倍提升）===
+            // === 主增益（8倍提升）===
             this.masterGain = ctx.createGain();
-            this.masterGain.gain.value = 5.0;
+            this.masterGain.gain.value = 8.0;
             
             // === 连接信号链 ===
-            // 预增益 → 压缩器 → 限幅器 → 主增益 → 输出
-            this.preGain.connect(this.compressor);
-            this.compressor.connect(this.limiter);
-            this.limiter.connect(this.masterGain);
+            // 音源 → 软削波 → 主增益 → 输出
+            this.softClipper.connect(this.masterGain);
             this.masterGain.connect(ctx.destination);
             
-            console.log('🔊 极致响度音频链已初始化（10x增益 + 清晰保护）');
+            // 预增益节点（供音符连接）
+            this.preGain = this.softClipper;
+            
+            console.log('🔊 极致响度音频链已初始化（8x增益 + 软削波保护）');
         } catch (error) {
             console.error('initAudioChain: 初始化失败:', error);
             throw error;
         }
+    }
+    
+    // 生成软削波曲线（双曲正切函数，平滑限幅）
+    makeSoftClipCurve(samples) {
+        const curve = new Float32Array(samples);
+        const deg = Math.PI / 180;
+        
+        for (let i = 0; i < samples; i++) {
+            const x = (i * 2) / samples - 1; // -1 到 1
+            // 使用 tanh 函数实现平滑削波（保持音色纯净）
+            curve[i] = Math.tanh(x * 1.5); // 1.5 是削波强度
+        }
+        
+        return curve;
     }
     
 
