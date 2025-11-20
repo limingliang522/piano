@@ -42,7 +42,12 @@
   - 保持 player.position 和碰撞体积不变
   - _Requirements: 1.1, 1.2, 1.3, 1.5_
 
-- [ ] 4. 改造音符方块为西游记主题
+- [x] 4. 改造音符方块为西游记主题
+
+
+
+
+
   - 修改 createNoteBlock() 函数
   - 根据 isTall 属性选择不同的像素纹理（妖怪或障碍物）
   - 使用 PixelTextureGenerator 创建纹理并设置 NearestFilter

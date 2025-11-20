@@ -858,7 +858,7 @@ function createAllNoteBlocks() {
     });
 }
 
-// 创建音符方块（玻璃质感）
+// 创建音符方块（西游记像素风格）
 function createNoteBlock(noteData) {
     // 使用预先分配的高度
     const isTall = noteData.isTall;
@@ -866,30 +866,31 @@ function createNoteBlock(noteData) {
     const blockY = isTall ? 1.5 : 0.2; // 超高方块的Y位置也要调整
     
     const geometry = new THREE.BoxGeometry(1.5, blockHeight, 1.2);
-    const material = new THREE.MeshPhysicalMaterial({ 
-        color: 0x2a2a2a, // 稍微亮一点
-        metalness: 0.9,
-        roughness: 0.1,
-        transparent: true,
-        opacity: 0.85,
-        transmission: 0.3, // 玻璃透射
-        thickness: 0.5,
-        envMapIntensity: 1,
-        clearcoat: 1.0,
-        clearcoatRoughness: 0.1
-    });
-    const noteBlock = new THREE.Mesh(geometry, material);
     
-    // 添加更亮的发光边缘（白色边框）
-    const edgesGeometry = new THREE.EdgesGeometry(geometry);
-    const edgesMaterial = new THREE.LineBasicMaterial({ 
-        color: 0xffffff,
-        transparent: true,
-        opacity: 0.9, // 提高不透明度
-        linewidth: 2
+    // 根据 isTall 属性选择不同的像素纹理
+    let texture;
+    if (isTall) {
+        // 超高方块：使用障碍物纹理（火焰山等）
+        // 使用纯色作为障碍物纹理
+        texture = PixelTextureGenerator.createSolidTexture(PIXEL_PALETTE.OBSTACLE_ORANGE, 16);
+    } else {
+        // 普通方块：随机选择妖怪纹理
+        const monsterIndex = Math.floor(Math.random() * MONSTER_SPRITES.length);
+        const monster = MONSTER_SPRITES[monsterIndex];
+        texture = PixelTextureGenerator.createSpriteTexture(monster.data, monster.colors, 2);
+    }
+    
+    // 设置纹理过滤为 NearestFilter（像素风格）
+    texture.magFilter = THREE.NearestFilter;
+    texture.minFilter = THREE.NearestFilter;
+    
+    // 使用 MeshLambertMaterial 替代 MeshPhysicalMaterial
+    const material = new THREE.MeshLambertMaterial({ 
+        map: texture,
+        transparent: false
     });
-    const edges = new THREE.LineSegments(edgesGeometry, edgesMaterial);
-    noteBlock.add(edges);
+    
+    const noteBlock = new THREE.Mesh(geometry, material);
     
     const x = (noteData.lane - 2) * LANE_WIDTH;
     // 根据时间计算初始Z位置
