@@ -281,7 +281,8 @@ class AudioEngine {
     }
 
     // 播放钢琴音符（极致音质版 - 3D空间音频）
-    playNote(midiNote, duration = 0.5, velocity = 100, lane = 2) {
+    // 添加性能模式参数
+    playNote(midiNote, duration = 0.5, velocity = 100, lane = 2, performanceMode = 'high') {
         if (!this.isReady || this.samples.size === 0) {
             console.warn('钢琴采样尚未加载完成');
             return;
@@ -314,37 +315,41 @@ class AudioEngine {
             const playbackRate = Math.pow(2, semitoneOffset / 12);
             source.playbackRate.value = playbackRate;
             
-            // === 3D 空间音频定位 ===
-            const panner = ctx.createPanner();
-            panner.panningModel = 'HRTF'; // 使用头部相关传输函数（最真实）
-            panner.distanceModel = 'inverse'; // 距离衰减模型
-            panner.refDistance = 1;
-            panner.maxDistance = 10000;
-            panner.rolloffFactor = 1;
-            panner.coneInnerAngle = 360;
-            panner.coneOuterAngle = 360;
-            panner.coneOuterGain = 0;
+            // === 3D 空间音频定位（根据性能模式调整）===
+            let panner = null;
+            let stereoPanner = null;
             
-            // 根据轨道位置设置 3D 空间位置
-            // 5条轨道：lane 0-4，中间是 lane 2
-            const laneWidth = 3; // 轨道间距
-            const xPosition = (lane - 2) * laneWidth; // -6, -3, 0, 3, 6
-            const yPosition = 0; // 水平高度
-            const zPosition = -5; // 音符从前方传来
-            
-            if (panner.positionX) {
-                panner.positionX.value = xPosition;
-                panner.positionY.value = yPosition;
-                panner.positionZ.value = zPosition;
+            if (performanceMode === 'high' || performanceMode === 'medium') {
+                // 高/中性能：使用 3D 空间音频
+                panner = ctx.createPanner();
+                panner.panningModel = performanceMode === 'high' ? 'HRTF' : 'equalpower'; // 中性能用简化算法
+                panner.distanceModel = 'inverse';
+                panner.refDistance = 1;
+                panner.maxDistance = 10000;
+                panner.rolloffFactor = 1;
+                panner.coneInnerAngle = 360;
+                panner.coneOuterAngle = 360;
+                panner.coneOuterGain = 0;
+                
+                // 根据轨道位置设置 3D 空间位置
+                const laneWidth = 3;
+                const xPosition = (lane - 2) * laneWidth;
+                const yPosition = 0;
+                const zPosition = -5;
+                
+                if (panner.positionX) {
+                    panner.positionX.value = xPosition;
+                    panner.positionY.value = yPosition;
+                    panner.positionZ.value = zPosition;
+                } else {
+                    panner.setPosition(xPosition, yPosition, zPosition);
+                }
             } else {
-                panner.setPosition(xPosition, yPosition, zPosition);
+                // 低性能：只使用简单立体声
+                stereoPanner = ctx.createStereoPanner();
+                const panValue = (lane - 2) / 3;
+                stereoPanner.pan.value = Math.max(-0.8, Math.min(0.8, panValue));
             }
-            
-            // === 立体声增强（更自然的声像）===
-            const stereoPanner = ctx.createStereoPanner();
-            // 根据轨道位置设置立体声像，但不要太极端
-            const panValue = (lane - 2) / 3; // -0.67, -0.33, 0, 0.33, 0.67（更温和）
-            stereoPanner.pan.value = Math.max(-0.8, Math.min(0.8, panValue)); // 限制在±0.8
             
             // === 音量包络（ADSR - 完美还原MIDI力度）===
             const gainNode = ctx.createGain();
@@ -379,11 +384,19 @@ class AudioEngine {
             // === 完美还原MIDI，不添加随机音高偏移 ===
             // 已移除随机 detune，保持音高精确
             
-            // === 连接音频处理链 ===
-            // 音源 → 3D定位 → 立体声 → 音量包络 → 压缩器 → [效果链] → 输出
-            source.connect(panner);
-            panner.connect(stereoPanner);
-            stereoPanner.connect(gainNode);
+            // === 连接音频处理链（根据性能模式）===
+            if (panner) {
+                // 高/中性能：3D 音频链
+                source.connect(panner);
+                panner.connect(gainNode);
+            } else if (stereoPanner) {
+                // 低性能：简单立体声
+                source.connect(stereoPanner);
+                stereoPanner.connect(gainNode);
+            } else {
+                // 超低性能：直连
+                source.connect(gainNode);
+            }
             gainNode.connect(this.compressor);
             
             // 播放
@@ -394,8 +407,8 @@ class AudioEngine {
             source.onended = () => {
                 try {
                     source.disconnect();
-                    panner.disconnect();
-                    stereoPanner.disconnect();
+                    if (panner) panner.disconnect();
+                    if (stereoPanner) stereoPanner.disconnect();
                     gainNode.disconnect();
                 } catch (e) {
                     // 已经断开连接

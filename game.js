@@ -92,13 +92,16 @@ function detectRefreshRate() {
         performanceMode = 'high';
     } else if (avgFPS > 80) {
         targetFPS = 90;
-        performanceMode = 'high';
+        performanceMode = 'medium'; // 修复：90Hz 应该是 medium
     } else if (avgFPS > 50) {
         targetFPS = 60;
         performanceMode = 'medium';
-    } else {
-        targetFPS = 60;
+    } else if (avgFPS > 35) {
+        targetFPS = 30;
         performanceMode = 'low';
+    } else {
+        targetFPS = 30;
+        performanceMode = 'potato'; // 超低端模式
     }
     
     console.log(`检测到屏幕刷新率: ${targetFPS}Hz (平均FPS: ${avgFPS.toFixed(1)})`);
@@ -110,18 +113,37 @@ function detectRefreshRate() {
 }
 
 function adjustQuality() {
-    if (performanceMode === 'low') {
+    if (performanceMode === 'potato') {
+        // 超低端：极致优化
+        renderer.shadowMap.enabled = false;
+        renderer.setPixelRatio(0.75); // 更低分辨率
+        scene.fog.far = 30;
+        trailLength = 3; // 减少拖尾长度
+        console.log('已切换到超低画质模式');
+    } else if (performanceMode === 'low') {
         // 低端设备：关闭阴影，降低像素比
         renderer.shadowMap.enabled = false;
         renderer.setPixelRatio(1);
-        scene.fog.far = 50; // 减少雾效范围
+        scene.fog.far = 40;
+        trailLength = 5;
         console.log('已切换到低画质模式');
     } else if (performanceMode === 'medium') {
-        // 中端设备：保持阴影，适中像素比
+        // 中端设备：简化阴影，适中像素比
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.BasicShadowMap; // 简化阴影
         renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
+        scene.fog.far = 60;
+        trailLength = 8;
         console.log('已切换到中画质模式');
+    } else {
+        // high 模式：最高画质
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        scene.fog.far = 80;
+        trailLength = 10;
+        console.log('已切换到高画质模式');
     }
-    // high 模式保持原样
 }
 
 function updateFPS(currentTime) {
@@ -799,6 +821,29 @@ function createCoin() {
     coins.push(coin);
 }
 
+// 性能统计（调试用）
+function logPerformanceStats() {
+    if (renderer && renderer.info) {
+        const info = renderer.info;
+        console.log('=== 性能统计 ===');
+        console.log(`渲染调用: ${info.render.calls}`);
+        console.log(`三角形数: ${info.render.triangles}`);
+        console.log(`几何体: ${info.memory.geometries}`);
+        console.log(`纹理: ${info.memory.textures}`);
+        console.log(`场景物体: ${scene.children.length}`);
+        console.log(`音符方块: ${noteObjects.length}`);
+        console.log(`当前FPS: ${currentFPS}`);
+        console.log(`性能模式: ${performanceMode}`);
+    }
+}
+
+// 每30秒输出一次性能统计（可选）
+setInterval(() => {
+    if (gameRunning) {
+        logPerformanceStats();
+    }
+}, 30000);
+
 // 更新玩家位置
 function updatePlayer() {
     // 恒定速度移动到目标轨道
@@ -981,8 +1026,8 @@ function updateNoteBlocks() {
             score += 100;
             
             // 播放音符（极致音质 - 传递轨道信息用于3D定位）
-            // 使用原始velocity，完美还原MIDI
-            audioEngine.playNote(noteData.note, noteData.duration, noteData.velocity, noteData.lane);
+            // 使用原始velocity，完美还原MIDI，并传递性能模式
+            audioEngine.playNote(noteData.note, noteData.duration, noteData.velocity, noteData.lane, performanceMode);
             
             // 改变颜色表示已触发（白色发光）
             noteBlock.material.color.setHex(0xffffff);
@@ -1322,11 +1367,24 @@ function animate(currentTime) {
     // 更新FPS统计
     updateFPS(currentTime);
     
-    // 帧率检测（前100帧）
-    if (frameCount < 100) {
+    // 帧率检测（前200帧，在第150帧检测）
+    if (frameCount < 200) {
         frameCount++;
-        if (frameCount === 50) {
+        if (frameCount === 150) {
             detectRefreshRate();
+        }
+    }
+    
+    // 动态性能监控（每5秒检查一次）
+    if (frameCount > 200 && frameCount % 300 === 0) {
+        const recentAvgFPS = fpsHistory.slice(-30).reduce((a, b) => a + b, 0) / 30;
+        if (recentAvgFPS < targetFPS * 0.7 && performanceMode !== 'potato') {
+            console.warn(`FPS 掉帧严重 (${recentAvgFPS.toFixed(1)}/${targetFPS})，自动降低画质`);
+            // 降级性能模式
+            if (performanceMode === 'high') performanceMode = 'medium';
+            else if (performanceMode === 'medium') performanceMode = 'low';
+            else if (performanceMode === 'low') performanceMode = 'potato';
+            adjustQuality();
         }
     }
     
@@ -1401,6 +1459,12 @@ function animate(currentTime) {
 
 // 键盘控制
 document.addEventListener('keydown', (e) => {
+    // P 键：查看性能统计（无论游戏是否运行）
+    if (e.key === 'p' || e.key === 'P') {
+        logPerformanceStats();
+        return;
+    }
+    
     if (!gameRunning) return;
     
     if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') {
