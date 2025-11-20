@@ -8,7 +8,7 @@ class AudioEngine {
         
         // 专业音频处理链
         this.convolver = null; // 卷积混响
-        this.compressor = null; // 动态压缩
+        this.compressor = null; // 动态压缩（保留用于兼容）
         this.limiter = null; // 限制器
         this.softClipper = null; // 软削波器（抖音级音质）
         this.eqLow = null; // 低频均衡
@@ -16,6 +16,16 @@ class AudioEngine {
         this.eqHigh = null; // 高频均衡
         this.stereoEnhancer = null; // 立体声增强
         this.listener = null; // 3D 音频监听器
+        
+        // 多段压缩器（母带级处理）
+        this.multibandSplitter = null; // 分频器输入
+        this.lowpassFilter = null; // 低频分离
+        this.bandpassFilter = null; // 中频分离
+        this.highpassFilter = null; // 高频分离
+        this.compressorLow = null; // 低频压缩器
+        this.compressorMid = null; // 中频压缩器
+        this.compressorHigh = null; // 高频压缩器
+        this.multibandMerger = null; // 合并器
     }
     
     // 确保AudioContext已创建
@@ -42,17 +52,89 @@ class AudioEngine {
         const ctx = this.audioContext;
         
         try {
-            // 1. 动态压缩器（温和压缩，保留动态范围）
-            this.compressor = ctx.createDynamicsCompressor();
-            this.compressor.threshold.value = -24; // 更高阈值，减少压缩
-            this.compressor.knee.value = 30; // 更柔和的拐点
-            this.compressor.ratio.value = 2.5; // 更低压缩比
-            this.compressor.attack.value = 0.005; // 稍慢的起音，保留瞬态
-            this.compressor.release.value = 0.15; // 更快的释放
+            console.log('initAudioChain: 创建多段压缩器（母带级）...');
             
-            // 1.5. Makeup Gain（补偿压缩损失的音量）
-            this.makeupGain = ctx.createGain();
-            this.makeupGain.gain.value = 2.4; // 提升补偿增益，平衡响度和音质
+            // === 1. 多段压缩器系统 ===
+            
+            // 1.1 分频器（将音频分成三个频段）
+            this.multibandSplitter = ctx.createGain(); // 输入节点
+            
+            // 低频滤波器（20Hz - 250Hz）
+            this.lowpassFilter = ctx.createBiquadFilter();
+            this.lowpassFilter.type = 'lowpass';
+            this.lowpassFilter.frequency.value = 250;
+            this.lowpassFilter.Q.value = 0.7;
+            
+            // 中频滤波器（250Hz - 4kHz）
+            this.bandpassFilter = ctx.createBiquadFilter();
+            this.bandpassFilter.type = 'bandpass';
+            this.bandpassFilter.frequency.value = 1500; // 中心频率
+            this.bandpassFilter.Q.value = 0.5;
+            
+            // 高频滤波器（4kHz - 20kHz）
+            this.highpassFilter = ctx.createBiquadFilter();
+            this.highpassFilter.type = 'highpass';
+            this.highpassFilter.frequency.value = 4000;
+            this.highpassFilter.Q.value = 0.7;
+            
+            // 1.2 低频压缩器（激进压缩，防止低音破音）
+            this.compressorLow = ctx.createDynamicsCompressor();
+            this.compressorLow.threshold.value = -30; // 低阈值，早介入
+            this.compressorLow.knee.value = 20; // 柔和拐点
+            this.compressorLow.ratio.value = 6; // 高压缩比，控制低音
+            this.compressorLow.attack.value = 0.01; // 较慢，保留低音冲击感
+            this.compressorLow.release.value = 0.2; // 较慢释放
+            
+            // 1.3 中频压缩器（温和压缩，保留人声和旋律）
+            this.compressorMid = ctx.createDynamicsCompressor();
+            this.compressorMid.threshold.value = -20;
+            this.compressorMid.knee.value = 30;
+            this.compressorMid.ratio.value = 3; // 温和压缩
+            this.compressorMid.attack.value = 0.005;
+            this.compressorMid.release.value = 0.15;
+            
+            // 1.4 高频压缩器（轻微压缩，保留清晰度）
+            this.compressorHigh = ctx.createDynamicsCompressor();
+            this.compressorHigh.threshold.value = -15;
+            this.compressorHigh.knee.value = 20;
+            this.compressorHigh.ratio.value = 2; // 轻微压缩
+            this.compressorHigh.attack.value = 0.003; // 快速响应
+            this.compressorHigh.release.value = 0.1;
+            
+            // 1.5 各频段 Makeup Gain
+            this.makeupGainLow = ctx.createGain();
+            this.makeupGainLow.gain.value = 2.0; // 低频适度提升
+            
+            this.makeupGainMid = ctx.createGain();
+            this.makeupGainMid.gain.value = 2.4; // 中频主要提升
+            
+            this.makeupGainHigh = ctx.createGain();
+            this.makeupGainHigh.gain.value = 2.8; // 高频最大提升（增加明亮度）
+            
+            // 1.6 合并器
+            this.multibandMerger = ctx.createGain();
+            
+            // 连接分频器
+            this.multibandSplitter.connect(this.lowpassFilter);
+            this.multibandSplitter.connect(this.bandpassFilter);
+            this.multibandSplitter.connect(this.highpassFilter);
+            
+            // 连接各频段压缩器和增益
+            this.lowpassFilter.connect(this.compressorLow);
+            this.compressorLow.connect(this.makeupGainLow);
+            this.makeupGainLow.connect(this.multibandMerger);
+            
+            this.bandpassFilter.connect(this.compressorMid);
+            this.compressorMid.connect(this.makeupGainMid);
+            this.makeupGainMid.connect(this.multibandMerger);
+            
+            this.highpassFilter.connect(this.compressorHigh);
+            this.compressorHigh.connect(this.makeupGainHigh);
+            this.makeupGainHigh.connect(this.multibandMerger);
+            
+            // 保留旧的 compressor 引用（用于兼容性）
+            this.compressor = this.multibandSplitter;
+            this.makeupGain = this.multibandMerger;
             
             console.log('initAudioChain: 创建均衡器...');
             // 2. 三段均衡器（精细调音）
@@ -104,9 +186,9 @@ class AudioEngine {
             this.masterGain.gain.value = 3.0; // 适度提升主音量，保持清晰度
             
             console.log('initAudioChain: 连接音频节点...');
-            // 连接音频处理链
-            this.compressor.connect(this.makeupGain);
-            this.makeupGain.connect(this.eqLow);
+            // 连接音频处理链（多段压缩器 → EQ → 混响 → 限制器）
+            // 注意：multibandSplitter 是输入，multibandMerger 是输出
+            this.multibandMerger.connect(this.eqLow);
             this.eqLow.connect(this.eqMid);
             this.eqMid.connect(this.eqHigh);
             
@@ -137,7 +219,8 @@ class AudioEngine {
                 this.listener.upZ.value = 0;
             }
             
-            console.log('🎵 专业音频处理链已初始化');
+            console.log('🎵 母带级多段压缩音频处理链已初始化');
+            console.log('📊 频段分配: 低频(20-250Hz) | 中频(250-4kHz) | 高频(4-20kHz)');
         } catch (error) {
             console.error('initAudioChain: 初始化失败:', error);
             throw error;
@@ -275,7 +358,7 @@ class AudioEngine {
             gainNode.gain.exponentialRampToValueAtTime(0.0001, now + 0.05);
             
             source.connect(gainNode);
-            gainNode.connect(this.compressor);
+            gainNode.connect(this.multibandSplitter); // 连接到多段压缩器输入
             
             source.start(now);
             source.stop(now + 0.05);
@@ -518,7 +601,7 @@ class AudioEngine {
         midGain.connect(filter);
         noiseGain.connect(filter);
         
-        filter.connect(this.compressor);
+        filter.connect(this.multibandSplitter); // 连接到多段压缩器输入
         
         // 播放
         bass.start(now);
