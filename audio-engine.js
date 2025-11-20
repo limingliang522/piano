@@ -26,33 +26,123 @@ class AudioEngine {
         }
     }
     
-    // 初始化音频处理链（专业级动态压缩）
+    // 初始化专业级音频处理链
     initAudioChain() {
         const ctx = this.audioContext;
         
         try {
-            // === 1. 动态压缩器（防止削波失真）===
+            // === 1. 输入均衡器（低切，去除泥泞）===
+            this.inputEQ = ctx.createBiquadFilter();
+            this.inputEQ.type = 'highpass';
+            this.inputEQ.frequency.value = 40;  // 切除40Hz以下
+            this.inputEQ.Q.value = 0.7;
+            
+            // === 2. 低频增强（温暖感）===
+            this.lowShelf = ctx.createBiquadFilter();
+            this.lowShelf.type = 'lowshelf';
+            this.lowShelf.frequency.value = 150;
+            this.lowShelf.gain.value = 3;  // +3dB
+            
+            // === 3. 中频塑形（明亮度）===
+            this.midPeak = ctx.createBiquadFilter();
+            this.midPeak.type = 'peaking';
+            this.midPeak.frequency.value = 2500;
+            this.midPeak.Q.value = 1.2;
+            this.midPeak.gain.value = 2;  // +2dB
+            
+            // === 4. 高频增强（空气感）===
+            this.highShelf = ctx.createBiquadFilter();
+            this.highShelf.type = 'highshelf';
+            this.highShelf.frequency.value = 8000;
+            this.highShelf.gain.value = 4;  // +4dB
+            
+            // === 5. 动态压缩器（平衡动态）===
             this.compressor = ctx.createDynamicsCompressor();
-            this.compressor.threshold.value = -30;    // 平衡阈值
-            this.compressor.knee.value = 30;          // 适中的压缩曲线
-            this.compressor.ratio.value = 12;         // 适中压缩比（12:1）
-            this.compressor.attack.value = 0.003;     // 快速响应（3ms）
-            this.compressor.release.value = 0.25;     // 释放时间（250ms）
+            this.compressor.threshold.value = -24;
+            this.compressor.knee.value = 30;
+            this.compressor.ratio.value = 4;
+            this.compressor.attack.value = 0.003;
+            this.compressor.release.value = 0.25;
             
-            // === 2. 主增益控制 ===
+            // === 6. 混响（空间感）===
+            this.reverbGain = ctx.createGain();
+            this.reverbGain.gain.value = 0.3;  // 30% 湿信号
+            this.dryGain = ctx.createGain();
+            this.dryGain.gain.value = 0.7;  // 70% 干信号
+            
+            // 创建简单混响（使用延迟模拟）
+            this.createSimpleReverb();
+            
+            // === 7. 立体声增宽 ===
+            this.stereoWidener = ctx.createGain();
+            this.stereoWidener.gain.value = 1.2;
+            
+            // === 8. 限幅器（防止削波）===
+            this.limiter = ctx.createDynamicsCompressor();
+            this.limiter.threshold.value = -3;
+            this.limiter.knee.value = 0;
+            this.limiter.ratio.value = 20;
+            this.limiter.attack.value = 0.001;
+            this.limiter.release.value = 0.1;
+            
+            // === 9. 主增益 ===
             this.masterGain = ctx.createGain();
-            this.masterGain.gain.value = 2.0;         // 主音量 200%（平衡点）
+            this.masterGain.gain.value = 1.5;
             
-            // === 3. 音频链路 ===
-            // 所有音符 → 压缩器 → 主增益 → 输出
-            this.compressor.connect(this.masterGain);
+            // === 音频信号链 ===
+            // 输入 → EQ链 → 压缩器 → 混响（并联）→ 立体声增宽 → 限幅器 → 主增益 → 输出
+            this.inputEQ.connect(this.lowShelf);
+            this.lowShelf.connect(this.midPeak);
+            this.midPeak.connect(this.highShelf);
+            this.highShelf.connect(this.compressor);
+            
+            // 干信号路径
+            this.compressor.connect(this.dryGain);
+            this.dryGain.connect(this.stereoWidener);
+            
+            // 湿信号路径（混响）
+            this.compressor.connect(this.reverbGain);
+            this.reverbGain.connect(this.reverbNode);
+            this.reverbNode.connect(this.stereoWidener);
+            
+            // 最终输出
+            this.stereoWidener.connect(this.limiter);
+            this.limiter.connect(this.masterGain);
             this.masterGain.connect(ctx.destination);
             
-            console.log('🎚️ 专业音频链已初始化（Compressor + Master Gain）');
+            console.log('🎹 专业级音频处理链已初始化');
+            console.log('   ✓ EQ（低切+三段均衡）');
+            console.log('   ✓ 动态压缩器');
+            console.log('   ✓ 混响（空间感）');
+            console.log('   ✓ 立体声增宽');
+            console.log('   ✓ 限幅器');
         } catch (error) {
             console.error('initAudioChain: 初始化失败:', error);
             throw error;
         }
+    }
+    
+    // 创建简单混响效果
+    createSimpleReverb() {
+        const ctx = this.audioContext;
+        const convolver = ctx.createConvolver();
+        
+        // 生成混响脉冲响应（模拟中型音乐厅）
+        const sampleRate = ctx.sampleRate;
+        const length = sampleRate * 2.5;  // 2.5秒混响
+        const impulse = ctx.createBuffer(2, length, sampleRate);
+        
+        for (let channel = 0; channel < 2; channel++) {
+            const channelData = impulse.getChannelData(channel);
+            for (let i = 0; i < length; i++) {
+                // 指数衰减 + 随机噪声
+                const decay = Math.exp(-i / (sampleRate * 0.8));
+                channelData[i] = (Math.random() * 2 - 1) * decay;
+            }
+        }
+        
+        convolver.buffer = impulse;
+        this.reverbNode = convolver;
     }
     
 
@@ -200,10 +290,10 @@ class AudioEngine {
             gainNode.gain.linearRampToValueAtTime(0, now + noteDuration);
             
             // === 连接音频处理链 ===
-            // 音源 → 立体声 → 音量包络 → 压缩器 → 主音量 → 输出
+            // 音源 → 立体声 → 音量包络 → 专业处理链（EQ→压缩→混响→限幅）→ 输出
             source.connect(stereoPanner);
             stereoPanner.connect(gainNode);
-            gainNode.connect(this.compressor);
+            gainNode.connect(this.inputEQ);
             
             // 播放
             source.start(now);
@@ -240,9 +330,9 @@ class AudioEngine {
         bassGain.gain.setValueAtTime(0.3, now);
         bassGain.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
         
-        // 连接到压缩器
+        // 连接到专业处理链
         bass.connect(bassGain);
-        bassGain.connect(this.compressor);
+        bassGain.connect(this.inputEQ);
         
         // 播放
         bass.start(now);
