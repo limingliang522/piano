@@ -292,8 +292,8 @@
         }
 
         .volume-slider::-webkit-slider-thumb {
-            appearance: none;
             -webkit-appearance: none;
+            appearance: none;
             width: 18px;
             height: 18px;
             border-radius: 50%;
@@ -462,6 +462,31 @@
             margin-top: auto;
             padding-top: 2px;
             margin-bottom: 0;
+        }
+
+        /* 随机选择按钮 */
+        .random-midi-button {
+            padding: 10px 24px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 12px;
+            color: #fff;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+            outline: none;
+        }
+
+        .random-midi-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 16px rgba(102, 126, 234, 0.5);
+        }
+
+        .random-midi-button:active {
+            transform: translateY(0);
+            box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
         }
         
         .midi-list-container {
@@ -745,6 +770,14 @@
                             <!-- MIDI 文件列表将动态生成 -->
                         </div>
                     </div>
+                    
+                    <!-- 随机选择按钮 -->
+                    <div style="display: flex; justify-content: center; margin-top: 10px;">
+                        <button id="randomMidiBtn" class="random-midi-button">
+                            🎲 随机选择
+                        </button>
+                    </div>
+                    
                     <div class="close-hint">点击曲目切换 · 点击空白处关闭</div>
                 </div>
 

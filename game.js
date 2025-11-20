@@ -1848,6 +1848,7 @@ setTimeout(() => {
     initIslandTabs();
     initVolumeControl();
     initMusicSearch();
+    initRandomMidiButton();
 }, 1000);
 
 // ========== 灵动岛功能 ==========
@@ -1964,6 +1965,30 @@ function initMusicSearch() {
             searchInput.value = '';
             initMidiList();
         }
+    });
+}
+
+// 初始化随机选择按钮
+function initRandomMidiButton() {
+    const randomBtn = document.getElementById('randomMidiBtn');
+    if (!randomBtn) return;
+    
+    randomBtn.addEventListener('click', (e) => {
+        e.stopPropagation(); // 防止关闭灵动岛
+        
+        // 随机选择一个不同于当前的音乐
+        if (midiFiles.length <= 1) {
+            console.log('只有一首歌曲，无法随机选择');
+            return;
+        }
+        
+        let randomIndex;
+        do {
+            randomIndex = Math.floor(Math.random() * midiFiles.length);
+        } while (randomIndex === currentMidiIndex);
+        
+        console.log(`🎲 随机选择: ${midiFiles[randomIndex]}`);
+        selectMidi(randomIndex);
     });
 }
 
