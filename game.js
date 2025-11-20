@@ -1,311 +1,6 @@
-// ========== 简单钢琴游戏 ==========
-
-// Three.js 场景设置
-let scene, camera, renderer;
-let pianoKeys = [];
-let gameRunning = false;
-
-// MIDI 音乐系统
-let midiParser = null;
-let audioEngine = null;
-let midiNotes = [];
-let gameStartTime = 0;
-let notesTriggered = 0;
-let totalNotes = 0;
-
-// UI 元素
-const loadingElement = document.getElementById('loading');
-const startButton = document.getElementById('startButton');
-
-// MIDI文件列表
-let midiFiles = [];
-let currentMidiIndex = 0;
-
-// 钢琴配置
-const PIANO_KEYS = 88; // 标准钢琴88键
-const WHITE_KEY_WIDTH = 0.5;
-const WHITE_KEY_HEIGHT = 3;
-const WHITE_KEY_DEPTH = 0.2;
-const BLACK_KEY_WIDTH = 0.3;
-const BLACK_KEY_HEIGHT = 2;
-const BLACK_KEY_DEPTH = 0.15;
-
-// 初始化 Three.js 场景
-function init() {
-    // 创建场景
-    scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x1a1a1a);
-    
-    // 创建相机
-    camera = new THREE.PerspectiveCamera(
-        60,
-        window.innerWidth / window.innerHeight,
-        0.1,
-        1000
-    );
-    camera.position.set(0, 15, 20);
-    camera.lookAt(0, 0, 0);
-    
-    // 创建渲染器
-    const canvas = document.getElementById('gameCanvas');
-    renderer = new THREE.WebGLRenderer({ 
-        canvas: canvas,
-        antialias: true
-    });
-    renderer.setPixelRatio(window.devicePixelRatio);
-    renderer.setSize(window.innerWidth, window.innerHe
-        }
-        
-        const texture = new THREE.CanvasTexture(canvas);
-        texture.magFilter = THREE.NearestFilter;
-        texture.minFilter = THREE.NearestFilter;
-        texture.needsUpdate = true;
-        
-        return texture;
-    }
-    
-    /**
-     * 创建重复图案纹理
-     * @param {Array} pattern - 图案数据（二维数组）
-     * @param {Object} colorMap - 颜色映射表
-     * @param {number} size - 纹理尺寸（默认32x32）
-     * @returns {THREE.Texture}
-     */
-    static createPatternTexture(pattern, colorMap, size = 32) {
-        const patternHeight = pattern.length;
-        const patternWidth = pattern[0].length;
-        const canvas = document.createElement('canvas');
-        canvas.width = size;
-        canvas.height = size;
-        const ctx = canvas.getContext('2d');
-        
-        // 计算每个图案单元的大小
-        const cellWidth = Math.floor(size / patternWidth);
-        const cellHeight = Math.floor(size / patternHeight);
-        
-        // 绘制图案
-        for (let y = 0; y < patternHeight; y++) {
-            for (let x = 0; x < patternWidth; x++) {
-                const colorIndex = pattern[y][x];
-                if (colorIndex === 0 || colorIndex === 'transparent') {
-                    continue;
-                }
-                
-                const color = colorMap[colorIndex];
-                if (color) {
-                    ctx.fillStyle = color;
-                    ctx.fillRect(x * cellWidth, y * cellHeight, cellWidth, cellHeight);
-                }
-            }
-        }
-        
-        const texture = new THREE.CanvasTexture(canvas);
-        texture.magFilter = THREE.NearestFilter;
-        texture.minFilter = THREE.NearestFilter;
-        texture.wrapS = THREE.RepeatWrapping;
-        texture.wrapT = THREE.RepeatWrapping;
-        texture.needsUpdate = true;
-        
-        return texture;
-    }
-}
-
-// ========== 像素色板定义 ==========
-const PIXEL_PALETTE = {
-    // 主色调
-    SKY_BLUE: 0x87CEEB,
-    CLOUD_WHITE: 0xF0F8FF,
-    GROUND_BROWN: 0x8B4513,
-    
-    // 角色色
-    WUKONG_GOLD: 0xFFD700,
-    WUKONG_RED: 0xFF4500,
-    WUKONG_SKIN: 0xFFE4B5,
-    WUKONG_BROWN: 0x8B4513,
-    WUKONG_BLACK: 0x000000,
-    
-    // 音符方块色
-    MONSTER_RED: 0xFF0000,
-    MONSTER_PURPLE: 0x9400D3,
-    MONSTER_GREEN: 0x00FF00,
-    MONSTER_BLUE: 0x0000FF,
-    OBSTACLE_ORANGE: 0xFF8C00,
-    
-    // UI色
-    UI_GOLD: 0xFFD700,
-    UI_BROWN: 0x8B4513,
-    UI_RED: 0xFF4500,
-    
-    // 特效色
-    EFFECT_WHITE: 0xFFFFFF,
-    EFFECT_YELLOW: 0xFFFF00,
-    EFFECT_ORANGE: 0xFFA500
-};
-
-// ========== 孙悟空精灵像素数据 (16x16) ==========
-const WUKONG_SPRITE = [
-    [0,0,0,0,0,1,1,1,1,1,1,0,0,0,0,0],
-    [0,0,0,1,1,1,1,1,1,1,1,1,1,0,0,0],
-    [0,0,1,1,2,2,2,2,2,2,2,2,1,1,0,0],
-    [0,1,1,2,2,2,2,2,2,2,2,2,2,1,1,0],
-    [0,1,2,2,3,3,2,2,2,2,3,3,2,2,1,0],
-    [0,1,2,2,3,3,2,2,2,2,3,3,2,2,1,0],
-    [0,1,2,2,2,2,2,3,3,2,2,2,2,2,1,0],
-    [0,1,2,2,2,2,3,3,3,3,2,2,2,2,1,0],
-    [0,0,1,2,2,2,2,2,2,2,2,2,2,1,0,0],
-    [0,0,1,1,2,2,2,2,2,2,2,2,1,1,0,0],
-    [0,0,0,1,1,1,1,1,1,1,1,1,1,0,0,0],
-    [0,0,0,0,4,4,4,4,4,4,4,4,0,0,0,0],
-    [0,0,0,4,4,4,4,4,4,4,4,4,4,0,0,0],
-    [0,0,4,4,4,4,4,4,4,4,4,4,4,4,0,0],
-    [0,0,5,5,5,0,0,0,0,0,0,5,5,5,0,0],
-    [0,0,5,5,5,0,0,0,0,0,0,5,5,5,0,0]
-];
-
-// 孙悟空颜色映射
-const WUKONG_COLORS = {
-    0: 'transparent',
-    1: '#8B4513', // 棕色（头发/头箍）
-    2: '#FFE4B5', // 肤色
-    3: '#000000', // 黑色（眼睛/嘴巴）
-    4: '#FF4500', // 红色（衣服）
-    5: '#FFD700'  // 金色（鞋子）
-};
-
-// ========== 妖怪精灵像素数据 ==========
-// 妖怪1 - 牛魔王 (16x16)
-const MONSTER_SPRITE_1 = [
-    [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
-    [0,0,0,1,1,0,0,0,0,0,0,1,1,0,0,0],
-    [0,0,1,1,1,1,0,0,0,0,1,1,1,1,0,0],
-    [0,1,1,2,2,1,1,0,0,1,1,2,2,1,1,0],
-    [0,1,2,2,2,2,1,0,0,1,2,2,2,2,1,0],
-    [0,0,1,2,2,1,1,1,1,1,1,2,2,1,0,0],
-    [0,0,0,1,1,1,2,2,2,2,1,1,1,0,0,0],
-    [0,0,0,1,2,2,2,2,2,2,2,2,1,0,0,0],
-    [0,0,1,2,2,3,3,2,2,3,3,2,2,1,0,0],
-    [0,0,1,2,2,3,3,2,2,3,3,2,2,1,0,0],
-    [0,0,1,2,2,2,2,2,2,2,2,2,2,1,0,0],
-    [0,0,1,2,2,2,4,4,4,4,2,2,2,1,0,0],
-    [0,0,0,1,2,2,4,4,4,4,2,2,1,0,0,0],
-    [0,0,0,0,1,1,2,2,2,2,1,1,0,0,0,0],
-    [0,0,0,0,0,1,1,1,1,1,1,0,0,0,0,0],
-    [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
-];
-
-const MONSTER_1_COLORS = {
-    0: 'transparent',
-    1: '#8B4513', // 棕色（牛角）
-    2: '#FF0000', // 红色（脸）
-    3: '#FFFF00', // 黄色（眼睛）
-    4: '#000000'  // 黑色（嘴巴）
-};
-
-// 妖怪2 - 白骨精 (16x16)
-const MONSTER_SPRITE_2 = [
-    [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
-    [0,0,0,0,1,1,1,1,1,1,1,1,0,0,0,0],
-    [0,0,0,1,1,1,1,1,1,1,1,1,1,0,0,0],
-    [0,0,1,1,2,2,1,1,1,1,2,2,1,1,0,0],
-    [0,0,1,2,2,2,2,1,1,2,2,2,2,1,0,0],
-    [0,0,1,2,3,3,2,1,1,2,3,3,2,1,0,0],
-    [0,0,1,2,3,3,2,1,1,2,3,3,2,1,0,0],
-    [0,0,1,1,2,2,1,1,1,1,2,2,1,1,0,0],
-    [0,0,0,1,1,1,1,1,1,1,1,1,1,0,0,0],
-    [0,0,0,1,1,4,4,4,4,4,4,1,1,0,0,0],
-    [0,0,0,1,1,1,4,4,4,4,1,1,1,0,0,0],
-    [0,0,0,0,1,1,1,1,1,1,1,1,0,0,0,0],
-    [0,0,0,0,1,1,1,1,1,1,1,1,0,0,0,0],
-    [0,0,0,1,1,1,0,0,0,0,1,1,1,0,0,0],
-    [0,0,0,1,1,0,0,0,0,0,0,1,1,0,0,0],
-    [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
-];
-
-const MONSTER_2_COLORS = {
-    0: 'transparent',
-    1: '#FFFFFF', // 白色（骨头）
-    2: '#E0E0E0', // 浅灰（阴影）
-    3: '#9400D3', // 紫色（眼睛）
-    4: '#000000'  // 黑色（嘴巴）
-};
-
-// 妖怪3 - 蜘蛛精 (16x16)
-const MONSTER_SPRITE_3 = [
-    [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
-    [0,0,0,0,0,1,1,1,1,1,1,0,0,0,0,0],
-    [0,0,0,0,1,1,2,2,2,2,1,1,0,0,0,0],
-    [0,0,0,1,1,2,2,2,2,2,2,1,1,0,0,0],
-    [0,0,1,1,2,2,3,3,3,3,2,2,1,1,0,0],
-    [0,1,1,2,2,3,4,4,4,4,3,2,2,1,1,0],
-    [0,1,2,2,3,4,4,4,4,4,4,3,2,2,1,0],
-    [0,1,2,2,3,4,5,5,5,5,4,3,2,2,1,0],
-    [0,1,2,2,3,4,5,5,5,5,4,3,2,2,1,0],
-    [0,1,2,2,3,4,4,4,4,4,4,3,2,2,1,0],
-    [0,1,1,2,2,3,4,4,4,4,3,2,2,1,1,0],
-    [0,0,1,1,2,2,3,3,3,3,2,2,1,1,0,0],
-    [0,0,0,1,1,2,2,2,2,2,2,1,1,0,0,0],
-    [0,0,1,0,0,1,1,1,1,1,1,0,0,1,0,0],
-    [0,1,0,0,0,0,0,0,0,0,0,0,0,0,1,0],
-    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1]
-];
-
-const MONSTER_3_COLORS = {
-    0: 'transparent',
-    1: '#000000', // 黑色（腿）
-    2: '#8B008B', // 深紫（身体外层）
-    3: '#9400D3', // 紫色（身体）
-    4: '#00FF00', // 绿色（眼睛区域）
-    5: '#FF0000'  // 红色（眼睛）
-};
-
-// 妖怪精灵数组
-const MONSTER_SPRITES = [
-    { data: MONSTER_SPRITE_1, colors: MONSTER_1_COLORS },
-    { data: MONSTER_SPRITE_2, colors: MONSTER_2_COLORS },
-    { data: MONSTER_SPRITE_3, colors: MONSTER_3_COLORS }
-];
-
-// ========== 云层图案 (8x8) ==========
-const CLOUD_PATTERN = [
-    [0,0,1,1,1,1,0,0],
-    [0,1,1,2,2,1,1,0],
-    [1,1,2,2,2,2,1,1],
-    [1,2,2,2,2,2,2,1],
-    [1,2,2,2,2,2,2,1],
-    [1,1,2,2,2,2,1,1],
-    [0,1,1,2,2,1,1,0],
-    [0,0,1,1,1,1,0,0]
-];
-
-const CLOUD_COLORS = {
-    0: '#87CEEB', // 天蓝色（背景）
-    1: '#E0F0FF', // 浅蓝白（云边缘）
-    2: '#F0F8FF'  // 云白色（云中心）
-};
-
-// ========== 符文图案 (8x8) ==========
-const RUNE_PATTERN = [
-    [0,0,1,1,1,1,0,0],
-    [0,1,2,2,2,2,1,0],
-    [1,2,2,3,3,2,2,1],
-    [1,2,3,2,2,3,2,1],
-    [1,2,3,2,2,3,2,1],
-    [1,2,2,3,3,2,2,1],
-    [0,1,2,2,2,2,1,0],
-    [0,0,1,1,1,1,0,0]
-];
-
-const RUNE_COLORS = {
-    0: 'transparent',
-    1: '#FF8C00', // 橙色（外圈）
-    2: '#FFD700', // 金色（中圈）
-    3: '#FFFF00'  // 黄色（内圈）
-};
-
 // Three.js 场景设置
 let scene, camera, renderer;
 let player, ground = [];
-let groundTexture = null; // 保存地面纹理引用
 let obstacles = [];
 let coins = [];
 let gameRunning = false;
@@ -859,7 +554,7 @@ function createAllNoteBlocks() {
     });
 }
 
-// 创建音符方块（西游记像素风格）
+// 创建音符方块（玻璃质感）
 function createNoteBlock(noteData) {
     // 使用预先分配的高度
     const isTall = noteData.isTall;
@@ -867,31 +562,30 @@ function createNoteBlock(noteData) {
     const blockY = isTall ? 1.5 : 0.2; // 超高方块的Y位置也要调整
     
     const geometry = new THREE.BoxGeometry(1.5, blockHeight, 1.2);
-    
-    // 根据 isTall 属性选择不同的像素纹理
-    let texture;
-    if (isTall) {
-        // 超高方块：使用障碍物纹理（火焰山等）
-        // 使用纯色作为障碍物纹理
-        texture = PixelTextureGenerator.createSolidTexture(PIXEL_PALETTE.OBSTACLE_ORANGE, 16);
-    } else {
-        // 普通方块：随机选择妖怪纹理
-        const monsterIndex = Math.floor(Math.random() * MONSTER_SPRITES.length);
-        const monster = MONSTER_SPRITES[monsterIndex];
-        texture = PixelTextureGenerator.createSpriteTexture(monster.data, monster.colors, 2);
-    }
-    
-    // 设置纹理过滤为 NearestFilter（像素风格）
-    texture.magFilter = THREE.NearestFilter;
-    texture.minFilter = THREE.NearestFilter;
-    
-    // 使用 MeshLambertMaterial 替代 MeshPhysicalMaterial
-    const material = new THREE.MeshLambertMaterial({ 
-        map: texture,
-        transparent: false
+    const material = new THREE.MeshPhysicalMaterial({ 
+        color: 0x2a2a2a, // 稍微亮一点
+        metalness: 0.9,
+        roughness: 0.1,
+        transparent: true,
+        opacity: 0.85,
+        transmission: 0.3, // 玻璃透射
+        thickness: 0.5,
+        envMapIntensity: 1,
+        clearcoat: 1.0,
+        clearcoatRoughness: 0.1
     });
-    
     const noteBlock = new THREE.Mesh(geometry, material);
+    
+    // 添加更亮的发光边缘（白色边框）
+    const edgesGeometry = new THREE.EdgesGeometry(geometry);
+    const edgesMaterial = new THREE.LineBasicMaterial({ 
+        color: 0xffffff,
+        transparent: true,
+        opacity: 0.9, // 提高不透明度
+        linewidth: 2
+    });
+    const edges = new THREE.LineSegments(edgesGeometry, edgesMaterial);
+    noteBlock.add(edges);
     
     const x = (noteData.lane - 2) * LANE_WIDTH;
     // 根据时间计算初始Z位置
@@ -915,21 +609,14 @@ function createNoteBlock(noteData) {
 
 // 创建地面
 function createGround() {
-    // 西游记像素风格：云层地面
+    // 极简风格：深蓝灰色地面
     const groundGeometry = new THREE.PlaneGeometry(LANES * LANE_WIDTH, GROUND_LENGTH);
-    
-    // 使用 PixelTextureGenerator 创建云层纹理
-    groundTexture = PixelTextureGenerator.createPatternTexture(CLOUD_PATTERN, CLOUD_COLORS, 32);
-    
-    // 设置纹理重复
-    groundTexture.wrapS = THREE.RepeatWrapping;
-    groundTexture.wrapT = THREE.RepeatWrapping;
-    groundTexture.repeat.set(4, 20); // 横向4次，纵向20次
-    
-    // 使用 MeshLambertMaterial 替代 MeshStandardMaterial
-    const groundMaterial = new THREE.MeshLambertMaterial({ 
-        map: groundTexture,
-        side: THREE.DoubleSide
+    const groundMaterial = new THREE.MeshStandardMaterial({ 
+        color: 0x1a1a2e, // 深蓝灰色
+        roughness: 0.3,
+        metalness: 0.8,
+        transparent: true,
+        opacity: 0.9
     });
     
     for (let i = 0; i < 3; i++) {
@@ -941,41 +628,41 @@ function createGround() {
         ground.push(groundMesh);
     }
     
-    // 添加轨道线（金色像素风格）
+    // 添加轨道线（深灰色，低调）
     const lineMaterial = new THREE.MeshBasicMaterial({ 
-        color: PIXEL_PALETTE.UI_GOLD, // 金色
+        color: 0x444444, // 深灰色
         transparent: true,
-        opacity: 1.0, // 完全不透明
+        opacity: 0.5,
         fog: true
     });
     
     // 添加轨道分隔线（4条）
     for (let i = 1; i < LANES; i++) {
         const x = (i - LANES / 2) * LANE_WIDTH;
-        const lineGeometry = new THREE.BoxGeometry(0.1, 0.05, 250); // 增加宽度和高度
+        const lineGeometry = new THREE.BoxGeometry(0.03, 0.01, 250);
         const lineMesh = new THREE.Mesh(lineGeometry, lineMaterial);
-        lineMesh.position.set(x, 0.03, -75); // 提高Y位置使其更明显
+        lineMesh.position.set(x, 0.01, -75);
         scene.add(lineMesh);
     }
     
-    // 添加两侧边界线（金色像素风格，让5条轨道更明显）
+    // 添加两侧边界线（让5条轨道更明显）
     const edgeMaterial = new THREE.MeshBasicMaterial({
-        color: PIXEL_PALETTE.UI_GOLD, // 金色
+        color: 0x444444, // 深灰色
         transparent: true,
-        opacity: 1.0, // 完全不透明
+        opacity: 0.4,
         fog: true
     });
     
     // 左边界
-    const leftEdge = new THREE.BoxGeometry(0.1, 0.05, 250); // 增加宽度和高度
+    const leftEdge = new THREE.BoxGeometry(0.05, 0.02, 250);
     const leftMesh = new THREE.Mesh(leftEdge, edgeMaterial);
-    leftMesh.position.set(-LANES * LANE_WIDTH / 2, 0.03, -75); // 提高Y位置
+    leftMesh.position.set(-LANES * LANE_WIDTH / 2, 0.01, -75);
     scene.add(leftMesh);
     
     // 右边界
-    const rightEdge = new THREE.BoxGeometry(0.1, 0.05, 250); // 增加宽度和高度
+    const rightEdge = new THREE.BoxGeometry(0.05, 0.02, 250);
     const rightMesh = new THREE.Mesh(rightEdge, edgeMaterial);
-    rightMesh.position.set(LANES * LANE_WIDTH / 2, 0.03, -75); // 提高Y位置
+    rightMesh.position.set(LANES * LANE_WIDTH / 2, 0.01, -75);
     scene.add(rightMesh);
     
     // 创建触发线（白色发光）
@@ -1001,54 +688,59 @@ function createTriggerLine() {
     window.triggerLineMaterial = material;
 }
 
-// 拖尾效果数组（已移除，保持像素风格简洁）
-// let trailPositions = [];
-// const trailLength = 10;
-// let trailSpheres = [];
+// 拖尾效果数组
+let trailPositions = [];
+const trailLength = 10;
+let trailSpheres = [];
 
-// 创建玩家（像素风格的孙悟空）
+// 创建玩家（半透明白色小球 + 微光边缘）
 function createPlayer() {
-    // 使用 PixelTextureGenerator 创建孙悟空纹理
-    const wukongTexture = PixelTextureGenerator.createSpriteTexture(
-        WUKONG_SPRITE,
-        WUKONG_COLORS,
-        2 // 每个像素放大2倍，使纹理更清晰
-    );
-    
-    // 使用 Sprite 创建孙悟空角色
-    const material = new THREE.SpriteMaterial({ 
-        map: wukongTexture,
-        transparent: true
+    const geometry = new THREE.SphereGeometry(0.25, 32, 32);
+    const material = new THREE.MeshStandardMaterial({ 
+        color: 0xffffff,
+        emissive: 0xffffff,
+        emissiveIntensity: 0.4, // 微光
+        metalness: 0.3,
+        roughness: 0.4,
+        transparent: true,
+        opacity: 0.95 // 半透明
     });
-    
-    player = new THREE.Sprite(material);
-    player.scale.set(0.6, 0.6, 1); // 调整大小使角色合适
+    player = new THREE.Mesh(geometry, material);
     player.position.set(0, 0.25, 0);
-    
-    // 保持碰撞体积不变（使用原来的球体半径0.25）
-    player.userData.collisionRadius = 0.25;
-    
+    player.castShadow = true;
     scene.add(player);
     
-    // 移除原有的拖尾球体创建代码
-    // 拖尾效果已被移除，保持像素风格的简洁
+    // 取消光圈效果，保持画面干净
+    
+    // 创建拖尾球体（半透明，不发光）
+    for (let i = 0; i < trailLength; i++) {
+        const trailGeometry = new THREE.SphereGeometry(0.2, 16, 16);
+        const trailMaterial = new THREE.MeshBasicMaterial({
+            color: 0xcccccc, // 改为浅灰色
+            transparent: true,
+            opacity: 0
+        });
+        const trailSphere = new THREE.Mesh(trailGeometry, trailMaterial);
+        scene.add(trailSphere);
+        trailSpheres.push(trailSphere);
+    }
 }
 
-// 更新拖尾效果（已移除，保持像素风格简洁）
-// function updateTrail() {
-//     for (let i = 0; i < trailSpheres.length; i++) {
-//         if (i < trailPositions.length) {
-//             const pos = trailPositions[trailPositions.length - 1 - i];
-//             trailSpheres[i].position.set(pos.x, pos.y, pos.z);
-//             const opacity = (1 - i / trailLength) * 0.8;
-//             trailSpheres[i].material.opacity = opacity;
-//             const scale = (1 - i / trailLength) * 0.8;
-//             trailSpheres[i].scale.setScalar(scale);
-//         } else {
-//             trailSpheres[i].material.opacity = 0;
-//         }
-//     }
-// }
+// 更新拖尾效果
+function updateTrail() {
+    for (let i = 0; i < trailSpheres.length; i++) {
+        if (i < trailPositions.length) {
+            const pos = trailPositions[trailPositions.length - 1 - i];
+            trailSpheres[i].position.set(pos.x, pos.y, pos.z);
+            const opacity = (1 - i / trailLength) * 0.8;
+            trailSpheres[i].material.opacity = opacity;
+            const scale = (1 - i / trailLength) * 0.8;
+            trailSpheres[i].scale.setScalar(scale);
+        } else {
+            trailSpheres[i].material.opacity = 0;
+        }
+    }
+}
 
 // 创建障碍物
 function createObstacle() {
@@ -1156,22 +848,22 @@ function updatePlayer() {
         verticalVelocity += gravityPerSecond * deltaTime;
         player.position.y += velocityPerSecond * deltaTime;
         
-        // Sprite 不支持 rotation.x，移除旋转动画
-        // player.rotation.x = Math.min(verticalVelocity * 0.5, 0.3);
+        // 添加跳跃时的轻微旋转动画
+        player.rotation.x = Math.min(verticalVelocity * 0.5, 0.3);
         
         // 落地
         if (player.position.y <= groundY) {
             player.position.y = groundY;
             isJumping = false;
             verticalVelocity = 0;
-            // player.rotation.x = 0;
-            player.scale.set(0.6, 0.6, 1);
+            player.rotation.x = 0;
+            player.scale.set(1, 1, 1);
             
-            // 落地时的轻微压缩效果（Sprite 只能在 x,y 方向缩放）
-            player.scale.set(0.66, 0.54, 1);
+            // 落地时的轻微压缩效果
+            player.scale.set(1.1, 0.9, 1.1);
             setTimeout(() => {
                 if (!isJumping) {
-                    player.scale.set(0.6, 0.6, 1);
+                    player.scale.set(1, 1, 1);
                 }
             }, 100);
         }
@@ -1179,23 +871,23 @@ function updatePlayer() {
     
     // 确保在地面时恢复正常状态
     if (!isJumping) {
-        player.scale.set(0.6, 0.6, 1);
+        player.scale.set(1, 1, 1);
         player.position.y = groundY;
     }
     
-    // 拖尾效果已移除，保持像素风格简洁
-    // trailPositions.push({
-    //     x: player.position.x,
-    //     y: player.position.y,
-    //     z: player.position.z
-    // });
-    // 
-    // if (trailPositions.length > trailLength) {
-    //     trailPositions.shift();
-    // }
-    // 
-    // // 更新拖尾球体
-    // updateTrail();
+    // 添加拖尾效果
+    trailPositions.push({
+        x: player.position.x,
+        y: player.position.y,
+        z: player.position.z
+    });
+    
+    if (trailPositions.length > trailLength) {
+        trailPositions.shift();
+    }
+    
+    // 更新拖尾球体
+    updateTrail();
 }
 
 // 跳跃函数 - 极速响应，在空中只能快速下落
@@ -1219,13 +911,13 @@ function roll() {
 
 // 更新地面
 function updateGround() {
-    // 通过纹理偏移实现移动效果，而不是移动几何体
-    // 这样云层纹理看起来是静止的
-    if (groundTexture) {
-        const moveSpeed = speed * 60; // 转换为每秒的速度
-        // 调整偏移速度，使其与游戏速度匹配
-        groundTexture.offset.y += (moveSpeed * deltaTime) / GROUND_LENGTH * 20;
-    }
+    const moveSpeed = speed * 60; // 转换为每秒的速度
+    ground.forEach(g => {
+        g.position.z += moveSpeed * deltaTime;
+        if (g.position.z > GROUND_LENGTH) {
+            g.position.z -= GROUND_LENGTH * 3;
+        }
+    });
 }
 
 // 更新音符方块
@@ -1292,13 +984,26 @@ function updateNoteBlocks() {
             // 使用原始velocity，完美还原MIDI
             audioEngine.playNote(noteData.note, noteData.duration, noteData.velocity, noteData.lane);
             
-            // 创建像素爆炸特效
-            createPixelExplosion(noteBlock.position.x, noteBlock.position.y, noteBlock.position.z);
+            // 改变颜色表示已触发（白色发光）
+            noteBlock.material.color.setHex(0xffffff);
+            noteBlock.material.emissive = new THREE.Color(0xffffff);
+            noteBlock.material.emissiveIntensity = 1.0;
             
-            // 立即移除方块（不再使用放大淡出动画）
-            scene.remove(noteBlock);
-            noteObjects.splice(i, 1);
-            continue; // 跳过后续处理，因为方块已被移除
+            // 创建触发时的光波扩散效果
+            createTriggerWave(noteBlock.position.x, noteBlock.position.z);
+            
+            // 触发效果：放大并淡出
+            const originalScale = { x: 1.5, y: 0.4, z: 1.2 };
+            let scaleTime = 0;
+            const scaleInterval = setInterval(() => {
+                scaleTime += 0.05;
+                const scale = 1 + scaleTime * 2;
+                noteBlock.scale.set(originalScale.x * scale, originalScale.y * scale, originalScale.z * scale);
+                noteBlock.material.opacity = Math.max(0, 1 - scaleTime * 2);
+                if (scaleTime >= 0.5) {
+                    clearInterval(scaleInterval);
+                }
+            }, 50);
         }
         
         // 移除屏幕外的方块
@@ -2175,69 +1880,6 @@ function createTriggerWave(x, z) {
             waveMaterial.dispose();
         }
     }, 30);
-}
-
-// 创建像素爆炸特效
-function createPixelExplosion(x, y, z) {
-    const particles = [];
-    const colors = [
-        PIXEL_PALETTE.EFFECT_WHITE,
-        PIXEL_PALETTE.EFFECT_YELLOW,
-        PIXEL_PALETTE.EFFECT_ORANGE,
-        PIXEL_PALETTE.WUKONG_GOLD
-    ];
-    
-    // 创建8个小方块
-    for (let i = 0; i < 8; i++) {
-        const geometry = new THREE.BoxGeometry(0.1, 0.1, 0.1);
-        const material = new THREE.MeshBasicMaterial({
-            color: colors[Math.floor(Math.random() * colors.length)],
-            transparent: true,
-            opacity: 1.0
-        });
-        const particle = new THREE.Mesh(geometry, material);
-        
-        // 计算向外飞散的方向（8个方向均匀分布）
-        const angle = (Math.PI * 2 * i) / 8;
-        particle.userData.velocity = {
-            x: Math.cos(angle) * 0.1,
-            y: 0.1, // 初始向上速度
-            z: Math.sin(angle) * 0.1
-        };
-        
-        particle.position.set(x, y, z);
-        scene.add(particle);
-        particles.push(particle);
-    }
-    
-    // 动画：飞散、重力、淡出
-    let frame = 0;
-    const maxFrames = 30; // 约0.5秒（30帧）
-    const interval = setInterval(() => {
-        frame++;
-        particles.forEach(p => {
-            // 更新位置
-            p.position.x += p.userData.velocity.x;
-            p.position.y += p.userData.velocity.y;
-            p.position.z += p.userData.velocity.z;
-            
-            // 应用重力
-            p.userData.velocity.y -= 0.01;
-            
-            // 淡出
-            p.material.opacity = 1 - frame / maxFrames;
-        });
-        
-        // 动画结束，清理
-        if (frame >= maxFrames) {
-            clearInterval(interval);
-            particles.forEach(p => {
-                scene.remove(p);
-                p.geometry.dispose();
-                p.material.dispose();
-            });
-        }
-    }, 33); // 约30fps
 }
 
 // 启动游戏
