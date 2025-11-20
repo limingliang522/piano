@@ -362,6 +362,33 @@
             overflow: hidden; /* 防止溢出 */
         }
 
+        /* 搜索框容器 */
+        .search-container {
+            margin-bottom: 10px;
+        }
+
+        .search-input {
+            width: 100%;
+            padding: 10px 15px;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 10px;
+            color: #fff;
+            font-size: 14px;
+            outline: none;
+            transition: all 0.3s;
+        }
+
+        .search-input::placeholder {
+            color: rgba(255, 255, 255, 0.5);
+        }
+
+        .search-input:focus {
+            background: rgba(255, 255, 255, 0.15);
+            border-color: rgba(102, 126, 234, 0.6);
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.2);
+        }
+
         .midi-item {
             display: flex;
             flex-direction: column;
@@ -691,6 +718,11 @@
 
                 <!-- 音乐选择页面 -->
                 <div class="island-tab-content active" id="musicTab">
+                    <!-- 搜索框 -->
+                    <div class="search-container">
+                        <input type="text" id="musicSearch" class="search-input" placeholder="🔍 搜索歌曲...">
+                    </div>
+                    
                     <div class="midi-list-container">
                         <div class="midi-list" id="midiList">
                             <!-- MIDI 文件列表将动态生成 -->

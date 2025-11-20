@@ -1837,6 +1837,7 @@ function initVolumeControl() {
 setTimeout(() => {
     initIslandTabs();
     initVolumeControl();
+    initMusicSearch();
 }, 1000);
 
 // ========== 灵动岛功能 ==========
@@ -1879,9 +1880,29 @@ function initIslandTabs() {
 }
 
 // 初始化 MIDI 列表
-function initMidiList() {
+function initMidiList(filterText = '') {
     midiList.innerHTML = '';
-    midiFiles.forEach((file, index) => {
+    
+    // 过滤歌曲列表
+    const filteredFiles = midiFiles.filter((file, index) => {
+        if (!filterText) return true;
+        const fileName = file.split('/').pop().replace('.mid', '').toLowerCase();
+        return fileName.includes(filterText.toLowerCase());
+    });
+    
+    // 如果没有匹配结果，显示提示
+    if (filteredFiles.length === 0) {
+        const noResult = document.createElement('div');
+        noResult.style.cssText = 'color: rgba(255,255,255,0.5); text-align: center; padding: 20px; font-size: 14px;';
+        noResult.textContent = '😕 没有找到匹配的歌曲';
+        midiList.appendChild(noResult);
+        return;
+    }
+    
+    // 显示匹配的歌曲
+    filteredFiles.forEach((file) => {
+        const index = midiFiles.indexOf(file);
+        
         const item = document.createElement('div');
         item.className = 'midi-item';
         if (index === currentMidiIndex) {
@@ -1908,6 +1929,31 @@ function initMidiList() {
         });
         
         midiList.appendChild(item);
+    });
+}
+
+// 初始化搜索功能
+function initMusicSearch() {
+    const searchInput = document.getElementById('musicSearch');
+    if (!searchInput) return;
+    
+    // 监听输入事件
+    searchInput.addEventListener('input', (e) => {
+        const searchText = e.target.value.trim();
+        initMidiList(searchText);
+    });
+    
+    // 阻止搜索框的点击事件冒泡（防止关闭灵动岛）
+    searchInput.addEventListener('click', (e) => {
+        e.stopPropagation();
+    });
+    
+    // 清空搜索框时重置列表
+    searchInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+            searchInput.value = '';
+            initMidiList();
+        }
     });
 }
 
