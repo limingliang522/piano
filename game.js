@@ -943,12 +943,12 @@ function updateNoteBlocks() {
         
         const noteData = noteBlock.userData.noteData;
         
-        // 检查是否与玩家碰撞
-        if (!noteData.collided && noteData.lane === playerLane) {
+        // 检查是否与玩家碰撞（在触发前检测，避免穿过黑块）
+        if (!noteData.collided && !noteData.triggered && noteData.lane === playerLane) {
             const distanceToPlayer = Math.abs(noteBlock.position.z - player.position.z);
             
-            // 扩大碰撞检测范围，确保能检测到
-            if (distanceToPlayer < 1.5) {
+            // 在黑块接近玩家时检测碰撞
+            if (distanceToPlayer < 2.0) {
                 const isTall = noteBlock.userData.isTall;
                 const blockHeight = noteBlock.userData.blockHeight;
                 
@@ -962,6 +962,21 @@ function updateNoteBlocks() {
                 
                 // 检测碰撞：玩家和方块在垂直方向有重叠
                 const hasVerticalOverlap = playerBottom < blockTop && playerTop > blockBottom;
+                
+                // 调试信息
+                if (hasVerticalOverlap && distanceToPlayer < 0.5) {
+                    console.log('碰撞检测:', {
+                        playerY: player.position.y.toFixed(2),
+                        playerTop: playerTop.toFixed(2),
+                        playerBottom: playerBottom.toFixed(2),
+                        blockY: noteBlock.position.y.toFixed(2),
+                        blockTop: blockTop.toFixed(2),
+                        blockBottom: blockBottom.toFixed(2),
+                        blockHeight: blockHeight,
+                        isTall: isTall,
+                        distance: distanceToPlayer.toFixed(2)
+                    });
+                }
                 
                 if (hasVerticalOverlap) {
                     // 碰撞了！
@@ -979,6 +994,8 @@ function updateNoteBlocks() {
                     } else {
                         noteBlock.material.emissive.setHex(0xff0000);
                     }
+                    
+                    console.log('游戏结束：碰到黑块！');
                     
                     // 游戏结束
                     gameOver();
