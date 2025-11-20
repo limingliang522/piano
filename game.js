@@ -548,6 +548,11 @@ function processMIDINotes(notes) {
 // 开始MIDI游戏
 function startMIDIGame() {
     loadingElement.style.display = 'none';
+    
+    // 收起灵动岛
+    dynamicIsland.classList.remove('expanded');
+    isIslandExpanded = false;
+    
     gameRunning = true;
     gameStartTime = Date.now() / 1000;
     
