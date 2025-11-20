@@ -250,6 +250,15 @@ async function getMidiFiles() {
 // 加载指定的MIDI文件
 async function loadMidiFile(index) {
     try {
+        console.log(`📥 开始加载 MIDI 文件: ${midiFiles[index]}`);
+        
+        // 清理旧的音符方块（如果存在）
+        if (noteObjects.length > 0) {
+            console.log(`🧹 loadMidiFile: 清理 ${noteObjects.length} 个旧方块`);
+            cleanupObjects(noteObjects);
+            blocksCreated = false;
+        }
+        
         loadingElement.style.display = 'block';
         loadingElement.textContent = '加载MIDI文件...';
         
@@ -491,6 +500,14 @@ function ensureMaxThreeLanes(notes) {
 
 // 处理MIDI音符
 function processMIDINotes(notes) {
+    console.log(`🎵 处理 ${notes.length} 个 MIDI 音符...`);
+    
+    // 清理旧的音符数据（如果存在）
+    if (midiNotes.length > 0) {
+        console.log(`🧹 清理旧的 ${midiNotes.length} 个音符数据`);
+        midiNotes = [];
+    }
+    
     // 第一步：随机分配轨道
     midiNotes = notes.map((note, index) => {
         const seed = note.time * 1000;
@@ -1732,11 +1749,18 @@ function playSlideAnimation(direction) {
 
 // 加载并开始新的MIDI
 async function loadAndStartNewMidi() {
-    // 正确清理游戏对象（释放内存）
+    console.log('🔄 加载并开始新 MIDI...');
+    
+    // === 立即清理所有旧数据 ===
+    console.log('🧹 清理旧数据...');
     cleanupObjects(obstacles);
     cleanupObjects(coins);
     cleanupObjects(noteObjects);
-    blocksCreated = false; // 重置创建标志
+    blocksCreated = false;
+    
+    // 清理旧的 MIDI 数据
+    midiNotes = [];
+    totalNotes = 0;
     
     // 清理拖尾效果
     trailPositions = [];
@@ -1761,13 +1785,19 @@ async function loadAndStartNewMidi() {
     targetLane = 2;
     
     // 输出清理后的内存状态
-    console.log('加载新曲子后内存状态:', {
+    console.log('✅ 清理完成！内存状态:', {
         几何体: renderer.info.memory.geometries,
         纹理: renderer.info.memory.textures,
-        场景物体: scene.children.length
+        场景物体: scene.children.length,
+        音符方块: noteObjects.length,
+        MIDI数据: midiNotes.length
     });
     
+    // 等待一帧
+    await new Promise(resolve => requestAnimationFrame(resolve));
+    
     // 加载新的MIDI文件
+    console.log('📥 加载新 MIDI 文件...');
     const success = await loadMidiFile(currentMidiIndex);
     
     if (success) {
@@ -1862,21 +1892,28 @@ async function selectMidi(index) {
     }
     lastSwitchTime = now;
     
+    console.log('🔄 开始切换 MIDI 文件...');
+    
     // 先收起动画
     dynamicIsland.classList.remove('expanded');
     isIslandExpanded = false;
     
-    // 等待动画完成（缩短等待时间）
-    await new Promise(resolve => setTimeout(resolve, 300));
-    
-    // 停止当前游戏
+    // 立即停止游戏
     gameRunning = false;
     
-    // 正确清理场景（释放内存）
+    // === 第一步：立即清理所有旧数据 ===
+    console.log('🧹 步骤1: 清理旧场景对象...');
     cleanupObjects(obstacles);
     cleanupObjects(coins);
     cleanupObjects(noteObjects);
-    blocksCreated = false; // 重置创建标志
+    blocksCreated = false;
+    
+    // 清理旧的 MIDI 数据
+    console.log('🧹 步骤2: 清理旧 MIDI 数据...');
+    midiNotes = [];
+    totalNotes = 0;
+    notesTriggered = 0;
+    collisions = 0;
     
     // 清理拖尾效果
     trailPositions = [];
@@ -1884,22 +1921,9 @@ async function selectMidi(index) {
         sphere.material.opacity = 0;
     });
     
-    // 输出清理后的内存状态
-    console.log('🔄 切换曲子后内存状态:', {
-        几何体: renderer.info.memory.geometries,
-        纹理: renderer.info.memory.textures,
-        场景物体: scene.children.length,
-        音符方块: noteObjects.length
-    });
-    
-    // 等待一帧，确保清理完成
-    await new Promise(resolve => requestAnimationFrame(resolve));
-    
     // 重置游戏状态
     score = 0;
     distance = 0;
-    notesTriggered = 0;
-    collisions = 0;
     starsEarned = 0;
     speedMultiplier = 1.0;
     isCompletingRound = false;
@@ -1915,7 +1939,20 @@ async function selectMidi(index) {
     // 隐藏游戏结束界面
     gameOverElement.style.display = 'none';
     
-    // 切换 MIDI
+    // 输出清理后的内存状态
+    console.log('✅ 清理完成！内存状态:', {
+        几何体: renderer.info.memory.geometries,
+        纹理: renderer.info.memory.textures,
+        场景物体: scene.children.length,
+        音符方块: noteObjects.length,
+        MIDI数据: midiNotes.length
+    });
+    
+    // 等待一帧，确保清理完成
+    await new Promise(resolve => requestAnimationFrame(resolve));
+    
+    // === 第二步：加载新的 MIDI 文件 ===
+    console.log('📥 步骤3: 加载新 MIDI 文件...');
     currentMidiIndex = index;
     const success = await loadMidiFile(currentMidiIndex);
     
@@ -2062,6 +2099,39 @@ function createTriggerWave(x, z) {
         }
     }, 30);
 }
+
+// 全局清理函数（调试用）
+window.forceCleanup = function() {
+    console.log('🧹 强制清理所有数据...');
+    
+    // 停止游戏
+    gameRunning = false;
+    
+    // 清理所有对象
+    cleanupObjects(obstacles);
+    cleanupObjects(coins);
+    cleanupObjects(noteObjects);
+    
+    // 清理数据
+    midiNotes = [];
+    totalNotes = 0;
+    notesTriggered = 0;
+    blocksCreated = false;
+    
+    // 清理拖尾
+    trailPositions = [];
+    trailSpheres.forEach(sphere => {
+        sphere.material.opacity = 0;
+    });
+    
+    console.log('✅ 强制清理完成！', {
+        几何体: renderer.info.memory.geometries,
+        纹理: renderer.info.memory.textures,
+        场景物体: scene.children.length,
+        音符方块: noteObjects.length,
+        MIDI数据: midiNotes.length
+    });
+};
 
 // 启动游戏
 init();
