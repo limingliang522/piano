@@ -26,19 +26,71 @@ class AudioEngine {
         }
     }
     
-    // 初始化音频处理链（完美还原MIDI）
+    // 初始化音频处理链（极致响度模式）
     initAudioChain() {
         const ctx = this.audioContext;
         
         try {
-            // 只保留主音量控制，不添加任何效果处理
-            this.masterGain = ctx.createGain();
-            this.masterGain.gain.value = 2.0; // 提升100%音量（安全范围内）
+            // === 预增益（3倍提升）===
+            this.preGain = ctx.createGain();
+            this.preGain.gain.value = 3.0;
             
-            // 直接连接到输出
+            // === 三级压缩器串联（逐步压缩动态范围）===
+            
+            // 第一级：温和压缩
+            this.compressor1 = ctx.createDynamicsCompressor();
+            this.compressor1.threshold.value = -30;
+            this.compressor1.knee.value = 20;
+            this.compressor1.ratio.value = 4;
+            this.compressor1.attack.value = 0.003;
+            this.compressor1.release.value = 0.25;
+            
+            // 第二级：中度压缩
+            this.compressor2 = ctx.createDynamicsCompressor();
+            this.compressor2.threshold.value = -20;
+            this.compressor2.knee.value = 15;
+            this.compressor2.ratio.value = 8;
+            this.compressor2.attack.value = 0.002;
+            this.compressor2.release.value = 0.2;
+            
+            // 第三级：激进压缩
+            this.compressor3 = ctx.createDynamicsCompressor();
+            this.compressor3.threshold.value = -10;
+            this.compressor3.knee.value = 10;
+            this.compressor3.ratio.value = 20;
+            this.compressor3.attack.value = 0.001;
+            this.compressor3.release.value = 0.15;
+            
+            // === 硬限幅器（砖墙限制，防止削波）===
+            this.limiter = ctx.createDynamicsCompressor();
+            this.limiter.threshold.value = -0.1;
+            this.limiter.knee.value = 0;
+            this.limiter.ratio.value = 20;
+            this.limiter.attack.value = 0.001;
+            this.limiter.release.value = 0.1;
+            
+            // === 感知响度增强（提升人耳敏感频段）===
+            this.enhancer = ctx.createBiquadFilter();
+            this.enhancer.type = 'peaking';
+            this.enhancer.frequency.value = 3000; // 3kHz（人耳最敏感）
+            this.enhancer.Q.value = 1.5;
+            this.enhancer.gain.value = 6; // +6dB 提升
+            
+            // === 主增益（4倍提升）===
+            this.masterGain = ctx.createGain();
+            this.masterGain.gain.value = 4.0;
+            
+            // === 连接信号链 ===
+            // 预增益 → 压缩器1 → 压缩器2 → 压缩器3 → 限幅器 → 响度增强 → 主增益 → 输出
+            this.preGain.connect(this.compressor1);
+            this.compressor1.connect(this.compressor2);
+            this.compressor2.connect(this.compressor3);
+            this.compressor3.connect(this.limiter);
+            this.limiter.connect(this.enhancer);
+            this.enhancer.connect(this.masterGain);
             this.masterGain.connect(ctx.destination);
             
-            console.log('🎵 音频处理链已初始化（完美还原模式）');
+            console.log('🔊 极致响度音频链已初始化（12x增益 + 无失真保护）');
         } catch (error) {
             console.error('initAudioChain: 初始化失败:', error);
             throw error;
@@ -190,10 +242,10 @@ class AudioEngine {
             gainNode.gain.linearRampToValueAtTime(0, now + noteDuration);
             
             // === 连接音频处理链 ===
-            // 音源 → 立体声 → 音量包络 → 主音量 → 输出
+            // 音源 → 立体声 → 音量包络 → 预增益 → 压缩链 → 输出
             source.connect(stereoPanner);
             stereoPanner.connect(gainNode);
-            gainNode.connect(this.masterGain);
+            gainNode.connect(this.preGain);
             
             // 播放
             source.start(now);
@@ -230,9 +282,9 @@ class AudioEngine {
         bassGain.gain.setValueAtTime(0.3, now);
         bassGain.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
         
-        // 连接到主音量
+        // 连接到预增益（经过完整处理链）
         bass.connect(bassGain);
-        bassGain.connect(this.masterGain);
+        bassGain.connect(this.preGain);
         
         // 播放
         bass.start(now);
