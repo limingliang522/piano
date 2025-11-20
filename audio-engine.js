@@ -42,17 +42,17 @@ class AudioEngine {
         const ctx = this.audioContext;
         
         try {
-            // 1. 动态压缩器（平衡音量，增加冲击力 - 温和设置）
+            // 1. 动态压缩器（极温和设置，保持音质纯净）
             this.compressor = ctx.createDynamicsCompressor();
-            this.compressor.threshold.value = -20;
-            this.compressor.knee.value = 40;
-            this.compressor.ratio.value = 3;
-            this.compressor.attack.value = 0.003;
-            this.compressor.release.value = 0.25;
+            this.compressor.threshold.value = -30; // 提高阈值，减少压缩
+            this.compressor.knee.value = 30;
+            this.compressor.ratio.value = 2; // 降低压缩比
+            this.compressor.attack.value = 0.005;
+            this.compressor.release.value = 0.3;
             
-            // 1.5. Makeup Gain（补偿压缩损失的音量）
+            // 1.5. Makeup Gain（轻微补偿）
             this.makeupGain = ctx.createGain();
-            this.makeupGain.gain.value = 1.4;
+            this.makeupGain.gain.value = 1.1; // 降低补偿增益
             
             console.log('initAudioChain: 创建均衡器...');
             // 2. 三段均衡器（精细调音）
@@ -84,27 +84,24 @@ class AudioEngine {
             this.reverbWet.gain.value = 0;
             
             console.log('initAudioChain: 创建限制器...');
-            // 4. 限制器（防止削波 - 平衡限制）
+            // 4. 限制器（仅防止极端削波）
             this.limiter = ctx.createDynamicsCompressor();
-            this.limiter.threshold.value = -2;
-            this.limiter.knee.value = 2;
-            this.limiter.ratio.value = 15;
-            this.limiter.attack.value = 0.003;
-            this.limiter.release.value = 0.1;
+            this.limiter.threshold.value = -1; // 仅在接近削波时启动
+            this.limiter.knee.value = 1;
+            this.limiter.ratio.value = 20; // 硬限制
+            this.limiter.attack.value = 0.001;
+            this.limiter.release.value = 0.05;
             
-            console.log('initAudioChain: 创建软削波器（抖音级）...');
-            // 4.5. 软削波器（模拟抖音的音频处理）
-            this.softClipper = ctx.createWaveShaper();
-            this.softClipper.curve = this.makeSoftClipCurve();
-            this.softClipper.oversample = '4x'; // 高质量过采样
+            console.log('initAudioChain: 跳过软削波器（保持音质纯净）...');
+            // 移除软削波器，避免失真
             
             console.log('initAudioChain: 创建主音量...');
-            // 5. 主音量（平衡响度）
+            // 5. 主音量（适中音量，避免削波）
             this.masterGain = ctx.createGain();
-            this.masterGain.gain.value = 2.0;
+            this.masterGain.gain.value = 1.2; // 降低主音量
             
             console.log('initAudioChain: 连接音频节点...');
-            // 连接音频处理链
+            // 简化音频处理链（移除软削波器，保持纯净音质）
             this.compressor.connect(this.makeupGain);
             this.makeupGain.connect(this.eqLow);
             this.eqLow.connect(this.eqMid);
@@ -118,8 +115,8 @@ class AudioEngine {
             this.reverbDry.connect(this.limiter);
             this.reverbWet.connect(this.limiter);
             
-            this.limiter.connect(this.softClipper);
-            this.softClipper.connect(this.masterGain);
+            // 直接连接到主音量（跳过软削波器）
+            this.limiter.connect(this.masterGain);
             this.masterGain.connect(ctx.destination);
             
             console.log('initAudioChain: 设置 3D 音频监听器...');
@@ -175,22 +172,7 @@ class AudioEngine {
         this.convolver.buffer = impulse;
     }
     
-    // 创建软削波曲线（温和版）
-    makeSoftClipCurve() {
-        const samples = 2048;
-        const curve = new Float32Array(samples);
-        const drive = 0.8; // 降低驱动强度（从 1.2 降到 0.8）
-        
-        for (let i = 0; i < samples; i++) {
-            const x = (i / samples) * 2 - 1; // -1 到 1
-            const driven = x * drive;
-            
-            // 使用 tanh 软削波（平滑过渡，不失真）
-            curve[i] = Math.tanh(driven) / Math.tanh(drive);
-        }
-        
-        return curve;
-    }
+    // 软削波器已移除，保持音质纯净
 
     // 将 MIDI 音符号转换为音符名称
     midiToNoteName(midiNote) {
@@ -322,7 +304,7 @@ class AudioEngine {
             
             // === 音量包络（ADSR - 消除咔嚓声）===
             const gainNode = ctx.createGain();
-            const baseVolume = (velocity / 127) * 2.4; // 基础音量（平衡）
+            const baseVolume = (velocity / 127) * 1.8; // 降低基础音量，避免过载
             
             // 根据音高调整音量（高音稍微轻一点）
             const pitchFactor = 1 - (midiNote - 60) / 200;
