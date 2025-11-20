@@ -52,7 +52,7 @@ class AudioEngine {
             
             // 1.5. Makeup Gain（补偿压缩损失的音量）
             this.makeupGain = ctx.createGain();
-            this.makeupGain.gain.value = 1.6; // 适中补偿增益，平衡音量和音质
+            this.makeupGain.gain.value = 2.8; // 大幅提升补偿增益，最大化响度
             
             console.log('initAudioChain: 创建均衡器...');
             // 2. 三段均衡器（精细调音）
@@ -84,13 +84,13 @@ class AudioEngine {
             this.reverbWet.gain.value = 0.15; // 15% 湿声（轻微混响）
             
             console.log('initAudioChain: 创建限制器...');
-            // 4. 限制器（防止削波 - 温和保护）
+            // 4. 限制器（防止削波 - 激进保护，最大化响度）
             this.limiter = ctx.createDynamicsCompressor();
-            this.limiter.threshold.value = -1.5; // 稍微降低阈值，更早介入
-            this.limiter.knee.value = 3; // 更柔和的拐点，减少失真感
-            this.limiter.ratio.value = 12; // 适中压缩比，保持自然
-            this.limiter.attack.value = 0.002; // 稍慢响应，保留瞬态
-            this.limiter.release.value = 0.08; // 适中释放
+            this.limiter.threshold.value = -0.5; // 更高阈值，允许更大音量
+            this.limiter.knee.value = 0; // 硬拐点，砖墙限制
+            this.limiter.ratio.value = 20; // 极高压缩比，绝对防止削波
+            this.limiter.attack.value = 0.001; // 极快响应
+            this.limiter.release.value = 0.05; // 快速释放
             
             console.log('initAudioChain: 创建软削波器（抖音级）...');
             // 4.5. 软削波器（模拟抖音的音频处理）
@@ -99,9 +99,9 @@ class AudioEngine {
             this.softClipper.oversample = '4x'; // 高质量过采样
             
             console.log('initAudioChain: 创建主音量...');
-            // 5. 主音量（提升响度，限制器会防止失真）
+            // 5. 主音量（最大化响度，限制器会防止失真）
             this.masterGain = ctx.createGain();
-            this.masterGain.gain.value = 2.3; // 轻微降低主音量，减少沙哑感
+            this.masterGain.gain.value = 3.5; // 大幅提升主音量，限制器保证不失真
             
             console.log('initAudioChain: 连接音频节点...');
             // 连接音频处理链
@@ -175,11 +175,11 @@ class AudioEngine {
         this.convolver.buffer = impulse;
     }
     
-    // 创建软削波曲线（温和版 - 平衡音量和音质）
+    // 创建软削波曲线（激进版 - 最大化响度）
     makeSoftClipCurve() {
         const samples = 2048;
         const curve = new Float32Array(samples);
-        const drive = 0.9; // 轻微降低驱动，减少沙哑感
+        const drive = 1.5; // 提高驱动，增加响度
         
         for (let i = 0; i < samples; i++) {
             const x = (i / samples) * 2 - 1; // -1 到 1
@@ -594,7 +594,7 @@ class AudioEngine {
         const clampedVolume = Math.max(0, Math.min(1, volume));
         
         // 使用原始音量值乘以基础增益
-        const baseGain = 2.3; // 原始基础增益
+        const baseGain = 3.5; // 提升基础增益，匹配新的主音量
         this.masterGain.gain.value = clampedVolume * baseGain;
         
         console.log(`🔊 主音量设置为: ${Math.round(clampedVolume * 100)}%`);
