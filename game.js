@@ -127,6 +127,7 @@ function adjustQuality() {
 function updateFPS(currentTime) {
     const fps = Math.round(1000 / (currentTime - lastFrameTime));
     fpsHistory.push(fps);
+    // 严格限制数组大小，防止内存泄漏
     if (fpsHistory.length > 50) {
         fpsHistory.shift();
     }
@@ -693,6 +694,10 @@ let trailPositions = [];
 const trailLength = 10;
 let trailSpheres = [];
 
+// 存储所有需要清理的定时器和动画
+let activeIntervals = new Set();
+let activeTimeouts = new Set();
+
 // 创建玩家（半透明白色小球 + 微光边缘）
 function createPlayer() {
     const geometry = new THREE.SphereGeometry(0.25, 32, 32);
@@ -739,6 +744,11 @@ function updateTrail() {
         } else {
             trailSpheres[i].material.opacity = 0;
         }
+    }
+    
+    // 严格限制拖尾数组大小，防止内存泄漏
+    if (trailPositions.length > trailLength) {
+        trailPositions.splice(0, trailPositions.length - trailLength);
     }
 }
 
@@ -875,19 +885,17 @@ function updatePlayer() {
         player.position.y = groundY;
     }
     
-    // 添加拖尾效果
-    trailPositions.push({
-        x: player.position.x,
-        y: player.position.y,
-        z: player.position.z
-    });
-    
-    if (trailPositions.length > trailLength) {
-        trailPositions.shift();
+    // 添加拖尾效果（每3帧添加一次，减少计算）
+    if (frameCount % 3 === 0) {
+        trailPositions.push({
+            x: player.position.x,
+            y: player.position.y,
+            z: player.position.z
+        });
+        
+        // 更新拖尾球体
+        updateTrail();
     }
-    
-    // 更新拖尾球体
-    updateTrail();
 }
 
 // 跳跃函数 - 极速响应，在空中只能快速下落
@@ -984,31 +992,51 @@ function updateNoteBlocks() {
             // 使用原始velocity，完美还原MIDI
             audioEngine.playNote(noteData.note, noteData.duration, noteData.velocity, noteData.lane);
             
-            // 改变颜色表示已触发（白色发光）
+            // 改变颜色表示已触发（白色发光）- 复用现有对象
             noteBlock.material.color.setHex(0xffffff);
-            noteBlock.material.emissive = new THREE.Color(0xffffff);
+            if (!noteBlock.material.emissive) {
+                noteBlock.material.emissive = new THREE.Color(0xffffff);
+            } else {
+                noteBlock.material.emissive.setHex(0xffffff);
+            }
             noteBlock.material.emissiveIntensity = 1.0;
             
             // 创建触发时的光波扩散效果
             createTriggerWave(noteBlock.position.x, noteBlock.position.z);
             
-            // 触发效果：放大并淡出
+            // 触发效果：放大并淡出（使用 requestAnimationFrame 代替 setInterval）
             const originalScale = { x: 1.5, y: 0.4, z: 1.2 };
             let scaleTime = 0;
-            const scaleInterval = setInterval(() => {
-                scaleTime += 0.05;
-                const scale = 1 + scaleTime * 2;
-                noteBlock.scale.set(originalScale.x * scale, originalScale.y * scale, originalScale.z * scale);
-                noteBlock.material.opacity = Math.max(0, 1 - scaleTime * 2);
-                if (scaleTime >= 0.5) {
-                    clearInterval(scaleInterval);
+            const startTime = performance.now();
+            
+            const animateScale = (currentTime) => {
+                scaleTime = (currentTime - startTime) / 1000;
+                if (scaleTime < 0.5 && noteBlock.parent) {
+                    const scale = 1 + scaleTime * 2;
+                    noteBlock.scale.set(originalScale.x * scale, originalScale.y * scale, originalScale.z * scale);
+                    noteBlock.material.opacity = Math.max(0, 1 - scaleTime * 2);
+                    requestAnimationFrame(animateScale);
                 }
-            }, 50);
+            };
+            requestAnimationFrame(animateScale);
         }
         
-        // 移除屏幕外的方块
+        // 移除屏幕外的方块（正确释放内存）
         if (noteBlock.position.z > 10) {
             scene.remove(noteBlock);
+            // 释放几何体和材质
+            if (noteBlock.geometry) noteBlock.geometry.dispose();
+            if (noteBlock.material) {
+                if (noteBlock.material.map) noteBlock.material.map.dispose();
+                noteBlock.material.dispose();
+            }
+            // 释放边缘线
+            if (noteBlock.children && noteBlock.children.length > 0) {
+                noteBlock.children.forEach(child => {
+                    if (child.geometry) child.geometry.dispose();
+                    if (child.material) child.material.dispose();
+                });
+            }
             noteObjects.splice(i, 1);
         }
     }
@@ -1031,6 +1059,8 @@ function updateObstacles() {
         
         if (obstacle.position.z > 5) {
             scene.remove(obstacle);
+            if (obstacle.geometry) obstacle.geometry.dispose();
+            if (obstacle.material) obstacle.material.dispose();
             obstacles.splice(i, 1);
         }
     }
@@ -1046,6 +1076,8 @@ function updateCoins() {
         
         if (coin.position.z > 5) {
             scene.remove(coin);
+            if (coin.geometry) coin.geometry.dispose();
+            if (coin.material) coin.material.dispose();
             coins.splice(i, 1);
         }
     }
@@ -1092,6 +1124,8 @@ function checkCollision() {
             
             if (Math.abs(playerY - coinY) < 1.5) {
                 scene.remove(coin);
+                if (coin.geometry) coin.geometry.dispose();
+                if (coin.material) coin.material.dispose();
                 coins.splice(i, 1);
                 score += 10;
                 scoreElement.textContent = `分数: ${score}`;
@@ -1119,8 +1153,22 @@ function completeRound() {
 
 // 重新开始一轮（不重置星星和速度）
 function restartRound() {
-    // 清理音符方块
-    noteObjects.forEach(obj => scene.remove(obj));
+    // 清理音符方块（正确释放内存）
+    noteObjects.forEach(obj => {
+        scene.remove(obj);
+        if (obj.geometry) obj.geometry.dispose();
+        if (obj.material) {
+            if (obj.material.map) obj.material.map.dispose();
+            obj.material.dispose();
+        }
+        // 释放边缘线
+        if (obj.children && obj.children.length > 0) {
+            obj.children.forEach(child => {
+                if (child.geometry) child.geometry.dispose();
+                if (child.material) child.material.dispose();
+            });
+        }
+    });
     noteObjects = [];
     
     // 重置音符状态
@@ -1204,10 +1252,23 @@ function continueGame() {
         block.scale.set(1, 1, 1);
     }
     
-    // 删除已触发的黑块
+    // 删除已触发的黑块（正确释放内存）
     for (let i = noteObjects.length - 1; i >= 0; i--) {
         if (noteObjects[i].userData.noteData.triggered) {
-            scene.remove(noteObjects[i]);
+            const obj = noteObjects[i];
+            scene.remove(obj);
+            if (obj.geometry) obj.geometry.dispose();
+            if (obj.material) {
+                if (obj.material.map) obj.material.map.dispose();
+                obj.material.dispose();
+            }
+            // 释放边缘线
+            if (obj.children && obj.children.length > 0) {
+                obj.children.forEach(child => {
+                    if (child.geometry) child.geometry.dispose();
+                    if (child.material) child.material.dispose();
+                });
+            }
             noteObjects.splice(i, 1);
         }
     }
@@ -1224,13 +1285,38 @@ function continueGame() {
 
 // 重新开始
 function restart() {
-    // 清理场景
-    obstacles.forEach(obj => scene.remove(obj));
-    coins.forEach(obj => scene.remove(obj));
-    noteObjects.forEach(obj => scene.remove(obj));
+    // 清理场景（正确释放内存）
+    obstacles.forEach(obj => {
+        scene.remove(obj);
+        if (obj.geometry) obj.geometry.dispose();
+        if (obj.material) obj.material.dispose();
+    });
+    coins.forEach(obj => {
+        scene.remove(obj);
+        if (obj.geometry) obj.geometry.dispose();
+        if (obj.material) obj.material.dispose();
+    });
+    noteObjects.forEach(obj => {
+        scene.remove(obj);
+        if (obj.geometry) obj.geometry.dispose();
+        if (obj.material) {
+            if (obj.material.map) obj.material.map.dispose();
+            obj.material.dispose();
+        }
+        // 释放边缘线
+        if (obj.children && obj.children.length > 0) {
+            obj.children.forEach(child => {
+                if (child.geometry) child.geometry.dispose();
+                if (child.material) child.material.dispose();
+            });
+        }
+    });
     obstacles = [];
     coins = [];
     noteObjects = [];
+    
+    // 清理拖尾数组
+    trailPositions = [];
     
     // 重置游戏状态
     score = 0;
@@ -1301,9 +1387,19 @@ let lastObstacleTime = 0;
 let lastCoinTime = 0;
 let lastUpdateTime = 0;
 let deltaTime = 0;
+let lastGCTime = 0; // 上次垃圾回收提示时间
 
 function animate(currentTime) {
     requestAnimationFrame(animate);
+    
+    // 定期提示浏览器进行垃圾回收（每30秒）
+    if (currentTime - lastGCTime > 30000) {
+        lastGCTime = currentTime;
+        // 清理可能的内存碎片
+        if (window.gc) {
+            window.gc(); // 仅在开启 --expose-gc 标志时可用
+        }
+    }
     
     // 计算时间差（秒）
     if (lastUpdateTime === 0) {
@@ -1585,13 +1681,37 @@ function playSlideAnimation(direction) {
 
 // 加载并开始新的MIDI
 async function loadAndStartNewMidi() {
-    // 重置游戏状态
-    obstacles.forEach(obj => scene.remove(obj));
-    coins.forEach(obj => scene.remove(obj));
-    noteObjects.forEach(obj => scene.remove(obj));
+    // 重置游戏状态（正确释放内存）
+    obstacles.forEach(obj => {
+        scene.remove(obj);
+        if (obj.geometry) obj.geometry.dispose();
+        if (obj.material) obj.material.dispose();
+    });
+    coins.forEach(obj => {
+        scene.remove(obj);
+        if (obj.geometry) obj.geometry.dispose();
+        if (obj.material) obj.material.dispose();
+    });
+    noteObjects.forEach(obj => {
+        scene.remove(obj);
+        if (obj.geometry) obj.geometry.dispose();
+        if (obj.material) {
+            if (obj.material.map) obj.material.map.dispose();
+            obj.material.dispose();
+        }
+        if (obj.children && obj.children.length > 0) {
+            obj.children.forEach(child => {
+                if (child.geometry) child.geometry.dispose();
+                if (child.material) child.material.dispose();
+            });
+        }
+    });
     obstacles = [];
     coins = [];
     noteObjects = [];
+    
+    // 清理拖尾数组
+    trailPositions = [];
     
     score = 0;
     distance = 0;
@@ -1706,13 +1826,37 @@ async function selectMidi(index) {
     // 停止当前游戏
     gameRunning = false;
     
-    // 清理场景
-    obstacles.forEach(obj => scene.remove(obj));
-    coins.forEach(obj => scene.remove(obj));
-    noteObjects.forEach(obj => scene.remove(obj));
+    // 清理场景（正确释放内存）
+    obstacles.forEach(obj => {
+        scene.remove(obj);
+        if (obj.geometry) obj.geometry.dispose();
+        if (obj.material) obj.material.dispose();
+    });
+    coins.forEach(obj => {
+        scene.remove(obj);
+        if (obj.geometry) obj.geometry.dispose();
+        if (obj.material) obj.material.dispose();
+    });
+    noteObjects.forEach(obj => {
+        scene.remove(obj);
+        if (obj.geometry) obj.geometry.dispose();
+        if (obj.material) {
+            if (obj.material.map) obj.material.map.dispose();
+            obj.material.dispose();
+        }
+        if (obj.children && obj.children.length > 0) {
+            obj.children.forEach(child => {
+                if (child.geometry) child.geometry.dispose();
+                if (child.material) child.material.dispose();
+            });
+        }
+    });
     obstacles = [];
     coins = [];
     noteObjects = [];
+    
+    // 清理拖尾数组
+    trailPositions = [];
     
     // 重置游戏状态
     score = 0;
@@ -1850,7 +1994,7 @@ dynamicIsland.addEventListener('click', (e) => {
     }
 });
 
-// 创建触发时的光波扩散效果
+// 创建触发时的光波扩散效果（优化版，使用 requestAnimationFrame）
 function createTriggerWave(x, z) {
     const waveGeometry = new THREE.RingGeometry(0.5, 0.8, 32);
     const waveMaterial = new THREE.MeshBasicMaterial({
@@ -1864,22 +2008,28 @@ function createTriggerWave(x, z) {
     wave.position.set(x, 0.05, z);
     scene.add(wave);
     
-    // 扩散动画
-    let scale = 1;
-    let opacity = 0.8;
-    const expandInterval = setInterval(() => {
-        scale += 0.3;
-        opacity -= 0.08;
-        wave.scale.set(scale, scale, 1);
-        waveMaterial.opacity = Math.max(0, opacity);
+    // 扩散动画（使用 requestAnimationFrame 代替 setInterval）
+    const startTime = performance.now();
+    const duration = 300; // 300ms
+    
+    const animateWave = (currentTime) => {
+        const elapsed = currentTime - startTime;
+        const progress = Math.min(elapsed / duration, 1);
         
-        if (opacity <= 0) {
-            clearInterval(expandInterval);
+        if (progress < 1 && wave.parent) {
+            const scale = 1 + progress * 3;
+            const opacity = 0.8 * (1 - progress);
+            wave.scale.set(scale, scale, 1);
+            waveMaterial.opacity = Math.max(0, opacity);
+            requestAnimationFrame(animateWave);
+        } else {
+            // 清理
             scene.remove(wave);
             waveGeometry.dispose();
             waveMaterial.dispose();
         }
-    }, 30);
+    };
+    requestAnimationFrame(animateWave);
 }
 
 // 启动游戏

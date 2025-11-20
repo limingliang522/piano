@@ -280,7 +280,7 @@ class AudioEngine {
         return { noteName: closestNote, semitoneOffset: targetMidi - noteToMidi(closestNote) };
     }
 
-    // 播放钢琴音符（极致音质版 - 3D空间音频）
+    // 播放钢琴音符（极致音质版 - 3D空间音频 - 优化内存）
     playNote(midiNote, duration = 0.5, velocity = 100, lane = 2) {
         if (!this.isReady || this.samples.size === 0) {
             console.warn('钢琴采样尚未加载完成');
@@ -314,33 +314,7 @@ class AudioEngine {
             const playbackRate = Math.pow(2, semitoneOffset / 12);
             source.playbackRate.value = playbackRate;
             
-            // === 3D 空间音频定位 ===
-            const panner = ctx.createPanner();
-            panner.panningModel = 'HRTF'; // 使用头部相关传输函数（最真实）
-            panner.distanceModel = 'inverse'; // 距离衰减模型
-            panner.refDistance = 1;
-            panner.maxDistance = 10000;
-            panner.rolloffFactor = 1;
-            panner.coneInnerAngle = 360;
-            panner.coneOuterAngle = 360;
-            panner.coneOuterGain = 0;
-            
-            // 根据轨道位置设置 3D 空间位置
-            // 5条轨道：lane 0-4，中间是 lane 2
-            const laneWidth = 3; // 轨道间距
-            const xPosition = (lane - 2) * laneWidth; // -6, -3, 0, 3, 6
-            const yPosition = 0; // 水平高度
-            const zPosition = -5; // 音符从前方传来
-            
-            if (panner.positionX) {
-                panner.positionX.value = xPosition;
-                panner.positionY.value = yPosition;
-                panner.positionZ.value = zPosition;
-            } else {
-                panner.setPosition(xPosition, yPosition, zPosition);
-            }
-            
-            // === 立体声增强 ===
+            // === 简化音频链：只使用立体声定位（移除3D Panner以提升性能）===
             const stereoPanner = ctx.createStereoPanner();
             // 根据轨道位置设置立体声像（-1左 到 +1右）
             const panValue = (lane - 2) / 2; // -1, -0.5, 0, 0.5, 1
@@ -367,13 +341,9 @@ class AudioEngine {
             // Release（柔和释放，70ms - 消除咔嚓声）
             gainNode.gain.linearRampToValueAtTime(0, now + noteDuration);
             
-            // === 完美还原MIDI，不添加随机音高偏移 ===
-            // 已移除随机 detune，保持音高精确
-            
-            // === 连接音频处理链 ===
-            // 音源 → 3D定位 → 立体声 → 音量包络 → 压缩器 → [效果链] → 输出
-            source.connect(panner);
-            panner.connect(stereoPanner);
+            // === 简化的音频链（提升性能）===
+            // 音源 → 立体声 → 音量包络 → 压缩器 → [效果链] → 输出
+            source.connect(stereoPanner);
             stereoPanner.connect(gainNode);
             gainNode.connect(this.compressor);
             
@@ -381,17 +351,23 @@ class AudioEngine {
             source.start(now);
             source.stop(now + noteDuration);
             
-            // 清理（防止内存泄漏）
-            source.onended = () => {
+            // 清理（防止内存泄漏）- 优化版
+            const cleanup = () => {
                 try {
                     source.disconnect();
-                    panner.disconnect();
                     stereoPanner.disconnect();
                     gainNode.disconnect();
+                    source.onended = null;
                 } catch (e) {
                     // 已经断开连接
                 }
             };
+            
+            // 在音符结束后立即清理
+            source.onended = cleanup;
+            
+            // 备用清理（防止 onended 不触发）
+            setTimeout(cleanup, (noteDuration + 0.1) * 1000);
 
         } catch (error) {
             console.error('播放音符失败:', error);
