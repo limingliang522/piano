@@ -14,7 +14,7 @@ class AudioEngine {
                 // 使用最低延迟模式，确保精确触发
                 this.audioContext = new (window.AudioContext || window.webkitAudioContext)({
                     latencyHint: 'interactive', // 最低延迟
-                    sampleRate: 48000 // 高品质采样率
+                    sampleRate: 44100 // 标准CD品质采样率，兼容性更好
                 });
                 
                 // 初始化简化音频链（仅主音量控制）
@@ -33,21 +33,21 @@ class AudioEngine {
         try {
             // 创建限幅器（仅防止削波，完全透明）
             this.limiter = ctx.createDynamicsCompressor();
-            this.limiter.threshold.value = -0.5; // 仅在接近削波时工作
-            this.limiter.knee.value = 0; // 硬限制，无过渡（透明）
-            this.limiter.ratio.value = 20; // 砖墙限制
-            this.limiter.attack.value = 0.001; // 瞬时响应
+            this.limiter.threshold.value = -1.0; // 更温和的阈值
+            this.limiter.knee.value = 6; // 柔和过渡，减少失真
+            this.limiter.ratio.value = 12; // 适度压缩比
+            this.limiter.attack.value = 0.003; // 稍慢的响应，更自然
             this.limiter.release.value = 0.25; // 自然释放
             
             // 创建主音量控制节点
             this.masterGain = ctx.createGain();
-            this.masterGain.gain.value = 4.2; // 增大音量但保持清晰
+            this.masterGain.gain.value = 3.0; // 降低音量，避免失真
             
-            // 音频链：主音量 → 压缩器 → 输出
-            this.masterGain.connect(this.compressor);
-            this.compressor.connect(ctx.destination);
+            // 音频链：主音量 → 限幅器 → 输出
+            this.masterGain.connect(this.limiter);
+            this.limiter.connect(ctx.destination);
             
-            console.log('🎵 零后处理音频链已初始化 - 完美还原MIDI + 动态压缩');
+            console.log('🎵 零后处理音频链已初始化 - 完美还原MIDI + 柔和限幅');
         } catch (error) {
             console.error('initAudioChain: 初始化失败:', error);
             throw error;
@@ -178,7 +178,7 @@ class AudioEngine {
             
             // 音量控制（基于力度）
             const gainNode = ctx.createGain();
-            const volume = (velocity / 127) * 0.7; // 平衡音量，保持清晰度
+            const volume = (velocity / 127) * 0.6; // 降低音量，减少失真
             
             // 简单的淡入淡出（消除咔嚓声）
             gainNode.gain.setValueAtTime(0, now);
