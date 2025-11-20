@@ -252,22 +252,40 @@ async function initMIDISystem() {
         // 随机选择一个MIDI文件
         currentMidiIndex = Math.floor(Math.random() * midiFiles.length);
         
-        loadingElement.textContent = '加载MIDI文件...';
+        loadingElement.textContent = '加载中...';
         
-        // 加载选中的MIDI文件
-        const success = await loadMidiFile(currentMidiIndex);
+        // 并行加载MIDI文件和钢琴音色
+        console.log('🚀 开始并行加载 MIDI 文件和钢琴音色...');
         
-        if (!success) {
+        const [midiSuccess] = await Promise.all([
+            // 加载MIDI文件
+            loadMidiFile(currentMidiIndex).then(success => {
+                console.log('✅ MIDI 文件加载完成');
+                return success;
+            }),
+            // 加载钢琴音色
+            (async () => {
+                try {
+                    // 先启动音频上下文（需要用户交互，但这里先准备好）
+                    audioEngine.ensureAudioContext();
+                    
+                    // 加载音色（带进度显示）
+                    await audioEngine.init((loaded, total) => {
+                        loadingElement.textContent = `加载钢琴音色 ${loaded}/${total}`;
+                    });
+                    console.log('✅ 钢琴音色加载完成');
+                } catch (error) {
+                    console.error('钢琴音色加载失败:', error);
+                }
+            })()
+        ]);
+        
+        if (!midiSuccess) {
             startNormalGame();
             return;
         }
         
-
-        
-        // 暂时不加载音色，等用户点击播放按钮后再加载
-        // 这样可以避免在没有用户交互时创建AudioContext
-        
-        console.log('MIDI加载完成，显示播放按钮');
+        console.log('✅ 所有资源加载完成，显示播放按钮');
         loadingElement.style.display = 'none';
         const startButton = document.getElementById('startButton');
         if (!startButton) {
@@ -291,47 +309,21 @@ async function initMIDISystem() {
                 return;
             }
             
-            // 立即启动音频上下文（在用户交互时）
-            console.log('🔊 立即启动音频上下文（消除延迟）...');
+            // 启动音频上下文（在用户交互时）
+            console.log('🔊 启动音频上下文...');
             try {
                 await audioEngine.start();
                 console.log('✅ 音频上下文已启动');
-            } catch (error) {
-                console.warn('音频上下文启动失败:', error);
-            }
-            
-            // 显示加载提示
-            loadingElement.style.display = 'block';
-            loadingElement.textContent = '加载钢琴音色 0/30';
-            
-            try {
                 
-                // 加载钢琴音色（带进度显示）
-                console.log('🎹 开始加载钢琴音色...');
-                await audioEngine.init((loaded, total) => {
-                    loadingElement.textContent = `加载钢琴音色 ${loaded}/${total}`;
-                });
-                
-                console.log('✅ 钢琴音色加载完成（已预热）！');
-                
-                // 播放开始音效（在音色加载完成后）
+                // 播放开始音效
                 audioEngine.playStartSound();
-                
-                // 隐藏加载提示
-                loadingElement.style.display = 'none';
                 
                 // 开始游戏
                 startMIDIGame();
                 
             } catch (error) {
-                console.error('音频加载失败:', error);
-                loadingElement.textContent = '加载失败，请刷新重试';
-                setTimeout(() => {
-                    loadingElement.style.display = 'none';
-                    startButton.style.display = 'block';
-                    startButton.addEventListener('click', startGame);
-                    startButton.addEventListener('touchstart', startGame, { passive: false });
-                }, 2000);
+                console.error('启动失败:', error);
+                alert('启动失败，请刷新页面重试');
             }
         };
         startButton.addEventListener('click', startGame);
