@@ -33,15 +33,15 @@ class AudioEngine {
         try {
             // 创建压缩器（防止失真）
             this.compressor = ctx.createDynamicsCompressor();
-            this.compressor.threshold.value = -18; // 更高阈值，允许更大音量
-            this.compressor.knee.value = 40; // 更柔和的压缩曲线
-            this.compressor.ratio.value = 20; // 更强的压缩比
-            this.compressor.attack.value = 0.001; // 更快响应
-            this.compressor.release.value = 0.2; // 稍快释放
+            this.compressor.threshold.value = -12; // 温和阈值
+            this.compressor.knee.value = 30; // 平滑过渡
+            this.compressor.ratio.value = 4; // 温和压缩比，保持音质
+            this.compressor.attack.value = 0.003; // 自然响应
+            this.compressor.release.value = 0.25; // 自然释放
             
             // 创建主音量控制节点
             this.masterGain = ctx.createGain();
-            this.masterGain.gain.value = 5.0; // 增大音量 5 倍（压缩器会防止失真）
+            this.masterGain.gain.value = 4.2; // 增大音量但保持清晰
             
             // 音频链：主音量 → 压缩器 → 输出
             this.masterGain.connect(this.compressor);
@@ -178,7 +178,7 @@ class AudioEngine {
             
             // 音量控制（基于力度）
             const gainNode = ctx.createGain();
-            const volume = (velocity / 127) * 0.8; // 提高单音符音量，压缩器会防止失真
+            const volume = (velocity / 127) * 0.7; // 平衡音量，保持清晰度
             
             // 简单的淡入淡出（消除咔嚓声）
             gainNode.gain.setValueAtTime(0, now);
