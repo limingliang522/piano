@@ -56,78 +56,85 @@ class AudioEngine {
             
             // === 1. 多段压缩器系统 ===
             
-            // 1.1 分频器（将音频分成三个频段）
+            // 1.1 分频器（将音频分成三个频段 - Linkwitz-Riley 交叉）
             this.multibandSplitter = ctx.createGain(); // 输入节点
             
-            // 低频滤波器（20Hz - 250Hz）
+            // 低频通道（20Hz - 150Hz）- 只处理极低音
             this.lowpassFilter = ctx.createBiquadFilter();
             this.lowpassFilter.type = 'lowpass';
-            this.lowpassFilter.frequency.value = 250;
-            this.lowpassFilter.Q.value = 0.7;
+            this.lowpassFilter.frequency.value = 150; // 降低分频点
+            this.lowpassFilter.Q.value = 0.707; // Butterworth 响应
             
-            // 中频滤波器（250Hz - 4kHz）
-            this.bandpassFilter = ctx.createBiquadFilter();
-            this.bandpassFilter.type = 'bandpass';
-            this.bandpassFilter.frequency.value = 1500; // 中心频率
-            this.bandpassFilter.Q.value = 0.5;
+            // 中频通道（150Hz - 5kHz）- 主要音乐内容
+            this.bandpassFilterLow = ctx.createBiquadFilter();
+            this.bandpassFilterLow.type = 'highpass';
+            this.bandpassFilterLow.frequency.value = 150;
+            this.bandpassFilterLow.Q.value = 0.707;
             
-            // 高频滤波器（4kHz - 20kHz）
+            this.bandpassFilterHigh = ctx.createBiquadFilter();
+            this.bandpassFilterHigh.type = 'lowpass';
+            this.bandpassFilterHigh.frequency.value = 5000;
+            this.bandpassFilterHigh.Q.value = 0.707;
+            
+            // 高频通道（5kHz - 20kHz）- 空气感和明亮度
             this.highpassFilter = ctx.createBiquadFilter();
             this.highpassFilter.type = 'highpass';
-            this.highpassFilter.frequency.value = 4000;
-            this.highpassFilter.Q.value = 0.7;
+            this.highpassFilter.frequency.value = 5000;
+            this.highpassFilter.Q.value = 0.707;
             
-            // 1.2 低频压缩器（激进压缩，防止低音破音）
+            // 1.2 低频压缩器（只压缩极低音，防止破音）
             this.compressorLow = ctx.createDynamicsCompressor();
-            this.compressorLow.threshold.value = -30; // 低阈值，早介入
-            this.compressorLow.knee.value = 20; // 柔和拐点
-            this.compressorLow.ratio.value = 6; // 高压缩比，控制低音
+            this.compressorLow.threshold.value = -20; // 只处理很响的低音
+            this.compressorLow.knee.value = 30; // 柔和拐点
+            this.compressorLow.ratio.value = 8; // 高压缩比，控制低音峰值
             this.compressorLow.attack.value = 0.01; // 较慢，保留低音冲击感
             this.compressorLow.release.value = 0.2; // 较慢释放
             
-            // 1.3 中频压缩器（温和压缩，保留人声和旋律）
+            // 1.3 中频压缩器（透明压缩，几乎不改变音色）
             this.compressorMid = ctx.createDynamicsCompressor();
-            this.compressorMid.threshold.value = -20;
+            this.compressorMid.threshold.value = -24;
             this.compressorMid.knee.value = 30;
-            this.compressorMid.ratio.value = 3; // 温和压缩
+            this.compressorMid.ratio.value = 2.5; // 温和压缩
             this.compressorMid.attack.value = 0.005;
             this.compressorMid.release.value = 0.15;
             
-            // 1.4 高频压缩器（轻微压缩，保留清晰度）
+            // 1.4 高频压缩器（几乎不压缩，只防止尖锐）
             this.compressorHigh = ctx.createDynamicsCompressor();
-            this.compressorHigh.threshold.value = -15;
+            this.compressorHigh.threshold.value = -10; // 高阈值，很少触发
             this.compressorHigh.knee.value = 20;
             this.compressorHigh.ratio.value = 2; // 轻微压缩
-            this.compressorHigh.attack.value = 0.003; // 快速响应
+            this.compressorHigh.attack.value = 0.003;
             this.compressorHigh.release.value = 0.1;
             
-            // 1.5 各频段 Makeup Gain
+            // 1.5 各频段 Makeup Gain（平衡增益，保持音色）
             this.makeupGainLow = ctx.createGain();
-            this.makeupGainLow.gain.value = 2.0; // 低频适度提升
+            this.makeupGainLow.gain.value = 2.2; // 低频适度提升
             
             this.makeupGainMid = ctx.createGain();
             this.makeupGainMid.gain.value = 2.4; // 中频主要提升
             
             this.makeupGainHigh = ctx.createGain();
-            this.makeupGainHigh.gain.value = 2.8; // 高频最大提升（增加明亮度）
+            this.makeupGainHigh.gain.value = 2.4; // 高频同等提升（保持平衡）
             
             // 1.6 合并器
             this.multibandMerger = ctx.createGain();
             
-            // 连接分频器
+            // 连接分频器（三个并行通道）
+            // 低频通道
             this.multibandSplitter.connect(this.lowpassFilter);
-            this.multibandSplitter.connect(this.bandpassFilter);
-            this.multibandSplitter.connect(this.highpassFilter);
-            
-            // 连接各频段压缩器和增益
             this.lowpassFilter.connect(this.compressorLow);
             this.compressorLow.connect(this.makeupGainLow);
             this.makeupGainLow.connect(this.multibandMerger);
             
-            this.bandpassFilter.connect(this.compressorMid);
+            // 中频通道（串联两个滤波器形成带通）
+            this.multibandSplitter.connect(this.bandpassFilterLow);
+            this.bandpassFilterLow.connect(this.bandpassFilterHigh);
+            this.bandpassFilterHigh.connect(this.compressorMid);
             this.compressorMid.connect(this.makeupGainMid);
             this.makeupGainMid.connect(this.multibandMerger);
             
+            // 高频通道
+            this.multibandSplitter.connect(this.highpassFilter);
             this.highpassFilter.connect(this.compressorHigh);
             this.compressorHigh.connect(this.makeupGainHigh);
             this.makeupGainHigh.connect(this.multibandMerger);
@@ -220,7 +227,8 @@ class AudioEngine {
             }
             
             console.log('🎵 母带级多段压缩音频处理链已初始化');
-            console.log('📊 频段分配: 低频(20-250Hz) | 中频(250-4kHz) | 高频(4-20kHz)');
+            console.log('📊 频段分配: 低频(20-150Hz) | 中频(150-5kHz) | 高频(5-20kHz)');
+            console.log('🎚️ 压缩策略: 低频激进 | 中频透明 | 高频轻微');
         } catch (error) {
             console.error('initAudioChain: 初始化失败:', error);
             throw error;
