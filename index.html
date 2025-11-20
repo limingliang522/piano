@@ -114,7 +114,7 @@
         #dynamicIsland.expanded {
             width: 90%;
             max-width: 600px;
-            height: 320px;
+            height: 280px;
             border-radius: 30px;
             padding: 20px;
             cursor: default;
@@ -227,75 +227,103 @@
             display: flex;
         }
 
-        /* 画质设置区域（集成在灵动岛内） */
-        .quality-section {
-            width: 100%;
-            padding: 15px;
-            background: rgba(255, 255, 255, 0.05);
-            border-radius: 12px;
-            border: 1px solid rgba(255, 255, 255, 0.1);
-        }
-
-        .quality-title {
-            color: #fff;
-            font-size: 14px;
-            font-weight: 600;
-            margin-bottom: 12px;
-            text-align: left;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .quality-options {
-            display: grid;
-            grid-template-columns: repeat(2, 1fr);
-            gap: 10px;
-            margin-bottom: 12px;
-        }
-
-        .quality-option {
-            color: #fff;
-            font-size: 13px;
-            padding: 10px 16px;
-            border-radius: 10px;
-            cursor: pointer;
-            transition: all 0.2s;
-            background: rgba(255, 255, 255, 0.1);
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            white-space: nowrap;
-            text-align: center;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 6px;
-        }
-
-        .quality-option:hover {
-            background: rgba(255, 255, 255, 0.2);
-            transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
-        }
-
-        .quality-option.active {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            font-weight: 600;
-            border-color: rgba(255, 255, 255, 0.4);
-            box-shadow: 0 4px 16px rgba(102, 126, 234, 0.4);
-        }
-
-        .quality-info {
-            color: rgba(255, 255, 255, 0.6);
-            font-size: 11px;
-            text-align: center;
-            padding: 8px;
-            background: rgba(0, 0, 0, 0.2);
-            border-radius: 6px;
-        }
-
         /* 设置页面布局 */
         #settingsTab {
             padding: 10px;
+        }
+
+        .settings-section {
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .setting-item {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 12px;
+            padding: 15px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .setting-label {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+
+        .setting-icon {
+            font-size: 20px;
+        }
+
+        .setting-name {
+            color: #fff;
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .setting-value {
+            color: rgba(255, 255, 255, 0.6);
+            font-size: 13px;
+            text-align: right;
+        }
+
+        /* 音量控制 */
+        .volume-control {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .volume-slider {
+            flex: 1;
+            height: 6px;
+            border-radius: 3px;
+            background: rgba(255, 255, 255, 0.2);
+            outline: none;
+            -webkit-appearance: none;
+        }
+
+        .volume-slider::-webkit-slider-thumb {
+            appearance: none;
+            -webkit-appearance: none;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            cursor: pointer;
+            box-shadow: 0 2px 8px rgba(102, 126, 234, 0.4);
+            transition: all 0.2s;
+        }
+
+        .volume-slider::-webkit-slider-thumb:hover {
+            transform: scale(1.2);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.6);
+        }
+
+        .volume-slider::-moz-range-thumb {
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            cursor: pointer;
+            border: none;
+            box-shadow: 0 2px 8px rgba(102, 126, 234, 0.4);
+            transition: all 0.2s;
+        }
+
+        .volume-slider::-moz-range-thumb:hover {
+            transform: scale(1.2);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.6);
+        }
+
+        .volume-value {
+            color: #fff;
+            font-size: 13px;
+            font-weight: 600;
+            min-width: 45px;
+            text-align: right;
         }
 
         .midi-list-container {
@@ -546,11 +574,7 @@
         @media (max-width: 600px) {
             #dynamicIsland.expanded {
                 width: 95%;
-                height: 350px;
-            }
-
-            .quality-options {
-                grid-template-columns: 1fr;
+                height: 300px;
             }
 
             .island-tabs {
@@ -668,19 +692,35 @@
 
                 <!-- 设置页面 -->
                 <div class="island-tab-content" id="settingsTab">
-                    <!-- 画质设置区域 -->
-                    <div class="quality-section">
-                        <div class="quality-title">🎨 画质设置</div>
-                        <div class="quality-options">
-                            <div class="quality-option" data-mode="auto">🤖 自动</div>
-                            <div class="quality-option" data-mode="ultra">💎 超高</div>
-                            <div class="quality-option" data-mode="high">⭐ 高</div>
-                            <div class="quality-option" data-mode="medium">✨ 中</div>
+                    <!-- 音量控制区域 -->
+                    <div class="settings-section">
+                        <div class="setting-item">
+                            <div class="setting-label">
+                                <span class="setting-icon">🔊</span>
+                                <span class="setting-name">音量</span>
+                            </div>
+                            <div class="volume-control">
+                                <input type="range" id="volumeSlider" min="0" max="100" value="100" class="volume-slider">
+                                <span class="volume-value" id="volumeValue">100%</span>
+                            </div>
                         </div>
-                        <div class="quality-info">当前: <span id="currentQuality">检测中...</span></div>
+                        
+                        <div class="setting-item">
+                            <div class="setting-label">
+                                <span class="setting-icon">🎨</span>
+                                <span class="setting-name">画质</span>
+                            </div>
+                            <div class="setting-value">固定高画质</div>
+                        </div>
+                        
+                        <div class="setting-item">
+                            <div class="setting-label">
+                                <span class="setting-icon">📊</span>
+                                <span class="setting-name">帧率</span>
+                            </div>
+                            <div class="setting-value">自动适配</div>
+                        </div>
                     </div>
-                    
-                    <!-- 可以在这里添加更多设置选项 -->
                     
                     <div class="close-hint">点击空白处关闭</div>
                 </div>
