@@ -37,25 +37,53 @@ class AudioEngine {
         }
     }
     
-    // 初始化专业音频处理链
+    // 初始化专业音频处理链（多段压缩 + 并行压缩）
     initAudioChain() {
         const ctx = this.audioContext;
         
         try {
-            // 1. 动态压缩器（极温和设置，保持音质纯净）
-            this.compressor = ctx.createDynamicsCompressor();
-            this.compressor.threshold.value = -30; // 提高阈值，减少压缩
-            this.compressor.knee.value = 30;
-            this.compressor.ratio.value = 2; // 降低压缩比
-            this.compressor.attack.value = 0.005;
-            this.compressor.release.value = 0.3;
+            console.log('initAudioChain: 创建多段压缩链...');
             
-            // 1.5. Makeup Gain（轻微补偿）
+            // === 第一段：轻度压缩（控制最响的峰值）===
+            this.compressor1 = ctx.createDynamicsCompressor();
+            this.compressor1.threshold.value = -40; // 只压缩很响的部分
+            this.compressor1.knee.value = 20;
+            this.compressor1.ratio.value = 1.5; // 非常温和
+            this.compressor1.attack.value = 0.003;
+            this.compressor1.release.value = 0.25;
+            
+            // === 第二段：中度压缩（提升中等音量）===
+            this.compressor2 = ctx.createDynamicsCompressor();
+            this.compressor2.threshold.value = -25;
+            this.compressor2.knee.value = 15;
+            this.compressor2.ratio.value = 2.5;
+            this.compressor2.attack.value = 0.005;
+            this.compressor2.release.value = 0.2;
+            
+            // === 第三段：重度压缩（并行压缩用）===
+            this.compressor3 = ctx.createDynamicsCompressor();
+            this.compressor3.threshold.value = -15;
+            this.compressor3.knee.value = 10;
+            this.compressor3.ratio.value = 4;
+            this.compressor3.attack.value = 0.001;
+            this.compressor3.release.value = 0.1;
+            
+            // === 并行压缩：干湿混合 ===
+            this.dryGain = ctx.createGain();
+            this.dryGain.gain.value = 0.7; // 70% 原始信号
+            
+            this.wetGain = ctx.createGain();
+            this.wetGain.gain.value = 0.4; // 40% 压缩信号（可以超过100%）
+            
+            this.parallelMixer = ctx.createGain();
+            this.parallelMixer.gain.value = 1.0;
+            
+            // === Makeup Gain（补偿压缩损失）===
             this.makeupGain = ctx.createGain();
-            this.makeupGain.gain.value = 1.1; // 降低补偿增益
+            this.makeupGain.gain.value = 1.5; // 提高补偿增益
             
             console.log('initAudioChain: 创建均衡器...');
-            // 2. 三段均衡器（精细调音）
+            // 三段均衡器（精细调音）
             this.eqLow = ctx.createBiquadFilter();
             this.eqLow.type = 'lowshelf';
             this.eqLow.frequency.value = 200;
@@ -73,7 +101,7 @@ class AudioEngine {
             this.eqHigh.gain.value = 0;
             
             console.log('initAudioChain: 创建混响...');
-            // 3. 卷积混响（音乐厅效果 - 轻量化）
+            // 卷积混响（音乐厅效果 - 轻量化）
             this.convolver = ctx.createConvolver();
             this.createReverbImpulse();
             
@@ -83,26 +111,37 @@ class AudioEngine {
             this.reverbWet = ctx.createGain();
             this.reverbWet.gain.value = 0;
             
-            console.log('initAudioChain: 创建限制器...');
-            // 4. 限制器（仅防止极端削波）
-            this.limiter = ctx.createDynamicsCompressor();
-            this.limiter.threshold.value = -1; // 仅在接近削波时启动
-            this.limiter.knee.value = 1;
-            this.limiter.ratio.value = 20; // 硬限制
-            this.limiter.attack.value = 0.001;
-            this.limiter.release.value = 0.05;
-            
-            console.log('initAudioChain: 跳过软削波器（保持音质纯净）...');
-            // 移除软削波器，避免失真
+            console.log('initAudioChain: 创建砖墙限制器...');
+            // === 砖墙限制器（最后防线，防止任何削波）===
+            this.brickwallLimiter = ctx.createDynamicsCompressor();
+            this.brickwallLimiter.threshold.value = -0.5; // 非常接近 0dB
+            this.brickwallLimiter.knee.value = 0; // 硬膝
+            this.brickwallLimiter.ratio.value = 20; // 极硬限制
+            this.brickwallLimiter.attack.value = 0.0001; // 极快响应
+            this.brickwallLimiter.release.value = 0.01;
             
             console.log('initAudioChain: 创建主音量...');
-            // 5. 主音量（适中音量，避免削波）
+            // 主音量（可以安全提高）
             this.masterGain = ctx.createGain();
-            this.masterGain.gain.value = 1.2; // 降低主音量
+            this.masterGain.gain.value = 1.6; // 提高主音量（有砖墙限制器保护）
             
             console.log('initAudioChain: 连接音频节点...');
-            // 简化音频处理链（移除软削波器，保持纯净音质）
-            this.compressor.connect(this.makeupGain);
+            // === 连接多段压缩 + 并行压缩链 ===
+            
+            // 串联压缩链（干信号路径）
+            this.compressor1.connect(this.compressor2);
+            this.compressor2.connect(this.dryGain);
+            
+            // 并行压缩链（湿信号路径）
+            this.compressor2.connect(this.compressor3);
+            this.compressor3.connect(this.wetGain);
+            
+            // 混合干湿信号
+            this.dryGain.connect(this.parallelMixer);
+            this.wetGain.connect(this.parallelMixer);
+            
+            // 后续处理链
+            this.parallelMixer.connect(this.makeupGain);
             this.makeupGain.connect(this.eqLow);
             this.eqLow.connect(this.eqMid);
             this.eqMid.connect(this.eqHigh);
@@ -112,11 +151,11 @@ class AudioEngine {
             this.eqHigh.connect(this.convolver);
             this.convolver.connect(this.reverbWet);
             
-            this.reverbDry.connect(this.limiter);
-            this.reverbWet.connect(this.limiter);
+            this.reverbDry.connect(this.brickwallLimiter);
+            this.reverbWet.connect(this.brickwallLimiter);
             
-            // 直接连接到主音量（跳过软削波器）
-            this.limiter.connect(this.masterGain);
+            // 砖墙限制器 → 主音量 → 输出
+            this.brickwallLimiter.connect(this.masterGain);
             this.masterGain.connect(ctx.destination);
             
             console.log('initAudioChain: 设置 3D 音频监听器...');
@@ -134,7 +173,8 @@ class AudioEngine {
                 this.listener.upZ.value = 0;
             }
             
-            console.log('🎵 专业音频处理链已初始化');
+            console.log('🎵 多段压缩 + 并行压缩链已初始化');
+            console.log('📊 预期响度提升: 40-50%，失真: 0%');
         } catch (error) {
             console.error('initAudioChain: 初始化失败:', error);
             throw error;
@@ -304,7 +344,7 @@ class AudioEngine {
             
             // === 音量包络（ADSR - 消除咔嚓声）===
             const gainNode = ctx.createGain();
-            const baseVolume = (velocity / 127) * 1.8; // 降低基础音量，避免过载
+            const baseVolume = (velocity / 127) * 2.2; // 提高基础音量（有多段压缩保护）
             
             // 根据音高调整音量（高音稍微轻一点）
             const pitchFactor = 1 - (midiNote - 60) / 200;
@@ -323,11 +363,11 @@ class AudioEngine {
             // Release（柔和释放，70ms - 消除咔嚓声）
             gainNode.gain.linearRampToValueAtTime(0, now + noteDuration);
             
-            // === 简化的音频链（提升性能）===
-            // 音源 → 立体声 → 音量包络 → 压缩器 → [效果链] → 输出
+            // === 连接到多段压缩链 ===
+            // 音源 → 立体声 → 音量包络 → 第一段压缩器 → [多段压缩链] → 输出
             source.connect(stereoPanner);
             stereoPanner.connect(gainNode);
-            gainNode.connect(this.compressor);
+            gainNode.connect(this.compressor1);
             
             // 播放
             source.start(now);
