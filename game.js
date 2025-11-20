@@ -606,7 +606,7 @@ function createNoteBlock(noteData) {
     // 使用预先分配的高度
     const isTall = noteData.isTall;
     const blockHeight = isTall ? 3.0 : 0.4; // 超高3.0或普通0.4
-    const blockY = isTall ? 1.5 : 0.2; // 超高方块的Y位置也要调整
+    const blockY = isTall ? 1.5 : 0.25; // 超高方块的Y位置也要调整，普通方块抬高到0.25避免与地面重叠
     
     const geometry = new THREE.BoxGeometry(1.5, blockHeight, 1.2);
     const material = createNoteMaterial();
