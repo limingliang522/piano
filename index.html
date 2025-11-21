@@ -164,7 +164,7 @@
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
-            max-width: 200px;
+            max-width: 250px;
         }
 
         .island-expanded-content {
@@ -581,7 +581,7 @@
             display: flex;
             flex-direction: column;
             align-items: center;
-            gap: 20px;
+            gap: 15px;
             position: fixed;
             top: 50%;
             left: 50%;
@@ -592,24 +592,18 @@
             text-align: center;
             background: rgba(0, 0, 0, 0.95);
             backdrop-filter: blur(30px);
-            padding: 40px 60px;
+            padding: 30px 50px;
             border-radius: 24px;
             border: 2px solid rgba(255, 255, 255, 0.3);
             box-shadow: 0 20px 60px rgba(0, 0, 0, 0.8);
             z-index: 2000;
             pointer-events: none;
-            min-width: 320px;
+            min-width: 280px;
             max-width: 90vw;
         }
 
         .loading-title {
-            font-size: 24px;
-            font-weight: 700;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-            margin-bottom: 10px;
+            display: none;
         }
 
         .loading-progress-container {
@@ -647,11 +641,7 @@
         }
 
         .loading-text {
-            font-size: 14px;
-            color: rgba(255, 255, 255, 0.8);
-            font-weight: 500;
-            min-height: 20px;
-            transition: opacity 0.2s ease;
+            display: none;
         }
 
         .loading-percentage {
@@ -662,12 +652,7 @@
         }
 
         .loading-tips {
-            font-size: 12px;
-            color: rgba(255, 255, 255, 0.5);
-            margin-top: 10px;
-            font-style: italic;
-            transition: opacity 0.3s ease;
-            min-height: 20px;
+            display: none;
         }
 
         #startButton {
