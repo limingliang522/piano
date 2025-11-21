@@ -333,7 +333,7 @@ class AudioEngine {
         return true;
     }
     
-    // 使用真实采样预热（更彻底）
+    // 使用真实采样预热（轻量版 - 不阻塞）
     async warmupWithSample() {
         try {
             // 找到中音区的采样（C4）
@@ -343,22 +343,18 @@ class AudioEngine {
             const ctx = this.audioContext;
             const now = ctx.currentTime;
             
-            // 创建一个极短、极小音量的音符
+            // 创建一个极短、极小音量的音符（不等待完成）
             const source = ctx.createBufferSource();
             source.buffer = warmupNote;
             
             const gainNode = ctx.createGain();
-            gainNode.gain.setValueAtTime(0.001, now); // 几乎听不见
-            gainNode.gain.exponentialRampToValueAtTime(0.0001, now + 0.05);
+            gainNode.gain.value = 0.0001; // 几乎听不见
             
             source.connect(gainNode);
-            gainNode.connect(this.multibandSplitter); // 连接到多段压缩器输入
+            gainNode.connect(this.multibandSplitter);
             
             source.start(now);
-            source.stop(now + 0.05);
-            
-            // 等待播放完成
-            await new Promise(resolve => setTimeout(resolve, 100));
+            source.stop(now + 0.01); // 10ms极短音
             
             console.log('✅ 音频管道预热完成');
         } catch (error) {
@@ -606,53 +602,45 @@ class AudioEngine {
         noise.stop(now + 0.15);
     }
 
-    // 启动音频上下文
+    // 启动音频上下文（优化版 - 非阻塞）
     async start() {
         this.ensureAudioContext();
         
         if (this.audioContext.state === 'suspended') {
             console.log('音频上下文被挂起，尝试恢复...');
             
-            // 添加超时处理，防止 resume() 卡住
-            const resumePromise = this.audioContext.resume();
-            const timeoutPromise = new Promise((_, reject) => {
-                setTimeout(() => reject(new Error('resume() 超时')), 3000);
+            // 使用非阻塞方式恢复，不等待完成
+            this.audioContext.resume().then(() => {
+                console.log('✅ 音频上下文恢复成功');
+            }).catch(error => {
+                console.warn('音频上下文恢复失败（不影响使用）:', error);
             });
-            
-            try {
-                await Promise.race([resumePromise, timeoutPromise]);
-                console.log('音频上下文恢复成功，状态:', this.audioContext.state);
-            } catch (error) {
-                console.error('音频上下文恢复失败:', error);
-                // 即使失败也继续，有些浏览器可能不需要 resume
-            }
         }
         
-        console.log('音频上下文最终状态:', this.audioContext.state);
+        console.log('音频上下文状态:', this.audioContext.state);
         
-        // 播放静音音符预热音频系统（消除"咔"声）
-        this.warmupAudio();
+        // 异步预热，不阻塞启动
+        setTimeout(() => this.warmupAudio(), 100);
     }
     
-    // 预热音频系统（消除第一次播放的"咔"声）
+    // 预热音频系统（轻量版 - 不阻塞）
     warmupAudio() {
         try {
             const ctx = this.audioContext;
             const now = ctx.currentTime;
             
-            // 创建一个极短的静音振荡器
+            // 创建一个极短的静音振荡器（异步执行）
             const oscillator = ctx.createOscillator();
             const gainNode = ctx.createGain();
             
-            oscillator.frequency.value = 440; // A4
-            gainNode.gain.setValueAtTime(0.001, now); // 极小音量
-            gainNode.gain.exponentialRampToValueAtTime(0.0001, now + 0.01);
+            oscillator.frequency.value = 440;
+            gainNode.gain.value = 0.0001; // 几乎听不见
             
             oscillator.connect(gainNode);
             gainNode.connect(this.masterGain);
             
             oscillator.start(now);
-            oscillator.stop(now + 0.01);
+            oscillator.stop(now + 0.005); // 5ms极短音
             
             console.log('✅ 音频系统预热完成');
         } catch (error) {

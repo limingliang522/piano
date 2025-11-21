@@ -343,22 +343,17 @@ async function initMIDISystem() {
                 return;
             }
             
-            // 立即播放开始音效（不等待）
-            audioEngine.playStartSound();
+            // 立即开始游戏（不等待音频）
+            startMIDIGame();
             
-            // 启动音频上下文（在用户交互时）
-            console.log('🔊 启动音频上下文...');
-            try {
-                await audioEngine.start();
+            // 异步启动音频（不阻塞游戏启动）
+            audioEngine.start().then(() => {
                 console.log('✅ 音频上下文已启动');
-                
-                // 开始游戏
-                startMIDIGame();
-                
-            } catch (error) {
-                console.error('启动失败:', error);
-                alert('启动失败，请刷新页面重试');
-            }
+                // 播放开始音效
+                audioEngine.playStartSound();
+            }).catch(error => {
+                console.warn('音频启动失败（不影响游戏）:', error);
+            });
         };
         startButton.addEventListener('click', startGame);
         startButton.addEventListener('touchstart', startGame, { passive: false });
@@ -545,7 +540,7 @@ function processMIDINotes(notes) {
 
 }
 
-// 开始MIDI游戏
+// 开始MIDI游戏（优化版 - 立即启动）
 function startMIDIGame() {
     loadingElement.style.display = 'none';
     
@@ -553,11 +548,14 @@ function startMIDIGame() {
     dynamicIsland.classList.remove('expanded');
     isIslandExpanded = false;
     
+    // 立即启动游戏（不等待方块创建完成）
     gameRunning = true;
     gameStartTime = Date.now() / 1000;
     
-    // 创建所有音符方块
-    createAllNoteBlocks();
+    // 异步创建音符方块（不阻塞游戏启动）
+    requestAnimationFrame(() => {
+        createAllNoteBlocks();
+    });
 }
 
 // 开始普通游戏（无MIDI）
@@ -566,7 +564,7 @@ function startNormalGame() {
     gameRunning = true;
 }
 
-// 创建所有音符方块
+// 创建所有音符方块（优化版 - 分批创建，避免卡顿）
 function createAllNoteBlocks() {
     // 防止重复创建
     if (blocksCreated && noteObjects.length > 0) {
@@ -580,13 +578,31 @@ function createAllNoteBlocks() {
         cleanupObjects(noteObjects);
     }
     
-    // 创建新方块
-    console.log(`✅ 开始创建 ${midiNotes.length} 个音符方块`);
-    midiNotes.forEach(noteData => {
-        createNoteBlock(noteData);
-    });
-    blocksCreated = true;
-    console.log(`✅ 创建完成！实际创建了 ${noteObjects.length} 个方块`);
+    // 分批创建方块，避免一次性创建导致卡顿
+    console.log(`✅ 开始分批创建 ${midiNotes.length} 个音符方块`);
+    const batchSize = 50; // 每批创建50个
+    let currentIndex = 0;
+    
+    function createBatch() {
+        const endIndex = Math.min(currentIndex + batchSize, midiNotes.length);
+        
+        for (let i = currentIndex; i < endIndex; i++) {
+            createNoteBlock(midiNotes[i]);
+        }
+        
+        currentIndex = endIndex;
+        
+        if (currentIndex < midiNotes.length) {
+            // 继续下一批（使用 requestAnimationFrame 避免阻塞）
+            requestAnimationFrame(createBatch);
+        } else {
+            blocksCreated = true;
+            console.log(`✅ 创建完成！实际创建了 ${noteObjects.length} 个方块`);
+        }
+    }
+    
+    // 立即开始第一批
+    createBatch();
 }
 
 // 固定高画质材质（不透明黑块）
