@@ -108,13 +108,13 @@ class AudioEngine {
             
             // 1.5 各频段 Makeup Gain（平衡增益，保持音色）
             this.makeupGainLow = ctx.createGain();
-            this.makeupGainLow.gain.value = 3.0; // 低频提升
+            this.makeupGainLow.gain.value = 1.8; // 降低增益，避免破音
             
             this.makeupGainMid = ctx.createGain();
-            this.makeupGainMid.gain.value = 3.2; // 中频主要提升
+            this.makeupGainMid.gain.value = 2.0; // 降低增益，避免破音
             
             this.makeupGainHigh = ctx.createGain();
-            this.makeupGainHigh.gain.value = 3.2; // 高频同等提升（保持平衡）
+            this.makeupGainHigh.gain.value = 2.0; // 降低增益，避免破音
             
             // 1.6 合并器
             this.multibandMerger = ctx.createGain();
@@ -148,18 +148,18 @@ class AudioEngine {
             this.eqLow = ctx.createBiquadFilter();
             this.eqLow.type = 'lowshelf';
             this.eqLow.frequency.value = 200;
-            this.eqLow.gain.value = 1.5; // 轻微增强低频温暖感
+            this.eqLow.gain.value = 0.5; // 轻微增强，避免过度
             
             this.eqMid = ctx.createBiquadFilter();
             this.eqMid.type = 'peaking';
-            this.eqMid.frequency.value = 2500; // 提高到2.5kHz，增强清晰度
+            this.eqMid.frequency.value = 2500;
             this.eqMid.Q.value = 0.8;
-            this.eqMid.gain.value = 1.0; // 轻微提升中频
+            this.eqMid.gain.value = 0.5; // 轻微提升，避免过度
             
             this.eqHigh = ctx.createBiquadFilter();
             this.eqHigh.type = 'highshelf';
-            this.eqHigh.frequency.value = 8000; // 提高到8kHz
-            this.eqHigh.gain.value = 2.0; // 增强高频明亮度
+            this.eqHigh.frequency.value = 8000;
+            this.eqHigh.gain.value = 1.0; // 降低增益，避免破音
             
             console.log('initAudioChain: 创建混响...');
             // 3. 卷积混响（音乐厅效果 - 轻量化）
@@ -182,9 +182,9 @@ class AudioEngine {
             this.limiter.release.value = 0.1; // 较慢释放，更自然
             
             console.log('initAudioChain: 创建主音量...');
-            // 5. 主音量（提升响度，限制器会防止失真）
+            // 5. 主音量（适度提升，避免破音）
             this.masterGain = ctx.createGain();
-            this.masterGain.gain.value = 3.5; // 提升主音量
+            this.masterGain.gain.value = 2.2; // 降低主音量，避免破音
             
             console.log('initAudioChain: 连接音频节点...');
             // 连接音频处理链（多段压缩器 → EQ → 混响 → 限制器）
@@ -478,8 +478,8 @@ class AudioEngine {
             // === 音量包络（ADSR - 完美还原MIDI力度）===
             const gainNode = ctx.createGain();
             // 使用更精确的velocity映射（MIDI标准：velocity 0-127）
-            const velocityFactor = Math.pow(velocity / 127, 1.3); // 降低指数，增加响度
-            const baseVolume = velocityFactor * 3.2; // 提升基础音量
+            const velocityFactor = Math.pow(velocity / 127, 1.3);
+            const baseVolume = velocityFactor * 2.0; // 降低基础音量，避免破音
             
             // 根据音高调整音量（模拟真实钢琴）
             let pitchFactor = 1.0;
@@ -679,7 +679,7 @@ class AudioEngine {
         const clampedVolume = Math.max(0, Math.min(1, volume));
         
         // 使用原始音量值乘以基础增益
-        const baseGain = 3.5; // 提升基础增益
+        const baseGain = 2.2; // 适度基础增益，避免破音
         this.masterGain.gain.value = clampedVolume * baseGain;
         
         console.log(`🔊 主音量设置为: ${Math.round(clampedVolume * 100)}%`);
