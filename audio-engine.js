@@ -181,11 +181,11 @@ class AudioEngine {
             this.limiter.attack.value = 0.0001; // 极快响应，不放过任何峰值
             this.limiter.release.value = 0.05; // 快速释放
             
-            console.log('initAudioChain: 创建硬限幅器...');
-            // 4.5. 硬限幅器（绝对防止破音的最后防线）
+            console.log('initAudioChain: 创建平滑限幅器...');
+            // 4.5. 平滑限幅器（防止破音但保持音质）
             this.hardClipper = ctx.createWaveShaper();
             this.hardClipper.curve = this.makeHardClipCurve();
-            this.hardClipper.oversample = 'none'; // 不过采样，保持性能
+            this.hardClipper.oversample = '4x'; // 高质量过采样，减少失真
             
             console.log('initAudioChain: 创建主音量...');
             // 5. 主音量（硬限幅器保护，可以大胆提升）
@@ -267,23 +267,17 @@ class AudioEngine {
         this.convolver.buffer = impulse;
     }
     
-    // 创建硬限幅曲线（绝对防止破音）
+    // 创建平滑限幅曲线（防止破音但保持音质）
     makeHardClipCurve() {
         const samples = 2048;
         const curve = new Float32Array(samples);
-        const threshold = 0.98; // 限制在 0.98，留一点余量
         
         for (let i = 0; i < samples; i++) {
             const x = (i / samples) * 2 - 1; // -1 到 1
             
-            // 硬限幅：超过阈值就直接截断
-            if (x > threshold) {
-                curve[i] = threshold;
-            } else if (x < -threshold) {
-                curve[i] = -threshold;
-            } else {
-                curve[i] = x;
-            }
+            // 使用 atan 函数实现平滑限幅（比 tanh 更温和）
+            // atan 在接近极限时会平滑过渡，不会产生尖锐的截断
+            curve[i] = (2 / Math.PI) * Math.atan(x * 1.5);
         }
         
         return curve;
