@@ -106,15 +106,15 @@ class AudioEngine {
             this.compressorHigh.attack.value = 0.005;
             this.compressorHigh.release.value = 0.15;
             
-            // 1.5 各频段 Makeup Gain（平衡增益，保持音色）
+            // 1.5 各频段 Makeup Gain（移除增益，保持原音）
             this.makeupGainLow = ctx.createGain();
-            this.makeupGainLow.gain.value = 2.4; // 适度提升，减少失真
+            this.makeupGainLow.gain.value = 1.0; // 不增益
             
             this.makeupGainMid = ctx.createGain();
-            this.makeupGainMid.gain.value = 2.6; // 适度提升，减少失真
+            this.makeupGainMid.gain.value = 1.0; // 不增益
             
             this.makeupGainHigh = ctx.createGain();
-            this.makeupGainHigh.gain.value = 2.6; // 适度提升，减少失真
+            this.makeupGainHigh.gain.value = 1.0; // 不增益
             
             // 1.6 合并器
             this.multibandMerger = ctx.createGain();
@@ -188,29 +188,15 @@ class AudioEngine {
             this.hardClipper.oversample = '4x'; // 高质量过采样，减少失真
             
             console.log('initAudioChain: 创建主音量...');
-            // 5. 主音量（平衡响度和音质）
+            // 5. 主音量（极简版，最大音量）
             this.masterGain = ctx.createGain();
-            this.masterGain.gain.value = 4.2; // 适度提升，减少失真
+            this.masterGain.gain.value = 8.0; // 最大音量，不经过任何处理
             
-            console.log('initAudioChain: 连接音频节点...');
-            // 连接音频处理链（多段压缩器 → EQ → 混响 → 限制器）
-            // 注意：multibandSplitter 是输入，multibandMerger 是输出
-            this.multibandMerger.connect(this.eqLow);
-            this.eqLow.connect(this.eqMid);
-            this.eqMid.connect(this.eqHigh);
-            
-            // 混响并联处理
-            this.eqHigh.connect(this.reverbDry);
-            this.eqHigh.connect(this.convolver);
-            this.convolver.connect(this.reverbWet);
-            
-            this.reverbDry.connect(this.limiter);
-            this.reverbWet.connect(this.limiter);
-            
-            // 限制器 → 主音量 → 硬限幅器（最后防线）
-            this.limiter.connect(this.masterGain);
-            this.masterGain.connect(this.hardClipper);
-            this.hardClipper.connect(ctx.destination);
+            console.log('initAudioChain: 连接音频节点（简化版）...');
+            // 极简音频链：只保留主音量，移除所有可能导致失真的处理
+            // multibandSplitter（输入）→ 主音量 → 输出
+            this.multibandSplitter.connect(this.masterGain);
+            this.masterGain.connect(ctx.destination);
             
             console.log('initAudioChain: 设置 3D 音频监听器...');
             // 设置 3D 音频监听器位置
@@ -484,8 +470,8 @@ class AudioEngine {
             // === 音量包络（ADSR - 完美还原MIDI力度）===
             const gainNode = ctx.createGain();
             // 使用更精确的velocity映射（MIDI标准：velocity 0-127）
-            const velocityFactor = Math.pow(velocity / 127, 1.2);
-            const baseVolume = velocityFactor * 2.8; // 适度提升，减少失真
+            const velocityFactor = Math.pow(velocity / 127, 1.0); // 线性映射
+            const baseVolume = velocityFactor * 1.0; // 不增益，保持原音
             
             // 根据音高调整音量（模拟真实钢琴）
             let pitchFactor = 1.0;
@@ -685,7 +671,7 @@ class AudioEngine {
         const clampedVolume = Math.max(0, Math.min(1, volume));
         
         // 使用原始音量值乘以基础增益
-        const baseGain = 4.2; // 平衡响度和音质
+        const baseGain = 8.0; // 最大音量
         this.masterGain.gain.value = clampedVolume * baseGain;
         
         console.log(`🔊 主音量设置为: ${Math.round(clampedVolume * 100)}%`);
