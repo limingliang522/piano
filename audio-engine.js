@@ -108,13 +108,13 @@ class AudioEngine {
             
             // 1.5 各频段 Makeup Gain（平衡增益，保持音色）
             this.makeupGainLow = ctx.createGain();
-            this.makeupGainLow.gain.value = 3.0; // 大幅提升，硬限幅器会保护
+            this.makeupGainLow.gain.value = 2.4; // 适度提升，减少失真
             
             this.makeupGainMid = ctx.createGain();
-            this.makeupGainMid.gain.value = 3.2; // 大幅提升，硬限幅器会保护
+            this.makeupGainMid.gain.value = 2.6; // 适度提升，减少失真
             
             this.makeupGainHigh = ctx.createGain();
-            this.makeupGainHigh.gain.value = 3.2; // 大幅提升，硬限幅器会保护
+            this.makeupGainHigh.gain.value = 2.6; // 适度提升，减少失真
             
             // 1.6 合并器
             this.multibandMerger = ctx.createGain();
@@ -188,9 +188,9 @@ class AudioEngine {
             this.hardClipper.oversample = '4x'; // 高质量过采样，减少失真
             
             console.log('initAudioChain: 创建主音量...');
-            // 5. 主音量（硬限幅器保护，可以大胆提升）
+            // 5. 主音量（平衡响度和音质）
             this.masterGain = ctx.createGain();
-            this.masterGain.gain.value = 5.5; // 极大提升，硬限幅器会绝对保护
+            this.masterGain.gain.value = 4.2; // 适度提升，减少失真
             
             console.log('initAudioChain: 连接音频节点...');
             // 连接音频处理链（多段压缩器 → EQ → 混响 → 限制器）
@@ -267,7 +267,7 @@ class AudioEngine {
         this.convolver.buffer = impulse;
     }
     
-    // 创建平滑限幅曲线（防止破音但保持音质）
+    // 创建极温和的限幅曲线（几乎透明的保护）
     makeHardClipCurve() {
         const samples = 2048;
         const curve = new Float32Array(samples);
@@ -275,9 +275,9 @@ class AudioEngine {
         for (let i = 0; i < samples; i++) {
             const x = (i / samples) * 2 - 1; // -1 到 1
             
-            // 使用 atan 函数实现平滑限幅（比 tanh 更温和）
-            // atan 在接近极限时会平滑过渡，不会产生尖锐的截断
-            curve[i] = (2 / Math.PI) * Math.atan(x * 1.5);
+            // 使用 tanh 实现极温和的限幅
+            // 系数 1.2 让它在正常范围内几乎是线性的
+            curve[i] = Math.tanh(x * 1.2) / Math.tanh(1.2);
         }
         
         return curve;
@@ -484,8 +484,8 @@ class AudioEngine {
             // === 音量包络（ADSR - 完美还原MIDI力度）===
             const gainNode = ctx.createGain();
             // 使用更精确的velocity映射（MIDI标准：velocity 0-127）
-            const velocityFactor = Math.pow(velocity / 127, 1.1); // 进一步降低指数
-            const baseVolume = velocityFactor * 3.5; // 极大提升，硬限幅器会保护
+            const velocityFactor = Math.pow(velocity / 127, 1.2);
+            const baseVolume = velocityFactor * 2.8; // 适度提升，减少失真
             
             // 根据音高调整音量（模拟真实钢琴）
             let pitchFactor = 1.0;
@@ -685,7 +685,7 @@ class AudioEngine {
         const clampedVolume = Math.max(0, Math.min(1, volume));
         
         // 使用原始音量值乘以基础增益
-        const baseGain = 5.5; // 极高增益，硬限幅器会绝对保护
+        const baseGain = 4.2; // 平衡响度和音质
         this.masterGain.gain.value = clampedVolume * baseGain;
         
         console.log(`🔊 主音量设置为: ${Math.round(clampedVolume * 100)}%`);
