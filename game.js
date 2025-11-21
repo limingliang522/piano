@@ -102,9 +102,7 @@ const loadingManager = {
         if (loadingProgressBar) {
             loadingProgressBar.style.width = `${this.percentage}%`;
         }
-        if (message && loadingText) {
-            loadingText.textContent = message;
-        }
+        // 不显示加载文字
     },
     
     startTipRotation() {
@@ -127,12 +125,9 @@ const loadingManager = {
     
     complete() {
         this.percentage = 100;
-        this.updateUI('✅ 加载完成！点击播放按钮开始游戏');
+        this.updateUI('');
         if (this.tipInterval) {
             clearInterval(this.tipInterval);
-        }
-        if (loadingTips) {
-            loadingTips.textContent = '🎮 准备好了吗？点击播放按钮开始你的音乐之旅！';
         }
         setTimeout(() => {
             if (loadingElement) {
@@ -356,7 +351,6 @@ async function loadMidiFile(index) {
             // 缓存未命中，从网络加载
             console.log('⚠️ 缓存未命中，从网络加载');
             loadingElement.style.display = 'flex';
-            loadingText.textContent = '加载MIDI文件...';
             
             const fileName = midiFiles[index];
             notes = await midiParser.loadMIDI(fileName + '?v=1');
@@ -413,7 +407,7 @@ async function preloadAllResources() {
         await Promise.all([
             // 加载所有MIDI文件
             (async () => {
-                loadingManager.updateUI('正在加载音乐文件...');
+                loadingManager.updateUI('');
                 for (let i = 0; i < midiFiles.length; i++) {
                     try {
                         const fileName = midiFiles[i];
@@ -426,11 +420,11 @@ async function preloadAllResources() {
                             name: fileName.split('/').pop().replace('.mid', '')
                         };
                         
-                        loadingManager.increment(`已加载: ${preloadedMidiData[i].name}`);
+                        loadingManager.increment('');
                         console.log(`✅ MIDI ${i + 1}/${midiFiles.length} 加载完成`);
                     } catch (error) {
                         console.error(`MIDI文件 ${i} 加载失败:`, error);
-                        loadingManager.increment(`加载失败: ${midiFiles[i]}`);
+                        loadingManager.increment('');
                     }
                 }
             })(),
@@ -438,11 +432,11 @@ async function preloadAllResources() {
             // 加载钢琴音色
             (async () => {
                 try {
-                    loadingManager.updateUI('正在加载钢琴音色...');
+                    loadingManager.updateUI('');
                     audioEngine.ensureAudioContext();
                     
                     await audioEngine.init((loaded, total) => {
-                        loadingManager.increment(`钢琴音色 ${loaded}/${total}`);
+                        loadingManager.increment('');
                     });
                     
                     console.log('✅ 钢琴音色加载完成');
@@ -482,13 +476,12 @@ async function preloadAllResources() {
                         const percentage = Math.round((this.current / this.total) * 100);
                         loadingPercentage.textContent = `${percentage}%`;
                         loadingProgressBar.style.width = `${percentage}%`;
-                        loadingText.textContent = message;
                     }
                 };
                 
                 try {
                     // 步骤1：启动音频引擎
-                    gameStartLoader.updateProgress(0, '🔊 启动音频引擎...');
+                    gameStartLoader.updateProgress(0, '');
                     await audioEngine.start();
                     console.log('✅ 音频上下文已启动');
                     
@@ -501,7 +494,7 @@ async function preloadAllResources() {
                     await new Promise(resolve => setTimeout(resolve, 200));
                     
                     // 步骤2：处理音符数据
-                    gameStartLoader.updateProgress(1, '🎵 处理音符数据...');
+                    gameStartLoader.updateProgress(1, '');
                     await new Promise(resolve => {
                         requestAnimationFrame(() => {
                             performanceMonitor.start('处理MIDI音符数据');
@@ -520,18 +513,17 @@ async function preloadAllResources() {
                     await new Promise(resolve => setTimeout(resolve, 200));
                     
                     // 步骤3：创建游戏场景
-                    gameStartLoader.updateProgress(2, '🎮 创建游戏场景...');
+                    gameStartLoader.updateProgress(2, '');
                     
                     // 预先创建所有方块（带进度）
                     await createAllNoteBlocksWithProgress((progress) => {
                         const percentage = Math.round(66 + (progress * 34)); // 66%-100%
                         loadingPercentage.textContent = `${percentage}%`;
                         loadingProgressBar.style.width = `${percentage}%`;
-                        loadingText.textContent = `🎮 创建游戏场景... ${Math.round(progress * 100)}%`;
                     });
                     
                     // 完成
-                    gameStartLoader.updateProgress(3, '✅ 准备完成！');
+                    gameStartLoader.updateProgress(3, '');
                     await new Promise(resolve => setTimeout(resolve, 300));
                     
                     // 隐藏加载界面
@@ -545,7 +537,6 @@ async function preloadAllResources() {
                     
                 } catch (error) {
                     console.error('游戏启动失败:', error);
-                    loadingText.textContent = '❌ 启动失败，请刷新页面重试';
                     setTimeout(() => {
                         loadingElement.style.display = 'none';
                         startButton.style.display = 'block';
@@ -562,7 +553,6 @@ async function preloadAllResources() {
         
     } catch (error) {
         console.error('预加载失败:', error);
-        loadingText.textContent = '加载失败，请刷新页面重试';
         setTimeout(() => {
             loadingManager.complete();
             startNormalGame();
@@ -2406,7 +2396,7 @@ async function selectMidi(index) {
             
             try {
                 // 步骤1：启动音频引擎
-                gameStartLoader.updateProgress(0, '🔊 启动音频引擎...');
+                gameStartLoader.updateProgress(0, '');
                 await audioEngine.start();
                 console.log('✅ 音频上下文已启动');
                 
@@ -2418,7 +2408,7 @@ async function selectMidi(index) {
                 await new Promise(resolve => setTimeout(resolve, 200));
                 
                 // 步骤2：处理音符数据
-                gameStartLoader.updateProgress(1, '🎵 处理音符数据...');
+                gameStartLoader.updateProgress(1, '');
                 await new Promise(resolve => {
                     requestAnimationFrame(() => {
                         // 重置音符状态
@@ -2433,18 +2423,17 @@ async function selectMidi(index) {
                 await new Promise(resolve => setTimeout(resolve, 200));
                 
                 // 步骤3：创建游戏场景
-                gameStartLoader.updateProgress(2, '🎮 创建游戏场景...');
+                gameStartLoader.updateProgress(2, '');
                 
                 // 预先创建所有方块（带进度）
                 await createAllNoteBlocksWithProgress((progress) => {
                     const percentage = Math.round(66 + (progress * 34));
                     loadingPercentage.textContent = `${percentage}%`;
                     loadingProgressBar.style.width = `${percentage}%`;
-                    loadingText.textContent = `🎮 创建游戏场景... ${Math.round(progress * 100)}%`;
                 });
                 
                 // 完成
-                gameStartLoader.updateProgress(3, '✅ 准备完成！');
+                gameStartLoader.updateProgress(3, '');
                 await new Promise(resolve => setTimeout(resolve, 300));
                 
                 // 隐藏加载界面
@@ -2460,7 +2449,6 @@ async function selectMidi(index) {
                 
             } catch (error) {
                 console.error('游戏启动失败:', error);
-                loadingText.textContent = '❌ 启动失败，请刷新页面重试';
                 setTimeout(() => {
                     loadingElement.style.display = 'none';
                     newStartButton.style.display = 'block';

@@ -198,7 +198,7 @@
             background: rgba(255, 255, 255, 0.1);
             border-radius: 8px;
             color: rgba(255, 255, 255, 0.6);
-            font-size: 20px;
+            font-size: 28px;
             font-weight: 600;
             text-align: center;
             cursor: pointer;
@@ -259,14 +259,16 @@
             margin-bottom: 10px;
         }
 
+        .setting-label span:not(.setting-icon) {
+            display: none; /* 隐藏设置项文字 */
+        }
+
         .setting-icon {
             font-size: 24px;
         }
 
         .setting-value {
-            color: rgba(255, 255, 255, 0.6);
-            font-size: 13px;
-            text-align: right;
+            display: none; /* 隐藏设置值文字 */
         }
 
         /* 音量控制 */
@@ -453,7 +455,7 @@
 
         .close-hint {
             color: rgba(255, 255, 255, 0.6);
-            font-size: 14px;
+            font-size: 18px;
             text-align: center;
             margin-top: auto;
             padding-top: 2px;
@@ -467,7 +469,7 @@
             border: 1px solid rgba(255, 255, 255, 0.3);
             border-radius: 10px;
             color: #fff;
-            font-size: 18px;
+            font-size: 24px;
             font-weight: 600;
             cursor: pointer;
             transition: all 0.3s;
@@ -608,7 +610,9 @@
         }
 
         .loading-title {
-            display: none;
+            color: #fff;
+            font-size: 24px;
+            font-weight: 700;
         }
 
         .loading-progress-container {
@@ -646,7 +650,8 @@
         }
 
         .loading-text {
-            display: none;
+            color: rgba(255, 255, 255, 0.8);
+            font-size: 14px;
         }
 
         .loading-percentage {
@@ -657,7 +662,10 @@
         }
 
         .loading-tips {
-            display: none;
+            color: rgba(255, 255, 255, 0.6);
+            font-size: 12px;
+            max-width: 280px;
+            line-height: 1.5;
         }
 
         #startButton {
@@ -767,13 +775,13 @@
 
 <body>
     <div id="loading">
-        <div class="loading-title">🎹 钢琴跑酷</div>
+        <div class="loading-title"></div>
         <div class="loading-percentage" id="loadingPercentage">0%</div>
         <div class="loading-progress-container">
             <div class="loading-progress-bar" id="loadingProgressBar" style="width: 0%"></div>
         </div>
-        <div class="loading-text" id="loadingText">正在初始化...</div>
-        <div class="loading-tips" id="loadingTips">💡 提示：点击屏幕跳跃，左右滑动切换轨道</div>
+        <div class="loading-text" id="loadingText"></div>
+        <div class="loading-tips" id="loadingTips"></div>
     </div>
     <button id="startButton"></button>
     <div class="canvas-container">
@@ -819,7 +827,7 @@
                 <div class="island-tab-content active" id="musicTab">
                     <!-- 搜索框 -->
                     <div class="search-container">
-                        <input type="text" id="musicSearch" class="search-input" placeholder="🔍">
+                        <input type="text" id="musicSearch" class="search-input" placeholder="">
                     </div>
                     
                     <div class="midi-list-container">
@@ -834,7 +842,7 @@
                             <button id="randomMidiBtn" class="random-midi-button">
                                 🎲
                             </button>
-                            <div class="close-hint" style="margin: 0;">👆 · ✕</div>
+                            <div class="close-hint" style="margin: 0;">✕</div>
                         </div>
                     </div>
                 </div>
