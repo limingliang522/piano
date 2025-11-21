@@ -2378,46 +2378,98 @@ async function selectMidi(index) {
         // 更新列表中的选中状态
         initMidiList();
         
+        // 移除所有旧的事件监听器（通过克隆节点）
+        const newStartButton = startButton.cloneNode(true);
+        startButton.parentNode.replaceChild(newStartButton, startButton);
+        
         // 设置播放按钮点击事件
         const startGame = async (e) => {
             if (e) e.preventDefault();
-            startButton.removeEventListener('click', startGame);
-            startButton.removeEventListener('touchstart', startGame);
-            startButton.style.display = 'none';
+            newStartButton.style.display = 'none';
             
-            // 立即播放开始音效
-            audioEngine.playStartSound();
+            // 显示加载界面
+            loadingElement.style.display = 'flex';
             
-            // 启动音频上下文（在用户交互时）
-            console.log('🔊 启动音频上下文...');
+            // 初始化游戏启动加载管理器
+            const gameStartLoader = {
+                total: 3,
+                current: 0,
+                
+                updateProgress(step, message) {
+                    this.current = step;
+                    const percentage = Math.round((this.current / this.total) * 100);
+                    loadingPercentage.textContent = `${percentage}%`;
+                    loadingProgressBar.style.width = `${percentage}%`;
+                    loadingText.textContent = message;
+                }
+            };
+            
             try {
+                // 步骤1：启动音频引擎
+                gameStartLoader.updateProgress(0, '🔊 启动音频引擎...');
                 await audioEngine.start();
                 console.log('✅ 音频上下文已启动');
+                
+                // 播放点击音效（音频上下文启动后）
+                if (audioEngine && audioEngine.playClickSound) {
+                    audioEngine.playClickSound();
+                }
+                
+                await new Promise(resolve => setTimeout(resolve, 200));
+                
+                // 步骤2：处理音符数据
+                gameStartLoader.updateProgress(1, '🎵 处理音符数据...');
+                await new Promise(resolve => {
+                    requestAnimationFrame(() => {
+                        // 重置音符状态
+                        midiNotes.forEach(note => {
+                            note.triggered = false;
+                            note.collided = false;
+                        });
+                        resolve();
+                    });
+                });
+                
+                await new Promise(resolve => setTimeout(resolve, 200));
+                
+                // 步骤3：创建游戏场景
+                gameStartLoader.updateProgress(2, '🎮 创建游戏场景...');
+                
+                // 预先创建所有方块（带进度）
+                await createAllNoteBlocksWithProgress((progress) => {
+                    const percentage = Math.round(66 + (progress * 34));
+                    loadingPercentage.textContent = `${percentage}%`;
+                    loadingProgressBar.style.width = `${percentage}%`;
+                    loadingText.textContent = `🎮 创建游戏场景... ${Math.round(progress * 100)}%`;
+                });
+                
+                // 完成
+                gameStartLoader.updateProgress(3, '✅ 准备完成！');
+                await new Promise(resolve => setTimeout(resolve, 300));
+                
+                // 隐藏加载界面
+                loadingElement.style.display = 'none';
                 
                 // 开始游戏
                 gameStartTime = Date.now() / 1000;
                 midiSpeed = originalBaseSpeed;
+                startMIDIGame();
                 
-                // 重置音符状态
-                midiNotes.forEach(note => {
-                    note.triggered = false;
-                    note.collided = false;
-                });
-                
-                // 创建音符方块
-                createAllNoteBlocks();
-                
-                // 开始游戏
-                gameRunning = true;
+                // 播放开始音效
+                audioEngine.playStartSound();
                 
             } catch (error) {
-                console.error('启动失败:', error);
-                alert('启动失败，请刷新页面重试');
+                console.error('游戏启动失败:', error);
+                loadingText.textContent = '❌ 启动失败，请刷新页面重试';
+                setTimeout(() => {
+                    loadingElement.style.display = 'none';
+                    newStartButton.style.display = 'block';
+                }, 2000);
             }
         };
         
-        startButton.addEventListener('click', startGame);
-        startButton.addEventListener('touchstart', startGame, { passive: false });
+        newStartButton.addEventListener('click', startGame);
+        newStartButton.addEventListener('touchstart', startGame, { passive: false });
     }
 }
 
