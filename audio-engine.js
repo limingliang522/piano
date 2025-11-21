@@ -188,9 +188,9 @@ class AudioEngine {
             this.hardClipper.oversample = '4x'; // 高质量过采样，减少失真
             
             console.log('initAudioChain: 创建主音量...');
-            // 5. 主音量（极简版，最大音量）
+            // 5. 主音量（极简版，极大音量）
             this.masterGain = ctx.createGain();
-            this.masterGain.gain.value = 8.0; // 最大音量，不经过任何处理
+            this.masterGain.gain.value = 12.0; // 极大音量，不经过任何处理
             
             console.log('initAudioChain: 连接音频节点（简化版）...');
             // 极简音频链：只保留主音量，移除所有可能导致失真的处理
@@ -671,7 +671,7 @@ class AudioEngine {
         const clampedVolume = Math.max(0, Math.min(1, volume));
         
         // 使用原始音量值乘以基础增益
-        const baseGain = 8.0; // 最大音量
+        const baseGain = 12.0; // 极大音量
         this.masterGain.gain.value = clampedVolume * baseGain;
         
         console.log(`🔊 主音量设置为: ${Math.round(clampedVolume * 100)}%`);
