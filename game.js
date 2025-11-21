@@ -824,8 +824,7 @@ function createAllNoteBlocks() {
     return createAllNoteBlocksWithProgress(null);
 }
 
-// 共享材质和几何体（避免重复创建，大幅提升性能）
-let sharedNoteMaterial = null;
+// 共享几何体和边缘材质（避免重复创建，提升性能）
 let sharedEdgeMaterial = null;
 let sharedGeometries = {
     normalBlock: null,
@@ -833,20 +832,6 @@ let sharedGeometries = {
     normalEdges: null,
     tallEdges: null
 };
-
-function getSharedNoteMaterial() {
-    if (!sharedNoteMaterial) {
-        sharedNoteMaterial = new THREE.MeshStandardMaterial({ 
-            color: 0x1a1a1a, // 深黑色
-            metalness: 0.9,
-            roughness: 0.2,
-            transparent: false, // 不透明
-            emissive: 0x0a0a0a,
-            emissiveIntensity: 0.2
-        });
-    }
-    return sharedNoteMaterial;
-}
 
 function getSharedEdgeMaterial() {
     if (!sharedEdgeMaterial) {
@@ -883,19 +868,30 @@ function getSharedGeometry(isTall) {
     }
 }
 
-// 创建音符方块（超级优化版 - 使用共享几何体和材质）
+// 创建音符方块（优化版 - 共享几何体，独立材质）
 function createNoteBlock(noteData) {
     // 使用预先分配的高度
     const isTall = noteData.isTall;
     const blockHeight = isTall ? 3.0 : 0.4;
     const blockY = isTall ? 1.55 : 0.25;
     
-    // 使用共享几何体和材质（大幅减少内存和创建时间）
+    // 使用共享几何体（减少内存）
     const geometries = getSharedGeometry(isTall);
-    const material = getSharedNoteMaterial();
+    
+    // 为每个方块创建独立的材质副本（避免共享材质导致的颜色问题）
+    const material = new THREE.MeshStandardMaterial({ 
+        color: 0x1a1a1a, // 深黑色
+        metalness: 0.9,
+        roughness: 0.2,
+        transparent: true, // 启用透明度，用于触发效果
+        opacity: 1.0, // 初始完全不透明
+        emissive: 0x0a0a0a,
+        emissiveIntensity: 0.2
+    });
+    
     const noteBlock = new THREE.Mesh(geometries.block, material);
     
-    // 添加发光边缘（使用共享几何体和材质）
+    // 添加发光边缘（使用共享材质，因为边缘不会改变颜色）
     const edgesMaterial = getSharedEdgeMaterial();
     const edges = new THREE.LineSegments(geometries.edges, edgesMaterial);
     noteBlock.add(edges);
