@@ -108,13 +108,13 @@ class AudioEngine {
             
             // 1.5 各频段 Makeup Gain（平衡增益，保持音色）
             this.makeupGainLow = ctx.createGain();
-            this.makeupGainLow.gain.value = 2.6; // 提升增益，砖墙限制器会保护
+            this.makeupGainLow.gain.value = 3.0; // 大幅提升，硬限幅器会保护
             
             this.makeupGainMid = ctx.createGain();
-            this.makeupGainMid.gain.value = 2.8; // 提升增益，砖墙限制器会保护
+            this.makeupGainMid.gain.value = 3.2; // 大幅提升，硬限幅器会保护
             
             this.makeupGainHigh = ctx.createGain();
-            this.makeupGainHigh.gain.value = 2.8; // 提升增益，砖墙限制器会保护
+            this.makeupGainHigh.gain.value = 3.2; // 大幅提升，硬限幅器会保护
             
             // 1.6 合并器
             this.multibandMerger = ctx.createGain();
@@ -181,10 +181,16 @@ class AudioEngine {
             this.limiter.attack.value = 0.0001; // 极快响应，不放过任何峰值
             this.limiter.release.value = 0.05; // 快速释放
             
+            console.log('initAudioChain: 创建硬限幅器...');
+            // 4.5. 硬限幅器（绝对防止破音的最后防线）
+            this.hardClipper = ctx.createWaveShaper();
+            this.hardClipper.curve = this.makeHardClipCurve();
+            this.hardClipper.oversample = 'none'; // 不过采样，保持性能
+            
             console.log('initAudioChain: 创建主音量...');
-            // 5. 主音量（砖墙限制器保护，可以大胆提升）
+            // 5. 主音量（硬限幅器保护，可以大胆提升）
             this.masterGain = ctx.createGain();
-            this.masterGain.gain.value = 4.5; // 大幅提升，限制器会绝对保护
+            this.masterGain.gain.value = 5.5; // 极大提升，硬限幅器会绝对保护
             
             console.log('initAudioChain: 连接音频节点...');
             // 连接音频处理链（多段压缩器 → EQ → 混响 → 限制器）
@@ -201,8 +207,9 @@ class AudioEngine {
             this.reverbDry.connect(this.limiter);
             this.reverbWet.connect(this.limiter);
             
-            // 直接连接到主音量，跳过软削波器（保持清晰度）
-            this.limiter.connect(this.masterGain);
+            // 限制器 → 硬限幅器 → 主音量（双重保护）
+            this.limiter.connect(this.hardClipper);
+            this.hardClipper.connect(this.masterGain);
             this.masterGain.connect(ctx.destination);
             
             console.log('initAudioChain: 设置 3D 音频监听器...');
@@ -260,18 +267,23 @@ class AudioEngine {
         this.convolver.buffer = impulse;
     }
     
-    // 创建软削波曲线（清晰版 - 减少失真）
-    makeSoftClipCurve() {
+    // 创建硬限幅曲线（绝对防止破音）
+    makeHardClipCurve() {
         const samples = 2048;
         const curve = new Float32Array(samples);
-        const drive = 1.05; // 降低驱动，减少失真
+        const threshold = 0.98; // 限制在 0.98，留一点余量
         
         for (let i = 0; i < samples; i++) {
             const x = (i / samples) * 2 - 1; // -1 到 1
-            const driven = x * drive;
             
-            // 使用 tanh 软削波（平滑过渡，不失真）
-            curve[i] = Math.tanh(driven) / Math.tanh(drive);
+            // 硬限幅：超过阈值就直接截断
+            if (x > threshold) {
+                curve[i] = threshold;
+            } else if (x < -threshold) {
+                curve[i] = -threshold;
+            } else {
+                curve[i] = x;
+            }
         }
         
         return curve;
@@ -478,8 +490,8 @@ class AudioEngine {
             // === 音量包络（ADSR - 完美还原MIDI力度）===
             const gainNode = ctx.createGain();
             // 使用更精确的velocity映射（MIDI标准：velocity 0-127）
-            const velocityFactor = Math.pow(velocity / 127, 1.2); // 降低指数，提升整体响度
-            const baseVolume = velocityFactor * 3.0; // 大幅提升，限制器会保护
+            const velocityFactor = Math.pow(velocity / 127, 1.1); // 进一步降低指数
+            const baseVolume = velocityFactor * 3.5; // 极大提升，硬限幅器会保护
             
             // 根据音高调整音量（模拟真实钢琴）
             let pitchFactor = 1.0;
@@ -679,7 +691,7 @@ class AudioEngine {
         const clampedVolume = Math.max(0, Math.min(1, volume));
         
         // 使用原始音量值乘以基础增益
-        const baseGain = 4.5; // 极高增益，砖墙限制器会绝对保护
+        const baseGain = 5.5; // 极高增益，硬限幅器会绝对保护
         this.masterGain.gain.value = clampedVolume * baseGain;
         
         console.log(`🔊 主音量设置为: ${Math.round(clampedVolume * 100)}%`);
