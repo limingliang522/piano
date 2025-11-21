@@ -108,13 +108,13 @@ class AudioEngine {
             
             // 1.5 各频段 Makeup Gain（平衡增益，保持音色）
             this.makeupGainLow = ctx.createGain();
-            this.makeupGainLow.gain.value = 2.2; // 提升增益，限制器会保护
+            this.makeupGainLow.gain.value = 2.6; // 提升增益，砖墙限制器会保护
             
             this.makeupGainMid = ctx.createGain();
-            this.makeupGainMid.gain.value = 2.4; // 提升增益，限制器会保护
+            this.makeupGainMid.gain.value = 2.8; // 提升增益，砖墙限制器会保护
             
             this.makeupGainHigh = ctx.createGain();
-            this.makeupGainHigh.gain.value = 2.4; // 提升增益，限制器会保护
+            this.makeupGainHigh.gain.value = 2.8; // 提升增益，砖墙限制器会保护
             
             // 1.6 合并器
             this.multibandMerger = ctx.createGain();
@@ -173,18 +173,18 @@ class AudioEngine {
             this.reverbWet.gain.value = 0.15; // 15% 湿声（轻微混响）
             
             console.log('initAudioChain: 创建限制器...');
-            // 4. 限制器（智能保护，最大化响度）
+            // 4. 砖墙限制器（绝对防止破音，最大化响度）
             this.limiter = ctx.createDynamicsCompressor();
-            this.limiter.threshold.value = -3.0; // 低阈值，提前介入
-            this.limiter.knee.value = 12; // 平滑拐点，透明压缩
-            this.limiter.ratio.value = 12; // 高压缩比，有效控制峰值
-            this.limiter.attack.value = 0.001; // 快速响应，捕捉峰值
-            this.limiter.release.value = 0.08; // 快速释放，保持自然
+            this.limiter.threshold.value = -0.3; // 极高阈值，接近0dB
+            this.limiter.knee.value = 0.5; // 极小拐点，快速响应
+            this.limiter.ratio.value = 20; // 极高压缩比，砖墙限制
+            this.limiter.attack.value = 0.0001; // 极快响应，不放过任何峰值
+            this.limiter.release.value = 0.05; // 快速释放
             
             console.log('initAudioChain: 创建主音量...');
-            // 5. 主音量（限制器会防止破音，可以放心提升）
+            // 5. 主音量（砖墙限制器保护，可以大胆提升）
             this.masterGain = ctx.createGain();
-            this.masterGain.gain.value = 3.8; // 提升音量，限制器会保护
+            this.masterGain.gain.value = 4.5; // 大幅提升，限制器会绝对保护
             
             console.log('initAudioChain: 连接音频节点...');
             // 连接音频处理链（多段压缩器 → EQ → 混响 → 限制器）
@@ -478,8 +478,8 @@ class AudioEngine {
             // === 音量包络（ADSR - 完美还原MIDI力度）===
             const gainNode = ctx.createGain();
             // 使用更精确的velocity映射（MIDI标准：velocity 0-127）
-            const velocityFactor = Math.pow(velocity / 127, 1.3);
-            const baseVolume = velocityFactor * 2.5; // 提升音量，限制器会保护
+            const velocityFactor = Math.pow(velocity / 127, 1.2); // 降低指数，提升整体响度
+            const baseVolume = velocityFactor * 3.0; // 大幅提升，限制器会保护
             
             // 根据音高调整音量（模拟真实钢琴）
             let pitchFactor = 1.0;
@@ -679,7 +679,7 @@ class AudioEngine {
         const clampedVolume = Math.max(0, Math.min(1, volume));
         
         // 使用原始音量值乘以基础增益
-        const baseGain = 3.8; // 高增益，限制器会防止破音
+        const baseGain = 4.5; // 极高增益，砖墙限制器会绝对保护
         this.masterGain.gain.value = clampedVolume * baseGain;
         
         console.log(`🔊 主音量设置为: ${Math.round(clampedVolume * 100)}%`);
