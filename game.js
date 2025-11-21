@@ -68,12 +68,25 @@ const loadingManager = {
     total: 0,
     loaded: 0,
     percentage: 0,
+    tips: [
+        '💡 点击屏幕跳跃，左右滑动切换轨道',
+        '🎵 每首歌曲都有独特的节奏挑战',
+        '⭐ 完成一轮可以获得星星并提升速度',
+        '🎹 使用真实钢琴音色，享受极致音质',
+        '🎮 支持键盘操作：方向键移动，空格跳跃',
+        '🌟 超高黑块需要跳跃躲避',
+        '🎯 准确触发音符可以获得更高分数',
+        '🔊 可以在设置中调整音量'
+    ],
+    currentTipIndex: 0,
     
     init(totalItems) {
         this.total = totalItems;
         this.loaded = 0;
         this.percentage = 0;
+        this.currentTipIndex = 0;
         this.updateUI();
+        this.startTipRotation();
     },
     
     increment(message = '') {
@@ -94,14 +107,38 @@ const loadingManager = {
         }
     },
     
+    startTipRotation() {
+        // 每3秒切换一个提示
+        this.tipInterval = setInterval(() => {
+            if (this.percentage >= 100) {
+                clearInterval(this.tipInterval);
+                return;
+            }
+            this.currentTipIndex = (this.currentTipIndex + 1) % this.tips.length;
+            if (loadingTips) {
+                loadingTips.style.opacity = '0';
+                setTimeout(() => {
+                    loadingTips.textContent = this.tips[this.currentTipIndex];
+                    loadingTips.style.opacity = '1';
+                }, 300);
+            }
+        }, 3000);
+    },
+    
     complete() {
         this.percentage = 100;
-        this.updateUI('加载完成！');
+        this.updateUI('✅ 加载完成！点击播放按钮开始游戏');
+        if (this.tipInterval) {
+            clearInterval(this.tipInterval);
+        }
+        if (loadingTips) {
+            loadingTips.textContent = '🎮 准备好了吗？点击播放按钮开始你的音乐之旅！';
+        }
         setTimeout(() => {
             if (loadingElement) {
                 loadingElement.style.display = 'none';
             }
-        }, 500);
+        }, 1500);
     }
 };
 
@@ -1845,8 +1882,8 @@ async function loadAndStartNewMidi() {
     // 等待一帧
     await new Promise(resolve => requestAnimationFrame(resolve));
     
-    // 加载新的MIDI文件
-    console.log('📥 加载新 MIDI 文件...');
+    // 从缓存加载新的MIDI文件（几乎瞬间完成）
+    console.log('📥 从缓存加载 MIDI 文件...');
     const success = await loadMidiFile(currentMidiIndex);
     
     if (success) {
@@ -2342,6 +2379,9 @@ window.forceCleanup = function() {
     });
 };
 
-// 启动游戏
+// 启动游戏（先初始化场景，再预加载资源）
 init();
 animate(performance.now());
+
+// 立即开始预加载所有资源
+preloadAllResources();
