@@ -207,10 +207,10 @@ class AudioEngine {
             this.reverbDry.connect(this.limiter);
             this.reverbWet.connect(this.limiter);
             
-            // 限制器 → 硬限幅器 → 主音量（双重保护）
-            this.limiter.connect(this.hardClipper);
-            this.hardClipper.connect(this.masterGain);
-            this.masterGain.connect(ctx.destination);
+            // 限制器 → 主音量 → 硬限幅器（最后防线）
+            this.limiter.connect(this.masterGain);
+            this.masterGain.connect(this.hardClipper);
+            this.hardClipper.connect(ctx.destination);
             
             console.log('initAudioChain: 设置 3D 音频监听器...');
             // 设置 3D 音频监听器位置
