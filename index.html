@@ -198,7 +198,7 @@
             background: rgba(255, 255, 255, 0.1);
             border-radius: 8px;
             color: rgba(255, 255, 255, 0.6);
-            font-size: 13px;
+            font-size: 20px;
             font-weight: 600;
             text-align: center;
             cursor: pointer;
@@ -260,13 +260,7 @@
         }
 
         .setting-icon {
-            font-size: 20px;
-        }
-
-        .setting-name {
-            color: #fff;
-            font-size: 14px;
-            font-weight: 600;
+            font-size: 24px;
         }
 
         .setting-value {
@@ -293,7 +287,6 @@
 
         .volume-slider::-webkit-slider-thumb {
             -webkit-appearance: none;
-            appearance: none;
             width: 18px;
             height: 18px;
             border-radius: 50%;
@@ -457,7 +450,7 @@
 
         .close-hint {
             color: rgba(255, 255, 255, 0.6);
-            font-size: 9px;
+            font-size: 14px;
             text-align: center;
             margin-top: auto;
             padding-top: 2px;
@@ -466,12 +459,12 @@
 
         /* 随机选择按钮 */
         .random-midi-button {
-            padding: 10px 24px;
+            padding: 10px 20px;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             border: 1px solid rgba(255, 255, 255, 0.3);
             border-radius: 12px;
             color: #fff;
-            font-size: 14px;
+            font-size: 24px;
             font-weight: 600;
             cursor: pointer;
             transition: all 0.3s;
@@ -828,15 +821,15 @@
             <div class="island-expanded-content">
                 <!-- 标签页切换 -->
                 <div class="island-tabs">
-                    <div class="island-tab active" data-tab="music">🎵 音乐</div>
-                    <div class="island-tab" data-tab="settings">⚙️ 设置</div>
+                    <div class="island-tab active" data-tab="music">🎵</div>
+                    <div class="island-tab" data-tab="settings">⚙️</div>
                 </div>
 
                 <!-- 音乐选择页面 -->
                 <div class="island-tab-content active" id="musicTab">
                     <!-- 搜索框 -->
                     <div class="search-container">
-                        <input type="text" id="musicSearch" class="search-input" placeholder="🔍 搜索歌曲...">
+                        <input type="text" id="musicSearch" class="search-input" placeholder="🔍">
                     </div>
                     
                     <div class="midi-list-container">
@@ -848,11 +841,11 @@
                     <!-- 随机选择按钮 -->
                     <div style="display: flex; justify-content: center; margin-top: 10px;">
                         <button id="randomMidiBtn" class="random-midi-button">
-                            🎲 随机选择
+                            🎲
                         </button>
                     </div>
                     
-                    <div class="close-hint">点击曲目切换 · 点击空白处关闭</div>
+                    <div class="close-hint">👆 · ✕</div>
                 </div>
 
                 <!-- 设置页面 -->
@@ -862,7 +855,6 @@
                         <div class="setting-item">
                             <div class="setting-label">
                                 <span class="setting-icon">🔊</span>
-                                <span class="setting-name">音量</span>
                             </div>
                             <div class="volume-control">
                                 <input type="range" id="volumeSlider" min="0" max="100" value="100" class="volume-slider">
@@ -873,21 +865,19 @@
                         <div class="setting-item">
                             <div class="setting-label">
                                 <span class="setting-icon">🎨</span>
-                                <span class="setting-name">画质</span>
                             </div>
-                            <div class="setting-value">固定高画质</div>
+                            <div class="setting-value">✓</div>
                         </div>
                         
                         <div class="setting-item">
                             <div class="setting-label">
                                 <span class="setting-icon">📊</span>
-                                <span class="setting-name">帧率</span>
                             </div>
-                            <div class="setting-value">自动适配</div>
+                            <div class="setting-value">AUTO</div>
                         </div>
                     </div>
                     
-                    <div class="close-hint">点击空白处关闭</div>
+                    <div class="close-hint">✕</div>
                 </div>
             </div>
         </div>
