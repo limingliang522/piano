@@ -469,41 +469,88 @@ async function preloadAllResources() {
                 startButton.removeEventListener('touchstart', startGame);
                 startButton.style.display = 'none';
                 
-                // 显示简短的准备提示
+                // 显示加载界面
                 loadingElement.style.display = 'flex';
-                loadingText.textContent = '准备中...';
-                loadingPercentage.textContent = '';
                 
-                // 异步处理音符数据（不阻塞）
-                await new Promise(resolve => {
-                    requestAnimationFrame(() => {
-                        performanceMonitor.start('处理MIDI音符数据');
-                        
-                        // 处理第一个MIDI文件的音符数据
-                        if (preloadedMidiData[currentMidiIndex]) {
-                            processMIDINotes(preloadedMidiData[currentMidiIndex].notes);
-                            currentMidiName = preloadedMidiData[currentMidiIndex].name;
-                            updateIslandTitle(currentMidiName);
-                        }
-                        
-                        performanceMonitor.end('处理MIDI音符数据');
-                        resolve();
-                    });
-                });
+                // 初始化游戏启动加载管理器
+                const gameStartLoader = {
+                    total: 3, // 总共3个步骤
+                    current: 0,
+                    
+                    updateProgress(step, message) {
+                        this.current = step;
+                        const percentage = Math.round((this.current / this.total) * 100);
+                        loadingPercentage.textContent = `${percentage}%`;
+                        loadingProgressBar.style.width = `${percentage}%`;
+                        loadingText.textContent = message;
+                    }
+                };
                 
-                // 隐藏加载提示
-                loadingElement.style.display = 'none';
-                
-                // 立即开始游戏
-                startMIDIGame();
-                
-                // 异步启动音频
-                audioEngine.start().then(() => {
+                try {
+                    // 步骤1：启动音频引擎
+                    gameStartLoader.updateProgress(0, '🔊 启动音频引擎...');
+                    await audioEngine.start();
                     console.log('✅ 音频上下文已启动');
+                    
+                    // 播放点击音效（音频上下文启动后）
+                    if (audioEngine && audioEngine.playClickSound) {
+                        audioEngine.playClickSound();
+                    }
+                    
+                    // 等待一小段时间让用户看到进度
+                    await new Promise(resolve => setTimeout(resolve, 200));
+                    
+                    // 步骤2：处理音符数据
+                    gameStartLoader.updateProgress(1, '🎵 处理音符数据...');
+                    await new Promise(resolve => {
+                        requestAnimationFrame(() => {
+                            performanceMonitor.start('处理MIDI音符数据');
+                            
+                            if (preloadedMidiData[currentMidiIndex]) {
+                                processMIDINotes(preloadedMidiData[currentMidiIndex].notes);
+                                currentMidiName = preloadedMidiData[currentMidiIndex].name;
+                                updateIslandTitle(currentMidiName);
+                            }
+                            
+                            performanceMonitor.end('处理MIDI音符数据');
+                            resolve();
+                        });
+                    });
+                    
+                    await new Promise(resolve => setTimeout(resolve, 200));
+                    
+                    // 步骤3：创建游戏场景
+                    gameStartLoader.updateProgress(2, '🎮 创建游戏场景...');
+                    
+                    // 预先创建所有方块（带进度）
+                    await createAllNoteBlocksWithProgress((progress) => {
+                        const percentage = Math.round(66 + (progress * 34)); // 66%-100%
+                        loadingPercentage.textContent = `${percentage}%`;
+                        loadingProgressBar.style.width = `${percentage}%`;
+                        loadingText.textContent = `🎮 创建游戏场景... ${Math.round(progress * 100)}%`;
+                    });
+                    
+                    // 完成
+                    gameStartLoader.updateProgress(3, '✅ 准备完成！');
+                    await new Promise(resolve => setTimeout(resolve, 300));
+                    
+                    // 隐藏加载界面
+                    loadingElement.style.display = 'none';
+                    
+                    // 开始游戏
+                    startMIDIGame();
+                    
+                    // 播放开始音效
                     audioEngine.playStartSound();
-                }).catch(error => {
-                    console.warn('音频启动失败（不影响游戏）:', error);
-                });
+                    
+                } catch (error) {
+                    console.error('游戏启动失败:', error);
+                    loadingText.textContent = '❌ 启动失败，请刷新页面重试';
+                    setTimeout(() => {
+                        loadingElement.style.display = 'none';
+                        startButton.style.display = 'block';
+                    }, 2000);
+                }
             };
             
             startButton.addEventListener('click', startGame);
@@ -698,7 +745,7 @@ function processMIDINotes(notes) {
 
 }
 
-// 开始MIDI游戏（优化版 - 立即启动）
+// 开始MIDI游戏（优化版 - 方块已创建，直接启动）
 function startMIDIGame() {
     loadingElement.style.display = 'none';
     
@@ -706,14 +753,11 @@ function startMIDIGame() {
     dynamicIsland.classList.remove('expanded');
     isIslandExpanded = false;
     
-    // 立即启动游戏（不等待方块创建完成）
+    // 立即启动游戏（方块已经创建完成）
     gameRunning = true;
     gameStartTime = Date.now() / 1000;
     
-    // 异步创建音符方块（不阻塞游戏启动）
-    requestAnimationFrame(() => {
-        createAllNoteBlocks();
-    });
+    console.log('🎮 游戏启动！方块数量:', noteObjects.length);
 }
 
 // 开始普通游戏（无MIDI）
@@ -722,8 +766,8 @@ function startNormalGame() {
     gameRunning = true;
 }
 
-// 创建所有音符方块（超级优化版 - 智能分批，完全无卡顿）
-function createAllNoteBlocks() {
+// 创建所有音符方块（带进度回调的版本）
+async function createAllNoteBlocksWithProgress(progressCallback) {
     // 防止重复创建
     if (blocksCreated && noteObjects.length > 0) {
         console.warn(`⚠️ 阻止重复创建！当前已有 ${noteObjects.length} 个方块`);
@@ -736,45 +780,48 @@ function createAllNoteBlocks() {
         cleanupObjects(noteObjects);
     }
     
-    // 智能分批创建方块，根据总数动态调整批次大小
-    console.log(`✅ 开始智能分批创建 ${midiNotes.length} 个音符方块`);
+    console.log(`✅ 开始创建 ${midiNotes.length} 个音符方块（带进度）`);
     
-    // 动态批次大小：总数越多，批次越小，避免单帧卡顿
-    const batchSize = midiNotes.length > 500 ? 30 : 50;
+    const batchSize = 50;
     let currentIndex = 0;
-    let startTime = performance.now();
+    const startTime = performance.now();
     
-    function createBatch() {
-        const batchStartTime = performance.now();
-        const endIndex = Math.min(currentIndex + batchSize, midiNotes.length);
-        
-        // 创建当前批次
-        for (let i = currentIndex; i < endIndex; i++) {
-            createNoteBlock(midiNotes[i]);
-        }
-        
-        currentIndex = endIndex;
-        const batchTime = performance.now() - batchStartTime;
-        
-        if (currentIndex < midiNotes.length) {
-            // 如果这批创建时间过长（>16ms，即低于60fps），下次减少批次大小
-            if (batchTime > 16) {
-                console.warn(`批次创建时间过长: ${batchTime.toFixed(2)}ms，已创建 ${currentIndex}/${midiNotes.length}`);
+    return new Promise((resolve) => {
+        function createBatch() {
+            const endIndex = Math.min(currentIndex + batchSize, midiNotes.length);
+            
+            // 创建当前批次
+            for (let i = currentIndex; i < endIndex; i++) {
+                createNoteBlock(midiNotes[i]);
             }
             
-            // 继续下一批（使用 requestAnimationFrame 避免阻塞）
-            requestAnimationFrame(createBatch);
-        } else {
-            blocksCreated = true;
-            const totalTime = performance.now() - startTime;
-            console.log(`✅ 创建完成！实际创建了 ${noteObjects.length} 个方块，耗时 ${totalTime.toFixed(2)}ms`);
+            currentIndex = endIndex;
+            
+            // 更新进度
+            const progress = currentIndex / midiNotes.length;
+            if (progressCallback) {
+                progressCallback(progress);
+            }
+            
+            if (currentIndex < midiNotes.length) {
+                // 继续下一批
+                requestAnimationFrame(createBatch);
+            } else {
+                blocksCreated = true;
+                const totalTime = performance.now() - startTime;
+                console.log(`✅ 创建完成！实际创建了 ${noteObjects.length} 个方块，耗时 ${totalTime.toFixed(2)}ms`);
+                resolve();
+            }
         }
-    }
-    
-    // 延迟一帧开始，让游戏先渲染一帧
-    requestAnimationFrame(() => {
-        requestAnimationFrame(createBatch);
+        
+        // 立即开始
+        createBatch();
     });
+}
+
+// 创建所有音符方块（无进度回调的版本，用于其他地方）
+function createAllNoteBlocks() {
+    return createAllNoteBlocksWithProgress(null);
 }
 
 // 共享材质和几何体（避免重复创建，大幅提升性能）
