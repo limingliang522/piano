@@ -331,12 +331,13 @@
             overflow-y: hidden;
             -webkit-overflow-scrolling: touch;
             scrollbar-width: none;
-            padding: 5px;
+            padding: 8px 5px;
             background: rgba(255, 255, 255, 0.03);
             border-radius: 8px;
             min-height: 0;
             max-height: 100%;
             margin: 0;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
         }
 
         .midi-list-container::-webkit-scrollbar {
@@ -356,7 +357,9 @@
         #musicTab {
             padding: 5px 6px;
             overflow: hidden; /* 防止溢出 */
-            gap: 5px;
+            gap: 8px;
+            display: flex;
+            flex-direction: column;
         }
 
         /* 搜索框容器 */
@@ -459,12 +462,12 @@
 
         /* 随机选择按钮 */
         .random-midi-button {
-            padding: 10px 20px;
+            padding: 6px 14px;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             border: 1px solid rgba(255, 255, 255, 0.3);
-            border-radius: 12px;
+            border-radius: 10px;
             color: #fff;
-            font-size: 24px;
+            font-size: 18px;
             font-weight: 600;
             cursor: pointer;
             transition: all 0.3s;
@@ -482,10 +485,12 @@
             box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
         }
         
-        .midi-list-container {
+        .random-button-container {
+            margin-top: auto;
+            padding-top: 8px;
             border-top: 1px solid rgba(255, 255, 255, 0.1);
-            padding-top: 10px;
         }
+
 
         .canvas-container {
             position: fixed;
@@ -824,13 +829,14 @@
                     </div>
                     
                     <!-- 随机选择按钮 -->
-                    <div style="display: flex; justify-content: center; margin-top: 10px;">
-                        <button id="randomMidiBtn" class="random-midi-button">
-                            🎲
-                        </button>
+                    <div class="random-button-container">
+                        <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px;">
+                            <button id="randomMidiBtn" class="random-midi-button">
+                                🎲
+                            </button>
+                            <div class="close-hint" style="margin: 0;">👆 · ✕</div>
+                        </div>
                     </div>
-                    
-                    <div class="close-hint">👆 · ✕</div>
                 </div>
 
                 <!-- 设置页面 -->
