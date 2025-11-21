@@ -2115,6 +2115,7 @@ setTimeout(() => {
     initVolumeControl();
     initMusicSearch();
     initRandomMidiButton();
+    initCloseButtons();
 }, 1000);
 
 // ========== 灵动岛功能 ==========
@@ -2283,6 +2284,26 @@ function initRandomMidiButton() {
         
         console.log(`🎲 随机选择: ${midiFiles[randomIndex]}`);
         selectMidi(randomIndex);
+    });
+}
+
+// 初始化关闭按钮
+function initCloseButtons() {
+    const closeButtons = document.querySelectorAll('.close-button');
+    closeButtons.forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation(); // 防止事件冒泡
+            
+            // 播放点击音效
+            if (audioEngine && audioEngine.playClickSound) {
+                audioEngine.playClickSound();
+            }
+            
+            // 收起灵动岛
+            if (isIslandExpanded) {
+                toggleIsland();
+            }
+        });
     });
 }
 

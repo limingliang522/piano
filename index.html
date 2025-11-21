@@ -462,6 +462,23 @@
             margin-bottom: 0;
         }
 
+        .close-button {
+            cursor: pointer;
+            transition: all 0.2s;
+            padding: 5px 10px;
+            border-radius: 8px;
+        }
+
+        .close-button:hover {
+            color: rgba(255, 255, 255, 1);
+            background: rgba(255, 255, 255, 0.1);
+            transform: scale(1.1);
+        }
+
+        .close-button:active {
+            transform: scale(0.95);
+        }
+
         /* 随机选择按钮 */
         .random-midi-button {
             padding: 6px 14px;
@@ -814,7 +831,7 @@
                     <div class="wave-bar"></div>
                     <div class="wave-bar"></div>
                 </div>
-                <div class="island-title" id="islandTitle">加载中...</div>
+                <div class="island-title" id="islandTitle"></div>
             </div>
             <div class="island-expanded-content">
                 <!-- 标签页切换 -->
@@ -842,7 +859,7 @@
                             <button id="randomMidiBtn" class="random-midi-button">
                                 🎲
                             </button>
-                            <div class="close-hint" style="margin: 0;">✕</div>
+                            <div class="close-hint close-button" style="margin: 0;">✕</div>
                         </div>
                     </div>
                 </div>
@@ -876,7 +893,7 @@
                         </div>
                     </div>
                     
-                    <div class="close-hint">✕</div>
+                    <div class="close-hint close-button">✕</div>
                 </div>
             </div>
         </div>
