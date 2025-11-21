@@ -1088,7 +1088,10 @@ function updateNoteBlocks() {
                     // 碰撞了！
                     noteData.collided = true;
                     collisions++;
-                    audioEngine.playCollision();
+                    // 震动反馈（如果设备支持）
+                    if (navigator.vibrate) {
+                        navigator.vibrate(50); // 震动50毫秒
+                    }
                     
                     // 记录碰撞的黑块
                     lastCollisionBlock = noteBlock;

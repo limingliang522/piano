@@ -697,7 +697,7 @@ class AudioEngine {
         }
     }
     
-    // 播放开始游戏音效（使用钢琴音色的上升音阶）
+    // 播放开始游戏音效（单个音符）
     playStartSound() {
         if (!this.isReady || this.samples.size === 0) {
             console.warn('钢琴采样尚未加载，无法播放开始音效');
@@ -705,14 +705,8 @@ class AudioEngine {
         }
         
         try {
-            // 播放上升音阶（C5-E5-G5，大三和弦）
-            const chordNotes = [72, 76, 79]; // C5, E5, G5
-            
-            chordNotes.forEach((note, index) => {
-                setTimeout(() => {
-                    this.playNote(note, 0.4, 90, 2);
-                }, index * 80); // 每个音符间隔80ms
-            });
+            // 播放单个清脆的高音（C6）
+            this.playNote(72, 0.5, 100, 2); // C5，中等时长，最大力度
             
         } catch (error) {
             console.warn('播放开始音效失败:', error);
