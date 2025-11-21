@@ -82,29 +82,29 @@ class AudioEngine {
             this.highpassFilter.frequency.value = 5000;
             this.highpassFilter.Q.value = 0.707;
             
-            // 1.2 低频压缩器（只压缩极低音，防止破音）
+            // 1.2 低频压缩器（极轻微压缩，保持原音）
             this.compressorLow = ctx.createDynamicsCompressor();
-            this.compressorLow.threshold.value = -20; // 只处理很响的低音
-            this.compressorLow.knee.value = 30; // 柔和拐点
-            this.compressorLow.ratio.value = 8; // 高压缩比，控制低音峰值
-            this.compressorLow.attack.value = 0.01; // 较慢，保留低音冲击感
-            this.compressorLow.release.value = 0.2; // 较慢释放
+            this.compressorLow.threshold.value = -30; // 高阈值，很少触发
+            this.compressorLow.knee.value = 40; // 极柔和拐点
+            this.compressorLow.ratio.value = 3; // 温和压缩比
+            this.compressorLow.attack.value = 0.02; // 慢响应，保留瞬态
+            this.compressorLow.release.value = 0.25; // 慢释放
             
-            // 1.3 中频压缩器（透明压缩，几乎不改变音色）
+            // 1.3 中频压缩器（几乎不压缩，保持清晰）
             this.compressorMid = ctx.createDynamicsCompressor();
-            this.compressorMid.threshold.value = -24;
-            this.compressorMid.knee.value = 30;
-            this.compressorMid.ratio.value = 2.5; // 温和压缩
-            this.compressorMid.attack.value = 0.005;
-            this.compressorMid.release.value = 0.15;
+            this.compressorMid.threshold.value = -30;
+            this.compressorMid.knee.value = 40;
+            this.compressorMid.ratio.value = 2; // 极温和压缩
+            this.compressorMid.attack.value = 0.01;
+            this.compressorMid.release.value = 0.2;
             
-            // 1.4 高频压缩器（几乎不压缩，只防止尖锐）
+            // 1.4 高频压缩器（几乎不工作，保持明亮）
             this.compressorHigh = ctx.createDynamicsCompressor();
-            this.compressorHigh.threshold.value = -10; // 高阈值，很少触发
-            this.compressorHigh.knee.value = 20;
-            this.compressorHigh.ratio.value = 2; // 轻微压缩
-            this.compressorHigh.attack.value = 0.003;
-            this.compressorHigh.release.value = 0.1;
+            this.compressorHigh.threshold.value = -20; // 极高阈值
+            this.compressorHigh.knee.value = 30;
+            this.compressorHigh.ratio.value = 1.5; // 极轻微压缩
+            this.compressorHigh.attack.value = 0.005;
+            this.compressorHigh.release.value = 0.15;
             
             // 1.5 各频段 Makeup Gain（平衡增益，保持音色）
             this.makeupGainLow = ctx.createGain();
@@ -173,19 +173,13 @@ class AudioEngine {
             this.reverbWet.gain.value = 0.15; // 15% 湿声（轻微混响）
             
             console.log('initAudioChain: 创建限制器...');
-            // 4. 限制器（防止削波 - 激进保护，最大化响度）
+            // 4. 限制器（温和保护，保持音质）
             this.limiter = ctx.createDynamicsCompressor();
-            this.limiter.threshold.value = -0.5; // 更高阈值，允许更大音量
-            this.limiter.knee.value = 0; // 硬拐点，砖墙限制
-            this.limiter.ratio.value = 20; // 极高压缩比，绝对防止削波
-            this.limiter.attack.value = 0.001; // 极快响应
-            this.limiter.release.value = 0.05; // 快速释放
-            
-            console.log('initAudioChain: 创建软削波器（清晰版）...');
-            // 4.5. 软削波器（轻微处理，保持清晰度）
-            this.softClipper = ctx.createWaveShaper();
-            this.softClipper.curve = this.makeSoftClipCurve();
-            this.softClipper.oversample = '2x'; // 降低过采样，减少CPU负担和失真
+            this.limiter.threshold.value = -1.0; // 温和阈值
+            this.limiter.knee.value = 6; // 柔和拐点，减少失真
+            this.limiter.ratio.value = 4; // 温和压缩比，保持音质
+            this.limiter.attack.value = 0.003; // 稍慢响应，保留瞬态
+            this.limiter.release.value = 0.1; // 较慢释放，更自然
             
             console.log('initAudioChain: 创建主音量...');
             // 5. 主音量（提升响度，限制器会防止失真）
@@ -207,8 +201,8 @@ class AudioEngine {
             this.reverbDry.connect(this.limiter);
             this.reverbWet.connect(this.limiter);
             
-            this.limiter.connect(this.softClipper);
-            this.softClipper.connect(this.masterGain);
+            // 直接连接到主音量，跳过软削波器（保持清晰度）
+            this.limiter.connect(this.masterGain);
             this.masterGain.connect(ctx.destination);
             
             console.log('initAudioChain: 设置 3D 音频监听器...');
