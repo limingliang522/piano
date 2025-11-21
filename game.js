@@ -57,7 +57,53 @@ const accuracyElement = document.getElementById('accuracy');
 const gameOverElement = document.getElementById('gameOver');
 const restartButton = document.getElementById('restart');
 const loadingElement = document.getElementById('loading');
+const loadingPercentage = document.getElementById('loadingPercentage');
+const loadingProgressBar = document.getElementById('loadingProgressBar');
+const loadingText = document.getElementById('loadingText');
+const loadingTips = document.getElementById('loadingTips');
 const instructionsElement = document.getElementById('instructions');
+
+// 加载进度管理
+const loadingManager = {
+    total: 0,
+    loaded: 0,
+    percentage: 0,
+    
+    init(totalItems) {
+        this.total = totalItems;
+        this.loaded = 0;
+        this.percentage = 0;
+        this.updateUI();
+    },
+    
+    increment(message = '') {
+        this.loaded++;
+        this.percentage = Math.round((this.loaded / this.total) * 100);
+        this.updateUI(message);
+    },
+    
+    updateUI(message = '') {
+        if (loadingPercentage) {
+            loadingPercentage.textContent = `${this.percentage}%`;
+        }
+        if (loadingProgressBar) {
+            loadingProgressBar.style.width = `${this.percentage}%`;
+        }
+        if (message && loadingText) {
+            loadingText.textContent = message;
+        }
+    },
+    
+    complete() {
+        this.percentage = 100;
+        this.updateUI('加载完成！');
+        setTimeout(() => {
+            if (loadingElement) {
+                loadingElement.style.display = 'none';
+            }
+        }, 500);
+    }
+};
 
 // 灵动岛元素
 const dynamicIsland = document.getElementById('dynamicIsland');
@@ -66,13 +112,17 @@ const midiList = document.getElementById('midiList');
 let isIslandExpanded = true; // 初始状态为展开
 let wasGameRunningBeforePause = false; // 记录暂停前的游戏状态
 
-// 初始展开灵动岛
-setTimeout(() => {
-    dynamicIsland.classList.add('expanded');
-    if (midiFiles.length > 0) {
-        initMidiList();
-    }
-}, 500);
+// 资源加载完成后展开灵动岛
+let resourcesLoaded = false;
+function onResourcesLoaded() {
+    resourcesLoaded = true;
+    setTimeout(() => {
+        dynamicIsland.classList.add('expanded');
+        if (midiFiles.length > 0) {
+            initMidiList();
+        }
+    }, 500);
+}
 
 
 // 游戏配置
@@ -192,10 +242,7 @@ function init() {
     // 窗口大小调整
     window.addEventListener('resize', onWindowResize);
     
-    // 初始化MIDI系统
-    initMIDISystem();
-    
-    loadingElement.style.display = 'none';
+    // 不在这里初始化MIDI，改为在预加载中初始化
 }
 
 // 获取midi文件夹中的所有MIDI文件
@@ -212,7 +259,7 @@ async function getMidiFiles() {
     ];
 }
 
-// 加载指定的MIDI文件
+// 加载指定的MIDI文件（从缓存或网络）
 async function loadMidiFile(index) {
     try {
         console.log(`📥 开始加载 MIDI 文件: ${midiFiles[index]}`);
@@ -224,11 +271,25 @@ async function loadMidiFile(index) {
             blocksCreated = false;
         }
         
-        loadingElement.style.display = 'block';
-        loadingElement.textContent = '加载MIDI文件...';
+        let notes;
         
-        const fileName = midiFiles[index];
-        const notes = await midiParser.loadMIDI(fileName + '?v=1');
+        // 优先从缓存加载
+        if (preloadedMidiData[index]) {
+            console.log('✅ 从缓存加载MIDI');
+            notes = preloadedMidiData[index].notes;
+            currentMidiName = preloadedMidiData[index].name;
+        } else {
+            // 缓存未命中，从网络加载
+            console.log('⚠️ 缓存未命中，从网络加载');
+            loadingElement.style.display = 'flex';
+            loadingText.textContent = '加载MIDI文件...';
+            
+            const fileName = midiFiles[index];
+            notes = await midiParser.loadMIDI(fileName + '?v=1');
+            currentMidiName = fileName.split('/').pop().replace('.mid', '');
+            
+            loadingElement.style.display = 'none';
+        }
         
         if (notes.length === 0) {
             console.error('MIDI文件中没有音符');
@@ -237,12 +298,8 @@ async function loadMidiFile(index) {
         
         // 处理音符数据
         processMIDINotes(notes);
-        
-        // 显示文件名（去掉路径和扩展名）
-        currentMidiName = fileName.split('/').pop().replace('.mid', '');
         updateIslandTitle(currentMidiName);
         
-        loadingElement.style.display = 'none';
         return true;
     } catch (error) {
         console.error('加载MIDI文件失败:', error);
@@ -251,9 +308,13 @@ async function loadMidiFile(index) {
     }
 }
 
-// 初始化MIDI系统
-async function initMIDISystem() {
+// 预加载所有资源（进入网站时立即执行）
+async function preloadAllResources() {
     try {
+        console.log('🚀 开始预加载所有资源...');
+        loadingElement.style.display = 'flex';
+        
+        // 初始化MIDI解析器和音频引擎
         midiParser = new MIDIParser();
         audioEngine = new AudioEngine();
         
@@ -262,51 +323,54 @@ async function initMIDISystem() {
         
         if (midiFiles.length === 0) {
             console.error('没有找到MIDI文件');
+            loadingManager.complete();
             startNormalGame();
             return;
         }
         
-        // 随机选择一个MIDI文件
+        // 计算总加载项：30个音色 + 所有MIDI文件
+        const totalItems = 30 + midiFiles.length;
+        loadingManager.init(totalItems);
+        
+        // 随机选择一个MIDI文件作为默认
         currentMidiIndex = Math.floor(Math.random() * midiFiles.length);
         
-        loadingElement.style.display = 'block';
-        loadingElement.textContent = '加载 MIDI 文件...';
-        
-        // 并行加载MIDI文件和钢琴音色
-        console.log('🚀 开始并行加载 MIDI 文件和钢琴音色...');
-        
-        let midiLoaded = false;
-        let samplesLoaded = 0;
-        let totalSamples = 30;
-        
-        const updateLoadingText = () => {
-            if (!midiLoaded) {
-                loadingElement.textContent = `加载 MIDI 文件... (音色: ${samplesLoaded}/${totalSamples})`;
-            } else {
-                loadingElement.textContent = `加载钢琴音色 ${samplesLoaded}/${totalSamples}`;
-            }
-        };
-        
-        const [midiSuccess] = await Promise.all([
-            // 加载MIDI文件
-            loadMidiFile(currentMidiIndex).then(success => {
-                console.log('✅ MIDI 文件加载完成');
-                midiLoaded = true;
-                updateLoadingText();
-                return success;
-            }),
+        // 并行加载所有资源
+        await Promise.all([
+            // 加载所有MIDI文件
+            (async () => {
+                loadingManager.updateUI('正在加载音乐文件...');
+                for (let i = 0; i < midiFiles.length; i++) {
+                    try {
+                        const fileName = midiFiles[i];
+                        const notes = await midiParser.loadMIDI(fileName + '?v=1');
+                        
+                        // 缓存MIDI数据
+                        preloadedMidiData[i] = {
+                            fileName: fileName,
+                            notes: notes,
+                            name: fileName.split('/').pop().replace('.mid', '')
+                        };
+                        
+                        loadingManager.increment(`已加载: ${preloadedMidiData[i].name}`);
+                        console.log(`✅ MIDI ${i + 1}/${midiFiles.length} 加载完成`);
+                    } catch (error) {
+                        console.error(`MIDI文件 ${i} 加载失败:`, error);
+                        loadingManager.increment(`加载失败: ${midiFiles[i]}`);
+                    }
+                }
+            })(),
+            
             // 加载钢琴音色
             (async () => {
                 try {
-                    // 先启动音频上下文（需要用户交互，但这里先准备好）
+                    loadingManager.updateUI('正在加载钢琴音色...');
                     audioEngine.ensureAudioContext();
                     
-                    // 加载音色（带进度显示）
                     await audioEngine.init((loaded, total) => {
-                        samplesLoaded = loaded;
-                        totalSamples = total;
-                        updateLoadingText();
+                        loadingManager.increment(`钢琴音色 ${loaded}/${total}`);
                     });
+                    
                     console.log('✅ 钢琴音色加载完成');
                 } catch (error) {
                     console.error('钢琴音色加载失败:', error);
@@ -314,54 +378,56 @@ async function initMIDISystem() {
             })()
         ]);
         
-        if (!midiSuccess) {
-            startNormalGame();
-            return;
+        // 加载第一个MIDI文件的音符数据
+        if (preloadedMidiData[currentMidiIndex]) {
+            processMIDINotes(preloadedMidiData[currentMidiIndex].notes);
+            currentMidiName = preloadedMidiData[currentMidiIndex].name;
+            updateIslandTitle(currentMidiName);
         }
         
-        console.log('✅ 所有资源加载完成，显示播放按钮');
-        loadingElement.style.display = 'none';
+        // 完成加载
+        loadingManager.complete();
+        console.log('✅ 所有资源预加载完成！');
+        
+        // 显示播放按钮
         const startButton = document.getElementById('startButton');
-        if (!startButton) {
-            console.error('找不到播放按钮元素！');
-            return;
+        if (startButton) {
+            startButton.style.display = 'block';
+            
+            // 等待用户点击开始按钮
+            const startGame = async (e) => {
+                console.log('🎮 播放按钮被点击');
+                if (e) e.preventDefault();
+                startButton.removeEventListener('click', startGame);
+                startButton.removeEventListener('touchstart', startGame);
+                startButton.style.display = 'none';
+                
+                // 立即开始游戏
+                startMIDIGame();
+                
+                // 异步启动音频
+                audioEngine.start().then(() => {
+                    console.log('✅ 音频上下文已启动');
+                    audioEngine.playStartSound();
+                }).catch(error => {
+                    console.warn('音频启动失败（不影响游戏）:', error);
+                });
+            };
+            
+            startButton.addEventListener('click', startGame);
+            startButton.addEventListener('touchstart', startGame, { passive: false });
         }
-        startButton.style.display = 'block';
         
-        // 等待用户点击开始按钮
-        const startGame = async (e) => {
-            console.log('🎮 播放按钮被点击');
-            if (e) e.preventDefault();
-            startButton.removeEventListener('click', startGame);
-            startButton.removeEventListener('touchstart', startGame);
-            startButton.style.display = 'none';
-            
-            // 检查audioEngine是否存在
-            if (!audioEngine) {
-                console.error('audioEngine 未初始化！');
-                alert('音频引擎未初始化，请刷新页面');
-                return;
-            }
-            
-            // 立即开始游戏（不等待音频）
-            startMIDIGame();
-            
-            // 异步启动音频（不阻塞游戏启动）
-            audioEngine.start().then(() => {
-                console.log('✅ 音频上下文已启动');
-                // 播放开始音效
-                audioEngine.playStartSound();
-            }).catch(error => {
-                console.warn('音频启动失败（不影响游戏）:', error);
-            });
-        };
-        startButton.addEventListener('click', startGame);
-        startButton.addEventListener('touchstart', startGame, { passive: false });
+        // 触发资源加载完成回调
+        onResourcesLoaded();
         
     } catch (error) {
-        console.error('加载失败:', error);
-        loadingElement.textContent = '加载失败，使用普通模式';
-        setTimeout(startNormalGame, 2000);
+        console.error('预加载失败:', error);
+        loadingText.textContent = '加载失败，请刷新页面重试';
+        setTimeout(() => {
+            loadingManager.complete();
+            startNormalGame();
+        }, 2000);
     }
 }
 
