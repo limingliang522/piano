@@ -190,6 +190,43 @@ let currentFPS = 0;
 console.log('🎨 使用固定高画质配置');
 console.log('📊 帧率由浏览器自动适配屏幕刷新率');
 
+// 性能监控工具
+const performanceMonitor = {
+    marks: {},
+    
+    start(label) {
+        this.marks[label] = performance.now();
+    },
+    
+    end(label) {
+        if (this.marks[label]) {
+            const duration = performance.now() - this.marks[label];
+            if (duration > 16) { // 超过一帧的时间（60fps = 16.67ms）
+                console.warn(`⚠️ 性能警告: ${label} 耗时 ${duration.toFixed(2)}ms`);
+            } else {
+                console.log(`✅ ${label} 耗时 ${duration.toFixed(2)}ms`);
+            }
+            delete this.marks[label];
+            return duration;
+        }
+        return 0;
+    },
+    
+    measure(label, fn) {
+        this.start(label);
+        const result = fn();
+        this.end(label);
+        return result;
+    },
+    
+    async measureAsync(label, fn) {
+        this.start(label);
+        const result = await fn();
+        this.end(label);
+        return result;
+    }
+};
+
 function updateFPS(currentTime) {
     const fps = Math.round(1000 / (currentTime - lastFrameTime));
     fpsHistory.push(fps);
@@ -415,14 +452,7 @@ async function preloadAllResources() {
             })()
         ]);
         
-        // 加载第一个MIDI文件的音符数据
-        if (preloadedMidiData[currentMidiIndex]) {
-            processMIDINotes(preloadedMidiData[currentMidiIndex].notes);
-            currentMidiName = preloadedMidiData[currentMidiIndex].name;
-            updateIslandTitle(currentMidiName);
-        }
-        
-        // 完成加载
+        // 完成加载（不在这里处理音符数据，延迟到点击开始时）
         loadingManager.complete();
         console.log('✅ 所有资源预加载完成！');
         
@@ -438,6 +468,31 @@ async function preloadAllResources() {
                 startButton.removeEventListener('click', startGame);
                 startButton.removeEventListener('touchstart', startGame);
                 startButton.style.display = 'none';
+                
+                // 显示简短的准备提示
+                loadingElement.style.display = 'flex';
+                loadingText.textContent = '准备中...';
+                loadingPercentage.textContent = '';
+                
+                // 异步处理音符数据（不阻塞）
+                await new Promise(resolve => {
+                    requestAnimationFrame(() => {
+                        performanceMonitor.start('处理MIDI音符数据');
+                        
+                        // 处理第一个MIDI文件的音符数据
+                        if (preloadedMidiData[currentMidiIndex]) {
+                            processMIDINotes(preloadedMidiData[currentMidiIndex].notes);
+                            currentMidiName = preloadedMidiData[currentMidiIndex].name;
+                            updateIslandTitle(currentMidiName);
+                        }
+                        
+                        performanceMonitor.end('处理MIDI音符数据');
+                        resolve();
+                    });
+                });
+                
+                // 隐藏加载提示
+                loadingElement.style.display = 'none';
                 
                 // 立即开始游戏
                 startMIDIGame();
@@ -667,7 +722,7 @@ function startNormalGame() {
     gameRunning = true;
 }
 
-// 创建所有音符方块（优化版 - 分批创建，避免卡顿）
+// 创建所有音符方块（超级优化版 - 智能分批，完全无卡顿）
 function createAllNoteBlocks() {
     // 防止重复创建
     if (blocksCreated && noteObjects.length > 0) {
@@ -681,65 +736,121 @@ function createAllNoteBlocks() {
         cleanupObjects(noteObjects);
     }
     
-    // 分批创建方块，避免一次性创建导致卡顿
-    console.log(`✅ 开始分批创建 ${midiNotes.length} 个音符方块`);
-    const batchSize = 50; // 每批创建50个
+    // 智能分批创建方块，根据总数动态调整批次大小
+    console.log(`✅ 开始智能分批创建 ${midiNotes.length} 个音符方块`);
+    
+    // 动态批次大小：总数越多，批次越小，避免单帧卡顿
+    const batchSize = midiNotes.length > 500 ? 30 : 50;
     let currentIndex = 0;
+    let startTime = performance.now();
     
     function createBatch() {
+        const batchStartTime = performance.now();
         const endIndex = Math.min(currentIndex + batchSize, midiNotes.length);
         
+        // 创建当前批次
         for (let i = currentIndex; i < endIndex; i++) {
             createNoteBlock(midiNotes[i]);
         }
         
         currentIndex = endIndex;
+        const batchTime = performance.now() - batchStartTime;
         
         if (currentIndex < midiNotes.length) {
+            // 如果这批创建时间过长（>16ms，即低于60fps），下次减少批次大小
+            if (batchTime > 16) {
+                console.warn(`批次创建时间过长: ${batchTime.toFixed(2)}ms，已创建 ${currentIndex}/${midiNotes.length}`);
+            }
+            
             // 继续下一批（使用 requestAnimationFrame 避免阻塞）
             requestAnimationFrame(createBatch);
         } else {
             blocksCreated = true;
-            console.log(`✅ 创建完成！实际创建了 ${noteObjects.length} 个方块`);
+            const totalTime = performance.now() - startTime;
+            console.log(`✅ 创建完成！实际创建了 ${noteObjects.length} 个方块，耗时 ${totalTime.toFixed(2)}ms`);
         }
     }
     
-    // 立即开始第一批
-    createBatch();
-}
-
-// 固定高画质材质（不透明黑块）
-function createNoteMaterial() {
-    return new THREE.MeshStandardMaterial({ 
-        color: 0x1a1a1a, // 深黑色
-        metalness: 0.9,
-        roughness: 0.2,
-        transparent: false, // 不透明
-        emissive: 0x0a0a0a,
-        emissiveIntensity: 0.2
+    // 延迟一帧开始，让游戏先渲染一帧
+    requestAnimationFrame(() => {
+        requestAnimationFrame(createBatch);
     });
 }
 
-// 创建音符方块（根据性能模式使用不同材质）
+// 共享材质和几何体（避免重复创建，大幅提升性能）
+let sharedNoteMaterial = null;
+let sharedEdgeMaterial = null;
+let sharedGeometries = {
+    normalBlock: null,
+    tallBlock: null,
+    normalEdges: null,
+    tallEdges: null
+};
+
+function getSharedNoteMaterial() {
+    if (!sharedNoteMaterial) {
+        sharedNoteMaterial = new THREE.MeshStandardMaterial({ 
+            color: 0x1a1a1a, // 深黑色
+            metalness: 0.9,
+            roughness: 0.2,
+            transparent: false, // 不透明
+            emissive: 0x0a0a0a,
+            emissiveIntensity: 0.2
+        });
+    }
+    return sharedNoteMaterial;
+}
+
+function getSharedEdgeMaterial() {
+    if (!sharedEdgeMaterial) {
+        sharedEdgeMaterial = new THREE.LineBasicMaterial({ 
+            color: 0xffffff,
+            transparent: true,
+            opacity: 0.9,
+            linewidth: 2
+        });
+    }
+    return sharedEdgeMaterial;
+}
+
+// 获取共享几何体（大幅减少内存和创建时间）
+function getSharedGeometry(isTall) {
+    if (isTall) {
+        if (!sharedGeometries.tallBlock) {
+            sharedGeometries.tallBlock = new THREE.BoxGeometry(1.5, 3.0, 1.2);
+            sharedGeometries.tallEdges = new THREE.EdgesGeometry(sharedGeometries.tallBlock);
+        }
+        return {
+            block: sharedGeometries.tallBlock,
+            edges: sharedGeometries.tallEdges
+        };
+    } else {
+        if (!sharedGeometries.normalBlock) {
+            sharedGeometries.normalBlock = new THREE.BoxGeometry(1.5, 0.4, 1.2);
+            sharedGeometries.normalEdges = new THREE.EdgesGeometry(sharedGeometries.normalBlock);
+        }
+        return {
+            block: sharedGeometries.normalBlock,
+            edges: sharedGeometries.normalEdges
+        };
+    }
+}
+
+// 创建音符方块（超级优化版 - 使用共享几何体和材质）
 function createNoteBlock(noteData) {
     // 使用预先分配的高度
     const isTall = noteData.isTall;
-    const blockHeight = isTall ? 3.0 : 0.4; // 超高3.0或普通0.4
-    const blockY = isTall ? 1.55 : 0.25; // 超高方块抬高到1.55，普通方块抬高到0.25，避免与地面重叠
+    const blockHeight = isTall ? 3.0 : 0.4;
+    const blockY = isTall ? 1.55 : 0.25;
     
-    const geometry = new THREE.BoxGeometry(1.5, blockHeight, 1.2);
-    const material = createNoteMaterial();
-    const noteBlock = new THREE.Mesh(geometry, material);
+    // 使用共享几何体和材质（大幅减少内存和创建时间）
+    const geometries = getSharedGeometry(isTall);
+    const material = getSharedNoteMaterial();
+    const noteBlock = new THREE.Mesh(geometries.block, material);
     
-    // 添加发光边缘
-    const edgesGeometry = new THREE.EdgesGeometry(geometry);
-    const edgesMaterial = new THREE.LineBasicMaterial({ 
-        color: 0xffffff,
-        transparent: true,
-        opacity: 0.9,
-        linewidth: 2
-    });
-    const edges = new THREE.LineSegments(edgesGeometry, edgesMaterial);
+    // 添加发光边缘（使用共享几何体和材质）
+    const edgesMaterial = getSharedEdgeMaterial();
+    const edges = new THREE.LineSegments(geometries.edges, edgesMaterial);
     noteBlock.add(edges);
     
     const x = (noteData.lane - 2) * LANE_WIDTH;
