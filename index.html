@@ -173,6 +173,7 @@
             height: 100%;
             flex-direction: column;
             overflow: hidden; /* 防止内容溢出 */
+            position: relative; /* 作为子元素绝对定位的参考 */
         }
 
         #dynamicIsland.expanded .island-content {
@@ -224,10 +225,16 @@
             gap: 5px;
             overflow: hidden; /* 防止内容溢出 */
             min-height: 0; /* 允许flex子元素缩小 */
+            position: absolute; /* 绝对定位，让两个页面完全重叠 */
+            top: 60px; /* 标签页下方 */
+            left: 0;
+            right: 0;
+            bottom: 0;
         }
 
         .island-tab-content.active {
             display: flex;
+            z-index: 10; /* 确保激活的页面在最上层 */
         }
 
         /* 设置页面布局 */
@@ -236,8 +243,6 @@
             overflow-y: auto; /* 允许垂直滚动 */
             overflow-x: hidden;
             -webkit-overflow-scrolling: touch;
-            background: rgba(0, 0, 0, 0.5); /* 添加半透明背景，遮挡后面的内容 */
-            border-radius: 15px;
         }
 
         .settings-section {
@@ -362,10 +367,6 @@
             padding: 5px 6px;
             overflow: hidden; /* 防止溢出 */
             gap: 8px;
-            display: flex;
-            flex-direction: column;
-            background: rgba(0, 0, 0, 0.5); /* 添加半透明背景 */
-            border-radius: 15px;
         }
 
         /* 搜索框容器 */
@@ -671,8 +672,7 @@
         }
 
         .loading-text {
-            color: rgba(255, 255, 255, 0.8);
-            font-size: 14px;
+            display: none; /* 完全隐藏加载文字 */
         }
 
         .loading-percentage {
@@ -683,10 +683,7 @@
         }
 
         .loading-tips {
-            color: rgba(255, 255, 255, 0.6);
-            font-size: 12px;
-            max-width: 280px;
-            line-height: 1.5;
+            display: none; /* 完全隐藏加载提示 */
         }
 
         #startButton {
