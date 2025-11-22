@@ -6,10 +6,9 @@ class AudioEngine {
         this.samples = new Map();
         this.isReady = false;
         
-        // 钢琴采样配置（硬编码）
-        this.sampleNotes = ['C0', 'G0', 'D1', 'A1', 'E2', 'B2', 'Fs3', 'Cs4', 'Gs4', 'Ds5', 'As5', 'F6'];
-        this.dynamics = [1, 2, 3, 4];
-        this.roundRobins = [1, 2];
+        // 音色配置系统
+        this.timbreConfig = new TimbreConfig();
+        this.currentTimbreId = 'steinway'; // 默认使用 Steinway Grand
         
         // 专业音频处理链
         this.convolver = null; // 卷积混响
@@ -351,7 +350,33 @@ class AudioEngine {
         return curve;
     }
 
-
+    // 切换音色
+    async switchTimbre(timbreId, progressCallback) {
+        if (!this.timbreConfig.getTimbre(timbreId)) {
+            return false;
+        }
+        
+        // 清空当前采样
+        this.samples.clear();
+        this.isReady = false;
+        
+        // 设置新音色
+        this.currentTimbreId = timbreId;
+        this.timbreConfig.setCurrentTimbre(timbreId);
+        
+        // 加载新音色
+        return await this.init(progressCallback);
+    }
+    
+    // 获取当前音色信息
+    getCurrentTimbreInfo() {
+        return this.timbreConfig.getCurrentTimbre();
+    }
+    
+    // 获取所有可用音色
+    getAvailableTimbres() {
+        return this.timbreConfig.getAllTimbres();
+    }
 
     // 初始化钢琴采样器（使用音色配置系统）
     async init(progressCallback) {
@@ -446,67 +471,36 @@ class AudioEngine {
         }
     }
 
-    // MIDI音符转音符名
-    midiToNoteName(midiNote) {
-        const noteNames = ['C', 'Cs', 'D', 'Ds', 'E', 'F', 'Fs', 'G', 'Gs', 'A', 'As', 'B'];
-        const octave = Math.floor(midiNote / 12) - 1;
-        const noteName = noteNames[midiNote % 12];
-        return noteName + octave;
-    }
-    
-    // 音符名转MIDI音符
-    noteNameToMidi(noteName) {
-        const noteNames = ['C', 'Cs', 'D', 'Ds', 'E', 'F', 'Fs', 'G', 'Gs', 'A', 'As', 'B'];
-        const match = noteName.match(/^([A-G]s?)(\d+)$/);
-        if (!match) return 60;
-        
-        const note = match[1];
-        const octave = parseInt(match[2]);
-        const noteIndex = noteNames.indexOf(note);
-        if (noteIndex === -1) return 60;
-        
-        return (octave + 1) * 12 + noteIndex;
-    }
-    
-    // 找到最接近的采样音符
+    // 找到最接近的采样音符（使用音色配置系统）
     findClosestSample(targetMidi, velocity) {
-        let closestNote = null;
-        let minDistance = Infinity;
+        // 使用音色配置系统查找最接近的采样
+        const result = this.timbreConfig.findClosestSample(this.currentTimbreId, targetMidi);
+        if (!result) return null;
         
-        // 找到最接近的采样点
-        for (const noteName of this.sampleNotes) {
-            const sampleMidi = this.noteNameToMidi(noteName);
-            const distance = Math.abs(sampleMidi - targetMidi);
-            if (distance < minDistance) {
-                minDistance = distance;
-                closestNote = noteName;
-            }
+        const timbreConfig = this.timbreConfig.getCurrentTimbre();
+        
+        // 如果是多层采样，选择力度层和轮询
+        if (timbreConfig.type === 'multilayer') {
+            const dyn = this.timbreConfig.selectDynamicLayer(this.currentTimbreId, velocity);
+            const rr = this.timbreConfig.selectRoundRobin(this.currentTimbreId);
+            
+            return {
+                noteName: result.noteName,
+                semitoneOffset: result.semitoneOffset,
+                dyn: dyn,
+                rr: rr,
+                sampleKey: this.timbreConfig.generateSampleKey(result.noteName, dyn, rr)
+            };
+        } else {
+            // 单层采样
+            return {
+                noteName: result.noteName,
+                semitoneOffset: result.semitoneOffset,
+                dyn: null,
+                rr: null,
+                sampleKey: this.timbreConfig.generateSampleKey(result.noteName)
+            };
         }
-        
-        if (!closestNote) return null;
-        
-        const closestMidi = this.noteNameToMidi(closestNote);
-        const semitoneOffset = targetMidi - closestMidi;
-        
-        // 选择力度层 (velocity 0-127 映射到 dynamics 1-4)
-        let dyn;
-        if (velocity <= 31) dyn = 1;
-        else if (velocity <= 63) dyn = 2;
-        else if (velocity <= 95) dyn = 3;
-        else dyn = 4;
-        
-        // 随机选择轮询
-        const rr = this.roundRobins[Math.floor(Math.random() * this.roundRobins.length)];
-        
-        const sampleKey = `${closestNote}_${dyn}_${rr}`;
-        
-        return {
-            noteName: closestNote,
-            semitoneOffset: semitoneOffset,
-            dyn: dyn,
-            rr: rr,
-            sampleKey: sampleKey
-        };
     }
 
     // 播放钢琴音符（极致音质版 - 3D空间音频 + 提前释放）
