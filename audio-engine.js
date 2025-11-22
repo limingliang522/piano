@@ -370,7 +370,7 @@ class AudioEngine {
 
     // 将 MIDI 音符号转换为音符名称
     midiToNoteName(midiNote) {
-        const noteNames = ['C', 'Cs', 'D', 'Ds', 'E', 'F', 'Fs', 'G', 'Gs', 'A', 'As', 'B'];
+        const noteNames = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
         const octave = Math.floor(midiNote / 12) - 1;
         const noteName = noteNames[midiNote % 12];
         return noteName + octave;
@@ -381,52 +381,62 @@ class AudioEngine {
         // 确保AudioContext已创建
         this.ensureAudioContext();
         
-        // 定义实际存在的采样点 - FluidR3 GM 音色库（52个音符）
+        // 定义实际存在的采样点 - Steinway Grand 音色库（12个音符 × 4力度 × 2轮询）
         const sampleNotes = [
-            'A0', 'B0',
-            'C1', 'D1', 'E1', 'F1', 'G1', 'A1', 'B1',
-            'C2', 'D2', 'E2', 'F2', 'G2', 'A2', 'B2',
-            'C3', 'D3', 'E3', 'F3', 'G3', 'A3', 'B3',
-            'C4', 'D4', 'E4', 'F4', 'G4', 'A4', 'B4',
-            'C5', 'D5', 'E5', 'F5', 'G5', 'A5', 'B5',
-            'C6', 'D6', 'E6', 'F6', 'G6', 'A6', 'B6',
-            'C7', 'D7', 'E7', 'F7', 'G7', 'A7', 'B7',
-            'C8'
+            'C0', 'G0', 'A1', 'D1', 'B2', 'E2', 
+            'F#3', 'C#4', 'G#4', 'A#5', 'D#5', 'F6'
         ];
         
-        let loadedCount = 0;
-        const total = sampleNotes.length;
+        const dynamics = [1, 2, 3, 4]; // 4个力度层
+        const roundRobins = [1, 2]; // 2个轮询采样
         
-        // 加载单个音色（简化版，快速加载）
-        const loadSample = async (noteName) => {
+        let loadedCount = 0;
+        const total = sampleNotes.length * dynamics.length * roundRobins.length;
+        
+        // 加载单个音色（Steinway格式）
+        const loadSample = async (noteName, dyn, rr) => {
             try {
-                const response = await fetch(`./piano-samples/${noteName}.mp3`);
+                // 转换音符名称格式（C#4 -> Cs4）
+                const steinwayNote = noteName.replace('#', 's');
+                const fileName = `Steinway_${steinwayNote}_Dyn${dyn}_RR${rr}.wav`;
+                const response = await fetch(`./钢琴/Steinway Grand  (DS)/Samples/${fileName}`);
                 if (!response.ok) {
                     throw new Error(`HTTP ${response.status}`);
                 }
                 const arrayBuffer = await response.arrayBuffer();
                 const audioBuffer = await this.audioContext.decodeAudioData(arrayBuffer);
-                this.samples.set(noteName, audioBuffer);
+                
+                // 存储格式：noteName_dyn_rr
+                const key = `${noteName}_${dyn}_${rr}`;
+                this.samples.set(key, audioBuffer);
                 return true;
             } catch (error) {
-                console.warn(`${noteName} 加载失败:`, error);
+                console.warn(`${noteName} Dyn${dyn} RR${rr} 加载失败:`, error);
                 return false;
             }
         };
         
         // 并行加载所有音色（最快速度）
-        const allPromises = sampleNotes.map(async (noteName) => {
-            const success = await loadSample(noteName);
-            loadedCount++;
-            if (progressCallback) {
-                progressCallback(loadedCount, total);
+        const allPromises = [];
+        for (const noteName of sampleNotes) {
+            for (const dyn of dynamics) {
+                for (const rr of roundRobins) {
+                    allPromises.push(
+                        loadSample(noteName, dyn, rr).then(success => {
+                            loadedCount++;
+                            if (progressCallback) {
+                                progressCallback(loadedCount, total);
+                            }
+                            return success;
+                        })
+                    );
+                }
             }
-            return success;
-        });
+        }
         
         await Promise.all(allPromises);
         
-        console.log(`🎹 FluidR3 GM 钢琴音色加载完成！共 ${this.samples.size}/52 个音符`);
+        console.log(`🎹 Steinway Grand 钢琴音色加载完成！共 ${this.samples.size}/${total} 个采样`);
         
         this.isReady = true;
         
@@ -440,8 +450,8 @@ class AudioEngine {
     // 使用真实采样预热（轻量版 - 不阻塞）
     async warmupWithSample() {
         try {
-            // 找到中音区的采样（C4）
-            const warmupNote = this.samples.get('C4') || this.samples.values().next().value;
+            // 找到中音区的采样（C#4 Dyn2 RR1）
+            const warmupNote = this.samples.get('C#4_2_1') || this.samples.values().next().value;
             if (!warmupNote) return;
             
             const ctx = this.audioContext;
@@ -466,11 +476,11 @@ class AudioEngine {
         }
     }
 
-    // 找到最接近的采样音符
-    findClosestSample(targetNote) {
+    // 找到最接近的采样音符（Steinway版本）
+    findClosestSample(targetNote, velocity) {
         const noteToMidi = (noteName) => {
-            const noteNames = ['C', 'Cs', 'D', 'Ds', 'E', 'F', 'Fs', 'G', 'Gs', 'A', 'As', 'B'];
-            const match = noteName.match(/^([A-G]s?)(\d+)$/);
+            const noteNames = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+            const match = noteName.match(/^([A-G]#?)(\d+)$/);
             if (!match) return 60;
             const note = match[1];
             const octave = parseInt(match[2]);
@@ -480,10 +490,17 @@ class AudioEngine {
         };
         
         const targetMidi = noteToMidi(targetNote);
+        
+        // Steinway 采样点
+        const steinwaySamples = [
+            'C0', 'G0', 'A1', 'D1', 'B2', 'E2', 
+            'F#3', 'C#4', 'G#4', 'A#5', 'D#5', 'F6'
+        ];
+        
         let closestNote = null;
         let minDistance = Infinity;
         
-        for (const [noteName] of this.samples) {
+        for (const noteName of steinwaySamples) {
             const sampleMidi = noteToMidi(noteName);
             const distance = Math.abs(sampleMidi - targetMidi);
             if (distance < minDistance) {
@@ -492,7 +509,18 @@ class AudioEngine {
             }
         }
         
-        return { noteName: closestNote, semitoneOffset: targetMidi - noteToMidi(closestNote) };
+        // 根据velocity选择力度层（1-4）
+        const dyn = Math.ceil(velocity / 32); // 0-31->1, 32-63->2, 64-95->3, 96-127->4
+        
+        // 轮询选择（简单随机）
+        const rr = Math.random() < 0.5 ? 1 : 2;
+        
+        return { 
+            noteName: closestNote, 
+            semitoneOffset: targetMidi - noteToMidi(closestNote),
+            dyn: dyn,
+            rr: rr
+        };
     }
 
     // 播放钢琴音符（极致音质版 - 3D空间音频 + 提前释放）
@@ -503,16 +531,18 @@ class AudioEngine {
         }
 
         const targetNote = this.midiToNoteName(midiNote);
-        const { noteName, semitoneOffset } = this.findClosestSample(targetNote);
+        const { noteName, semitoneOffset, dyn, rr } = this.findClosestSample(targetNote, velocity);
         
         if (!noteName) {
             console.warn('找不到合适的采样');
             return null;
         }
         
-        const buffer = this.samples.get(noteName);
+        // 获取对应力度和轮询的采样
+        const sampleKey = `${noteName}_${dyn}_${rr}`;
+        const buffer = this.samples.get(sampleKey);
         if (!buffer) {
-            console.warn(`采样 ${noteName} 不存在`);
+            console.warn(`采样 ${sampleKey} 不存在`);
             return null;
         }
 
