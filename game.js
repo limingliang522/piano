@@ -1770,20 +1770,12 @@ function animate(currentTime) {
         }
         updateNoteBlocks();
         
-        // 性能优化：视锥剔除（每5帧执行一次）
-        if (frameCount % 5 === 0) {
-            camera.updateMatrixWorld();
-            const frustum = new THREE.Frustum();
-            frustum.setFromProjectionMatrix(
-                new THREE.Matrix4().multiplyMatrices(
-                    camera.projectionMatrix,
-                    camera.matrixWorldInverse
-                )
-            );
-            
-            // 隐藏视锥外的方块（减少渲染负担）
+        // 性能优化：视锥剔除（每10帧执行一次，范围更大）
+        if (frameCount % 10 === 0) {
+            // 只隐藏非常远的方块（超出雾效范围）
             noteObjects.forEach(block => {
-                if (block.position.z < -60 || block.position.z > 15) {
+                // 只隐藏超出雾效范围的方块（z < -150 或 z > 20）
+                if (block.position.z < -150 || block.position.z > 20) {
                     block.visible = false;
                 } else {
                     block.visible = true;
