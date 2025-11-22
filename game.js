@@ -933,13 +933,12 @@ function createNoteBlock(noteData) {
     const x = (noteData.lane - 2) * LANE_WIDTH;
     // 根据MIDI时间计算初始Z位置
     // 触发线在z=2
-    // 黑块应该在 noteData.time / speedMultiplier 秒后到达触发线
-    // 黑块移动速度：midiSpeed * 60 = originalBaseSpeed * speedMultiplier * 60 (每秒移动的距离)
-    // 移动距离：distance = speed * time = (originalBaseSpeed * speedMultiplier * 60) * (noteData.time / speedMultiplier)
-    //                                    = originalBaseSpeed * 60 * noteData.time
-    // 所以初始位置：z = 2 - distance = 2 - (noteData.time * originalBaseSpeed * 60)
-    // 这个公式与 speedMultiplier 无关，因为速度和时间的变化相互抵消了
-    const zPosition = 2 - (noteData.time * originalBaseSpeed * 60);
+    // 黑块移动速度：midiSpeed * 60 (每秒移动的距离)
+    // 黑块应该在 noteData.time 秒后到达触发线（音频时间）
+    // 移动距离：distance = speed * time = (midiSpeed * 60) * noteData.time
+    // 所以初始位置：z = 2 - distance = 2 - (noteData.time * midiSpeed * 60)
+    // 注意：必须使用当前的 midiSpeed，而不是 originalBaseSpeed
+    const zPosition = 2 - (noteData.time * midiSpeed * 60);
     noteBlock.position.set(x, blockY, zPosition);
     
     // 启用阴影
