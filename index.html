@@ -344,7 +344,6 @@
             background: rgba(255, 255, 255, 0.03);
             border-radius: 8px;
             min-height: 0;
-            max-height: 100%;
             margin: 0;
             border-top: 1px solid rgba(255, 255, 255, 0.1);
         }
@@ -364,10 +363,9 @@
 
         /* 音乐页面布局 */
         #musicTab {
-            padding: 5px 6px 50px 6px;
+            padding: 5px 6px 5px 6px;
             overflow: hidden; /* 防止溢出 */
             gap: 8px;
-            position: relative; /* 作为按钮容器的定位参考 */
         }
 
         /* 搜索框容器 */
@@ -525,13 +523,11 @@
         }
         
         .random-button-container {
-            position: absolute;
-            bottom: 5px;
-            left: 0;
-            right: 0;
-            padding: 8px 6px;
+            margin-top: auto;
+            padding: 8px 6px 5px 6px;
             background: transparent;
             border-top: none;
+            flex-shrink: 0;
         }
 
 
