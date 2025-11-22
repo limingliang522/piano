@@ -754,13 +754,13 @@ function startMIDIGame() {
     
     // 音频对齐逻辑：
     // 黑块初始位置：z = 2 - (noteTime * originalBaseSpeed * 60)
-    // 黑块移动速度：midiSpeed * 60 = originalBaseSpeed * speedMultiplier * 60
+    // 黑块移动速度：originalBaseSpeed * speedMultiplier * 60
     // 黑块到达触发线需要的游戏时间：
     //   distance = noteTime * originalBaseSpeed * 60
     //   time = distance / (originalBaseSpeed * speedMultiplier * 60)
     //        = noteTime / speedMultiplier
     //
-    // 音频也以 speedMultiplier 倍速播放
+    // 音频以 speedMultiplier 倍速播放
     // 游戏开始后 gameTime 秒，音频播放到：audioStartTime + gameTime * speedMultiplier
     // 我们希望：当黑块到达触发线时，音频播放到 noteTime
     // 所以：audioStartTime + (noteTime / speedMultiplier) * speedMultiplier = noteTime
@@ -773,12 +773,13 @@ function startMIDIGame() {
     if (midiNotes.length > 0) {
         const firstNoteTime = midiNotes[0].time;
         
-        // 计算黑块到达触发线需要的游戏时间
+        // 黑块到达触发线需要的游戏时间
         const gameTimeToTrigger = firstNoteTime / speedMultiplier;
         
         console.log(`🎵 第一个音符时间: ${firstNoteTime.toFixed(2)}秒`);
         console.log(`⏱️ 黑块到达触发线需要: ${gameTimeToTrigger.toFixed(2)}秒游戏时间`);
         console.log(`🎵 音频从 0 秒开始播放，速度: ${speedMultiplier.toFixed(2)}x`);
+        console.log(`🚀 黑块移动速度：originalBaseSpeed * speedMultiplier = ${(originalBaseSpeed * speedMultiplier).toFixed(4)}`);
         console.log(`✅ 预期：游戏开始后 ${gameTimeToTrigger.toFixed(2)}秒，黑块到达触发线，音频播放到 ${firstNoteTime.toFixed(2)}秒`);
     }
     
@@ -933,12 +934,12 @@ function createNoteBlock(noteData) {
     const x = (noteData.lane - 2) * LANE_WIDTH;
     // 根据MIDI时间计算初始Z位置
     // 触发线在z=2
-    // 黑块移动速度：midiSpeed * 60 (每秒移动的距离)
-    // 黑块应该在 noteData.time 秒后到达触发线（音频时间）
-    // 移动距离：distance = speed * time = (midiSpeed * 60) * noteData.time
-    // 所以初始位置：z = 2 - distance = 2 - (noteData.time * midiSpeed * 60)
-    // 注意：必须使用当前的 midiSpeed，而不是 originalBaseSpeed
-    const zPosition = 2 - (noteData.time * midiSpeed * 60);
+    // 黑块移动速度：originalBaseSpeed * 60 (固定速度，不受speedMultiplier影响)
+    // 黑块应该在 noteData.time 秒后到达触发线（游戏时间）
+    // 移动距离：distance = speed * time = (originalBaseSpeed * 60) * noteData.time
+    // 所以初始位置：z = 2 - distance = 2 - (noteData.time * originalBaseSpeed * 60)
+    // 注意：黑块移动速度固定，只有音频播放速度会变化
+    const zPosition = 2 - (noteData.time * originalBaseSpeed * 60);
     noteBlock.position.set(x, blockY, zPosition);
     
     // 启用阴影
@@ -1373,7 +1374,8 @@ function updateNoteBlocks() {
     const playerLane = Math.round(currentLane);
     
     // 基于时间的移动速度（每秒移动的距离）
-    const moveSpeed = midiSpeed * 60; // 转换为每秒的速度
+    // 注意：黑块移动速度需要随speedMultiplier变化，以保持与音频同步
+    const moveSpeed = originalBaseSpeed * speedMultiplier * 60; // 转换为每秒的速度
     
     // 定义迷雾边缘（视野范围）
     const fogEdgeZ = -50; // 迷雾边缘的Z坐标
@@ -1602,9 +1604,9 @@ async function restartRound() {
             });
         });
         
-        // 更新 midiSpeed 以匹配 speedMultiplier（在创建黑块之前）
-        midiSpeed = originalBaseSpeed * speedMultiplier;
-        console.log(`🎮 更新速度：midiSpeed = ${midiSpeed.toFixed(4)}, speedMultiplier = ${speedMultiplier.toFixed(2)}x`);
+        // 注意：黑块移动速度和音频播放速度都随 speedMultiplier 变化
+        console.log(`🎮 新一轮速度：speedMultiplier = ${speedMultiplier.toFixed(2)}x`);
+        console.log(`🎮 黑块移动速度：originalBaseSpeed * speedMultiplier = ${(originalBaseSpeed * speedMultiplier).toFixed(4)}`);
         
         // 重新创建音符方块（不显示进度）
         await createAllNoteBlocksWithProgress();
