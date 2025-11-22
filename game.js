@@ -1582,6 +1582,9 @@ function completeRound() {
 
 // 重新开始一轮（不重置星星和速度）
 async function restartRound() {
+    // 立即暂停游戏，防止黑块在创建过程中提前移动
+    gameRunning = false;
+    
     // 不显示加载界面，因为音频资源已经在内存中
     
     try {
@@ -1739,6 +1742,9 @@ function continueGame() {
 
 // 重新开始
 async function restart() {
+    // 立即暂停游戏，防止黑块在创建过程中提前移动
+    gameRunning = false;
+    
     // 显示加载界面
     loadingElement.style.display = 'flex';
     
