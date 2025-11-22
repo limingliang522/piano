@@ -734,8 +734,32 @@ class AudioEngine {
         };
     }
     
+    // 测试音频输出（播放简单的哔声）
+    testBeep() {
+        console.log('🔊 测试哔声...');
+        const ctx = this.audioContext;
+        const now = ctx.currentTime;
+        
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        
+        osc.frequency.value = 440; // A4
+        gain.gain.value = 0.3;
+        
+        osc.connect(gain);
+        gain.connect(ctx.destination); // 直接连接到输出
+        
+        osc.start(now);
+        osc.stop(now + 0.2);
+        
+        console.log('✅ 哔声已发送');
+    }
+    
     // 播放UI点击音效（使用钢琴音色）
     playClickSound() {
+        // 先测试哔声
+        this.testBeep();
+        
         if (!this.isReady || this.samples.size === 0) {
             return;
         }
