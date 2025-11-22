@@ -6,6 +6,13 @@ class AudioEngine {
         this.samples = new Map();
         this.isReady = false;
         
+        // 背景音乐播放器
+        this.bgmSource = null;
+        this.bgmBuffer = null;
+        this.bgmStartTime = 0;
+        this.bgmPauseTime = 0;
+        this.bgmIsPlaying = false;
+        
         // 专业音频处理链
         this.convolver = null; // 卷积混响
         this.compressor = null; // 动态压缩（保留用于兼容）
@@ -899,5 +906,92 @@ class AudioEngine {
         } catch (error) {
             console.warn('播放开始音效失败:', error);
         }
+    }
+    
+    // 加载背景音乐（MP3文件）
+    async loadBGM(audioPath) {
+        try {
+            console.log(`🎵 加载背景音乐: ${audioPath}`);
+            const response = await fetch(audioPath);
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}`);
+            }
+            const arrayBuffer = await response.arrayBuffer();
+            this.bgmBuffer = await this.audioContext.decodeAudioData(arrayBuffer);
+            console.log(`✅ 背景音乐加载完成，时长: ${this.bgmBuffer.duration.toFixed(2)}秒`);
+            return true;
+        } catch (error) {
+            console.error('加载背景音乐失败:', error);
+            return false;
+        }
+    }
+    
+    // 播放背景音乐（从指定时间开始）
+    playBGM(startTime = 0) {
+        if (!this.bgmBuffer) {
+            console.warn('背景音乐未加载');
+            return;
+        }
+        
+        // 停止当前播放
+        this.stopBGM();
+        
+        try {
+            const ctx = this.audioContext;
+            this.bgmSource = ctx.createBufferSource();
+            this.bgmSource.buffer = this.bgmBuffer;
+            this.bgmSource.connect(this.masterGain);
+            
+            // 记录开始时间
+            this.bgmStartTime = ctx.currentTime - startTime;
+            this.bgmIsPlaying = true;
+            
+            // 从指定位置开始播放
+            this.bgmSource.start(ctx.currentTime, startTime);
+            
+            console.log(`🎵 背景音乐开始播放，从 ${startTime.toFixed(2)}秒 开始`);
+        } catch (error) {
+            console.error('播放背景音乐失败:', error);
+        }
+    }
+    
+    // 停止背景音乐
+    stopBGM() {
+        if (this.bgmSource) {
+            try {
+                this.bgmSource.stop();
+                this.bgmSource.disconnect();
+            } catch (e) {
+                // 已经停止
+            }
+            this.bgmSource = null;
+        }
+        this.bgmIsPlaying = false;
+    }
+    
+    // 暂停背景音乐
+    pauseBGM() {
+        if (this.bgmIsPlaying && this.bgmSource) {
+            const ctx = this.audioContext;
+            this.bgmPauseTime = ctx.currentTime - this.bgmStartTime;
+            this.stopBGM();
+            console.log(`⏸️ 背景音乐暂停在 ${this.bgmPauseTime.toFixed(2)}秒`);
+        }
+    }
+    
+    // 恢复背景音乐
+    resumeBGM() {
+        if (this.bgmPauseTime > 0) {
+            this.playBGM(this.bgmPauseTime);
+            this.bgmPauseTime = 0;
+        }
+    }
+    
+    // 获取当前播放时间
+    getBGMCurrentTime() {
+        if (this.bgmIsPlaying && this.audioContext) {
+            return this.audioContext.currentTime - this.bgmStartTime;
+        }
+        return this.bgmPauseTime;
     }
 }

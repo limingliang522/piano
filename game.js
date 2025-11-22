@@ -364,6 +364,11 @@ async function loadMidiFile(index) {
         processMIDINotes(notes);
         updateIslandTitle(currentMidiName);
         
+        // 加载对应的背景音乐（MP3文件）
+        const audioPath = midiFiles[index].replace('.mid', '.mp3');
+        console.log(`🎵 加载背景音乐: ${audioPath}`);
+        await audioEngine.loadBGM(audioPath);
+        
         return true;
     } catch (error) {
         console.error('加载MIDI文件失败:', error);
@@ -489,7 +494,7 @@ async function preloadAllResources() {
                     // 等待一小段时间让用户看到进度
                     await new Promise(resolve => setTimeout(resolve, 200));
                     
-                    // 步骤2：处理音符数据
+                    // 步骤2：处理音符数据和加载背景音乐
                     gameStartLoader.updateProgress(1, '');
                     await new Promise(resolve => {
                         requestAnimationFrame(() => {
@@ -505,6 +510,11 @@ async function preloadAllResources() {
                             resolve();
                         });
                     });
+                    
+                    // 加载背景音乐
+                    const audioPath = midiFiles[currentMidiIndex].replace('.mid', '.mp3');
+                    console.log(`🎵 加载背景音乐: ${audioPath}`);
+                    await audioEngine.loadBGM(audioPath);
                     
                     await new Promise(resolve => setTimeout(resolve, 200));
                     
@@ -742,6 +752,12 @@ function startMIDIGame() {
     // 立即启动游戏（方块已经创建完成）
     gameRunning = true;
     gameStartTime = Date.now() / 1000;
+    
+    // 播放背景音乐
+    if (audioEngine && audioEngine.bgmBuffer) {
+        audioEngine.playBGM(0);
+        console.log('🎵 背景音乐开始播放');
+    }
     
     console.log('🎮 游戏启动！方块数量:', noteObjects.length);
 }
@@ -1391,9 +1407,8 @@ function updateNoteBlocks() {
             notesTriggered++;
             score += 100;
             
-            // 播放音符（极致音质 - 传递轨道信息用于3D定位）
-            // 使用原始velocity，完美还原MIDI
-            audioEngine.playNote(noteData.note, noteData.duration, noteData.velocity, noteData.lane);
+            // 不再播放钢琴音符，背景音乐会自动播放
+            // audioEngine.playNote(noteData.note, noteData.duration, noteData.velocity, noteData.lane);
             
             // 改变颜色表示已触发（白色发光）
             noteBlock.material.color.setHex(0xffffff);
@@ -1558,6 +1573,13 @@ async function restartRound() {
         // 确保游戏继续运行
         gameRunning = true;
         
+        // 重新播放背景音乐
+        if (audioEngine && audioEngine.bgmBuffer) {
+            audioEngine.stopBGM();
+            audioEngine.playBGM(0);
+            console.log('🎵 背景音乐重新开始播放（新一轮）');
+        }
+        
         // 更新UI
         scoreElement.textContent = `⭐ ${starsEarned} | 音符: 0/${totalNotes}`;
         distanceElement.textContent = `速度: ${speedMultiplier.toFixed(2)}x`;
@@ -1576,6 +1598,11 @@ function gameOver() {
     gameOverElement.style.display = 'block';
     instructionsElement.style.display = 'none';
     
+    // 暂停背景音乐
+    if (audioEngine && audioEngine.bgmIsPlaying) {
+        audioEngine.pauseBGM();
+    }
+    
     if (midiNotes.length > 0) {
         document.getElementById('finalScore').textContent = `游戏结束！`;
         document.getElementById('finalDistance').textContent = `获得 ${starsEarned} 颗星 ⭐ | 速度: ${speedMultiplier.toFixed(2)}x`;
@@ -1591,6 +1618,11 @@ function continueGame() {
     
     gameOverElement.style.display = 'none';
     gameRunning = true;
+    
+    // 恢复背景音乐
+    if (audioEngine && audioEngine.bgmPauseTime > 0) {
+        audioEngine.resumeBGM();
+    }
     
     // 找到所有未触发的黑块
     const untriggeredBlocks = noteObjects.filter(block => !block.userData.noteData.triggered);
@@ -1748,8 +1780,20 @@ async function restart() {
         // 隐藏加载界面
         loadingElement.style.display = 'none';
         
+        // 停止旧的背景音乐
+        if (audioEngine) {
+            audioEngine.stopBGM();
+        }
+        
         // 开始游戏
         gameRunning = true;
+        gameStartTime = Date.now() / 1000;
+        
+        // 播放背景音乐
+        if (audioEngine && audioEngine.bgmBuffer) {
+            audioEngine.playBGM(0);
+            console.log('🎵 背景音乐重新开始播放');
+        }
         
     } catch (error) {
         console.error('重新开始失败:', error);
