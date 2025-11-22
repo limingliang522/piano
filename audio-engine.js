@@ -380,9 +380,10 @@ class AudioEngine {
         this.ensureAudioContext();
         
         // 定义实际存在的采样点 - Steinway Grand（12个音符 × 4力度 × 2轮询）
+        // 按音高从低到高排序：C0(12) < G0(19) < D1(26) < A1(33) < E2(40) < B2(47) < F#3(54) < C#4(61) < G#4(68) < D#5(75) < A#5(82) < F6(89)
         const sampleNotes = [
-            'C0', 'G0', 'A1', 'D1', 'B2', 'E2', 
-            'F#3', 'C#4', 'G#4', 'A#5', 'D#5', 'F6'
+            'C0', 'G0', 'D1', 'A1', 'E2', 'B2', 
+            'F#3', 'C#4', 'G#4', 'D#5', 'A#5', 'F6'
         ];
         const dynamics = [1, 2, 3, 4]; // 4个力度层
         const roundRobins = [1, 2]; // 2个轮询
@@ -485,9 +486,10 @@ class AudioEngine {
         const targetMidi = noteToMidi(targetNote);
         
         // Steinway Grand 采样点（12个音符）
+        // 按音高从低到高排序：C0(12) < G0(19) < D1(26) < A1(33) < E2(40) < B2(47) < F#3(54) < C#4(61) < G#4(68) < D#5(75) < A#5(82) < F6(89)
         const sampleNotes = [
-            'C0', 'G0', 'A1', 'D1', 'B2', 'E2', 
-            'F#3', 'C#4', 'G#4', 'A#5', 'D#5', 'F6'
+            'C0', 'G0', 'D1', 'A1', 'E2', 'B2', 
+            'F#3', 'C#4', 'G#4', 'D#5', 'A#5', 'F6'
         ];
         
         let closestNote = null;
@@ -503,7 +505,8 @@ class AudioEngine {
         }
         
         // 根据 velocity 选择力度层（1-4）
-        const dyn = Math.ceil(velocity / 32); // 0-31→1, 32-63→2, 64-95→3, 96-127→4
+        // 修正：确保 velocity 0 也能映射到 Dyn1，velocity 127 映射到 Dyn4
+        const dyn = Math.min(4, Math.max(1, Math.ceil((velocity + 1) / 32)));
         
         // 轮询选择（简单随机）
         const rr = Math.random() < 0.5 ? 1 : 2;

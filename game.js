@@ -396,8 +396,8 @@ async function preloadAllResources() {
             return;
         }
         
-        // 计算总加载项：30个音色 + 所有MIDI文件
-        const totalItems = 30 + midiFiles.length;
+        // 计算总加载项：96个音色采样 + 所有MIDI文件
+        const totalItems = 96 + midiFiles.length;
         loadingManager.init(totalItems);
         
         // 随机选择一个MIDI文件作为默认
