@@ -74,12 +74,28 @@ python start-server-simple.py
 - **Web Audio API** - 音频播放
 - **原生 JavaScript** - 游戏逻辑
 - **MIDI 解析** - 自定义解析器
+- **University of Iowa Piano Samples** - Steinway 钢琴音色（88个完整音符）
 
 ## 📝 开发说明
 - 游戏支持 60/90/120Hz 高刷新率
 - 自动检测屏幕刷新率并适配
 - 黑块高度随机（70%普通，30%超高）
 - 音色采样分批加载，避免手机卡顿
+
+## 🎹 音色设置
+项目使用 **University of Iowa Piano Samples**（Steinway 三角钢琴）
+
+### 安装音色
+```bash
+# 一键安装（推荐）
+python quick-setup-iowa.py
+
+# 或手动安装
+python download-iowa-samples.py
+python convert-iowa-to-mp3.py
+```
+
+详细说明请查看 [IOWA-PIANO-SETUP.md](IOWA-PIANO-SETUP.md)
 
 ## 🎯 游戏目标
 完美演奏整首曲子，躲避所有黑块，零碰撞通关！

@@ -190,22 +190,22 @@ class AudioEngine {
             
             console.log('initAudioChain: 创建均衡器...');
             // 2. 三段均衡器（精细调音）
-            // 优化 FluidR3 GM 音色的均衡器设置
+            // 优化 University of Iowa Steinway 音色的均衡器设置
             this.eqLow = ctx.createBiquadFilter();
             this.eqLow.type = 'lowshelf';
-            this.eqLow.frequency.value = 250;
-            this.eqLow.gain.value = 3.0; // 增强低频，增加温暖度和厚度
+            this.eqLow.frequency.value = 200;
+            this.eqLow.gain.value = 2.0; // 轻微增强低频（Iowa 采样本身低频很好）
             
             this.eqMid = ctx.createBiquadFilter();
             this.eqMid.type = 'peaking';
-            this.eqMid.frequency.value = 2000;
-            this.eqMid.Q.value = 1.2;
-            this.eqMid.gain.value = 2.0; // 提升中频，增加清晰度和存在感
+            this.eqMid.frequency.value = 2500;
+            this.eqMid.Q.value = 1.0;
+            this.eqMid.gain.value = 1.5; // 轻微提升中频清晰度
             
             this.eqHigh = ctx.createBiquadFilter();
             this.eqHigh.type = 'highshelf';
-            this.eqHigh.frequency.value = 6000;
-            this.eqHigh.gain.value = 4.0; // 增强高频，增加明亮度和空气感
+            this.eqHigh.frequency.value = 5000;
+            this.eqHigh.gain.value = 2.5; // 适度增强高频明亮度
             
             console.log('initAudioChain: 创建混响...');
             // 3. 卷积混响（音乐厅效果 - 轻量化）
@@ -396,16 +396,25 @@ class AudioEngine {
         // 确保AudioContext已创建
         this.ensureAudioContext();
         
-        // 定义实际存在的采样点 - FluidR3 GM 音色库（52个音符）
+        // 定义实际存在的采样点 - University of Iowa Piano Samples（88个完整音符）
         const sampleNotes = [
-            'A0', 'B0',
-            'C1', 'D1', 'E1', 'F1', 'G1', 'A1', 'B1',
-            'C2', 'D2', 'E2', 'F2', 'G2', 'A2', 'B2',
-            'C3', 'D3', 'E3', 'F3', 'G3', 'A3', 'B3',
-            'C4', 'D4', 'E4', 'F4', 'G4', 'A4', 'B4',
-            'C5', 'D5', 'E5', 'F5', 'G5', 'A5', 'B5',
-            'C6', 'D6', 'E6', 'F6', 'G6', 'A6', 'B6',
-            'C7', 'D7', 'E7', 'F7', 'G7', 'A7', 'B7',
+            // A0 到 B0
+            'A0', 'As0', 'B0',
+            // C1 到 B1
+            'C1', 'Cs1', 'D1', 'Ds1', 'E1', 'F1', 'Fs1', 'G1', 'Gs1', 'A1', 'As1', 'B1',
+            // C2 到 B2
+            'C2', 'Cs2', 'D2', 'Ds2', 'E2', 'F2', 'Fs2', 'G2', 'Gs2', 'A2', 'As2', 'B2',
+            // C3 到 B3
+            'C3', 'Cs3', 'D3', 'Ds3', 'E3', 'F3', 'Fs3', 'G3', 'Gs3', 'A3', 'As3', 'B3',
+            // C4 到 B4
+            'C4', 'Cs4', 'D4', 'Ds4', 'E4', 'F4', 'Fs4', 'G4', 'Gs4', 'A4', 'As4', 'B4',
+            // C5 到 B5
+            'C5', 'Cs5', 'D5', 'Ds5', 'E5', 'F5', 'Fs5', 'G5', 'Gs5', 'A5', 'As5', 'B5',
+            // C6 到 B6
+            'C6', 'Cs6', 'D6', 'Ds6', 'E6', 'F6', 'Fs6', 'G6', 'Gs6', 'A6', 'As6', 'B6',
+            // C7 到 B7
+            'C7', 'Cs7', 'D7', 'Ds7', 'E7', 'F7', 'Fs7', 'G7', 'Gs7', 'A7', 'As7', 'B7',
+            // C8
             'C8'
         ];
         
@@ -441,7 +450,8 @@ class AudioEngine {
         
         await Promise.all(allPromises);
         
-        console.log(`🎹 FluidR3 GM 钢琴音色加载完成！共 ${this.samples.size}/52 个音符`);
+        console.log(`🎹 University of Iowa Piano Samples 加载完成！共 ${this.samples.size}/88 个音符`);
+        console.log(`🎼 Steinway 三角钢琴 - 学术级录音质量`);
         
         this.isReady = true;
         
