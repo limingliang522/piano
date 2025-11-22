@@ -372,11 +372,22 @@
         /* 搜索框容器 */
         .search-container {
             margin: 0;
+            position: relative;
+        }
+
+        .search-icon {
+            position: absolute;
+            left: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 14px;
+            color: rgba(255, 255, 255, 0.5);
+            pointer-events: none;
         }
 
         .search-input {
             width: 100%;
-            padding: 6px 10px;
+            padding: 6px 10px 6px 35px;
             background: rgba(255, 255, 255, 0.1);
             border: 1px solid rgba(255, 255, 255, 0.2);
             border-radius: 8px;
@@ -394,6 +405,10 @@
             background: rgba(255, 255, 255, 0.15);
             border-color: rgba(102, 126, 234, 0.6);
             box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.2);
+        }
+        
+        .search-input:focus + .search-icon {
+            color: rgba(102, 126, 234, 0.8);
         }
 
         .midi-item {
@@ -837,8 +852,8 @@
             <div class="island-expanded-content">
                 <!-- 标签页切换 -->
                 <div class="island-tabs">
-                    <div class="island-tab active" data-tab="music">🎵</div>
-                    <div class="island-tab" data-tab="settings">⚙️</div>
+                    <div class="island-tab active" data-tab="music">🎧</div>
+                    <div class="island-tab" data-tab="settings">🔧</div>
                 </div>
 
                 <!-- 音乐选择页面 -->
@@ -846,6 +861,7 @@
                     <!-- 搜索框 -->
                     <div class="search-container">
                         <input type="text" id="musicSearch" class="search-input" placeholder="">
+                        <span class="search-icon">🔍</span>
                     </div>
                     
                     <div class="midi-list-container">
@@ -877,20 +893,6 @@
                                 <input type="range" id="volumeSlider" min="0" max="100" value="100" class="volume-slider">
                                 <span class="volume-value" id="volumeValue">100%</span>
                             </div>
-                        </div>
-                        
-                        <div class="setting-item">
-                            <div class="setting-label">
-                                <span class="setting-icon">🎨</span>
-                            </div>
-                            <div class="setting-value">✓</div>
-                        </div>
-                        
-                        <div class="setting-item">
-                            <div class="setting-label">
-                                <span class="setting-icon">📊</span>
-                            </div>
-                            <div class="setting-value">AUTO</div>
                         </div>
                     </div>
                     
