@@ -382,7 +382,6 @@ class AudioEngine {
             try {
                 const response = await fetch(item.fileName);
                 if (!response.ok) {
-                    console.error(`❌ 加载失败: ${item.fileName} (HTTP ${response.status})`);
                     throw new Error(`HTTP ${response.status}`);
                 }
                 const arrayBuffer = await response.arrayBuffer();
@@ -391,7 +390,6 @@ class AudioEngine {
                 successCount++;
                 return true;
             } catch (error) {
-                console.error(`❌ 错误: ${item.fileName}`, error.message);
                 return false;
             }
         };
@@ -408,19 +406,6 @@ class AudioEngine {
         );
         
         await Promise.all(allPromises);
-        
-        // 检查加载成功率
-        if (successCount === 0) {
-            console.error(`[AudioEngine] 没有成功加载任何采样！`);
-            this.isReady = false;
-            return false;
-        }
-        
-        if (successCount < total) {
-            console.warn(`[AudioEngine] 部分采样加载失败: ${successCount}/${total}`);
-        } else {
-            console.log(`[AudioEngine] 所有采样加载成功: ${successCount}/${total}`);
-        }
         
         this.isReady = true;
         
@@ -520,42 +505,32 @@ class AudioEngine {
 
     // 播放钢琴音符（极致音质版 - 3D空间音频 + 提前释放）
     playNote(midiNote, duration = 0.5, velocity = 100, lane = 2) {
-        console.log(`🎹 playNote 调用: MIDI=${midiNote}, velocity=${velocity}, lane=${lane}`);
-        
-        if (!this.isReady) {
-            console.error(`❌ 音频引擎未就绪 (isReady=${this.isReady})`);
-            return null;
-        }
-        
-        if (this.samples.size === 0) {
-            console.error(`❌ 没有加载任何采样 (samples.size=${this.samples.size})`);
+        if (!this.isReady || this.samples.size === 0) {
+            console.warn(`⚠️ playNote 失败: isReady=${this.isReady}, samples=${this.samples.size}`);
             return null;
         }
         
         // 自动恢复 AudioContext（如果被暂停）
         if (this.audioContext && this.audioContext.state === 'suspended') {
-            console.warn(`⚠️ AudioContext 被暂停，尝试恢复...`);
+            console.log('🔄 恢复 AudioContext...');
             this.audioContext.resume();
         }
 
         const sampleInfo = this.findClosestSample(midiNote, velocity);
         if (!sampleInfo) {
-            console.error(`❌ findClosestSample 返回 null (MIDI ${midiNote})`);
+            console.error(`❌ 找不到采样信息: MIDI ${midiNote}`);
             return null;
         }
-        
-        console.log(`📍 找到采样: noteName=${sampleInfo.noteName}, offset=${sampleInfo.semitoneOffset}, key=${sampleInfo.sampleKey}`);
         
         const { noteName, semitoneOffset, sampleKey } = sampleInfo;
         
         const buffer = this.samples.get(sampleKey);
         if (!buffer) {
-            console.error(`❌ 找不到采样缓冲: ${sampleKey} (MIDI ${midiNote}, velocity ${velocity})`);
-            console.log(`📋 当前已加载的采样键:`, Array.from(this.samples.keys()).slice(0, 10));
+            console.error(`❌ 找不到缓冲: ${sampleKey} (MIDI ${midiNote})`);
             return null;
         }
         
-        console.log(`✅ 成功播放: MIDI ${midiNote} -> ${sampleKey}, 主音量=${this.masterGain.gain.value}`);
+        console.log(`✅ 播放: MIDI ${midiNote} -> ${sampleKey}, offset=${semitoneOffset}`);
 
         try {
             const ctx = this.audioContext;
@@ -793,20 +768,12 @@ class AudioEngine {
     async start() {
         this.ensureAudioContext();
         
-        console.log(`🎵 AudioContext 状态: ${this.audioContext.state}`);
-        console.log(`🔊 主音量: ${this.masterGain ? this.masterGain.gain.value : 'undefined'}`);
-        console.log(`🔊 采样数量: ${this.samples.size}`);
-        
         if (this.audioContext.state === 'suspended') {
             try {
                 await this.audioContext.resume();
-                console.log('✅ AudioContext 已恢复');
             } catch (error) {
-                console.error('❌ AudioContext 恢复失败:', error);
             }
         }
-        
-        console.log(`🎵 AudioContext 最终状态: ${this.audioContext.state}`);
         
         // 异步预热，不阻塞启动
         setTimeout(() => this.warmupAudio(), 100);
@@ -881,19 +848,16 @@ class AudioEngine {
     
     // 播放UI点击音效（使用钢琴音色）
     playClickSound() {
+        console.log(`🔊 playClickSound: isReady=${this.isReady}, samples=${this.samples.size}, ctx=${this.audioContext?.state}`);
         if (!this.isReady || this.samples.size === 0) {
-            console.warn('⚠️ playClickSound: 音频引擎未就绪');
             return;
         }
         
         try {
             const highNotes = [72, 74, 76, 77, 79, 81, 83, 84];
             const randomNote = highNotes[Math.floor(Math.random() * highNotes.length)];
-            console.log(`🔊 播放点击音效: MIDI ${randomNote}`);
             const result = this.playNote(randomNote, 0.3, 80, 2);
-            if (!result) {
-                console.error('❌ 点击音效播放失败');
-            }
+            console.log(`🔊 点击音效结果: ${result ? '成功' : '失败'}`);
         } catch (error) {
             console.error('❌ playClickSound 错误:', error);
         }
@@ -901,17 +865,14 @@ class AudioEngine {
     
     // 播放开始游戏音效（单个音符）
     playStartSound() {
+        console.log(`🔊 playStartSound: isReady=${this.isReady}, samples=${this.samples.size}, ctx=${this.audioContext?.state}`);
         if (!this.isReady || this.samples.size === 0) {
-            console.warn('⚠️ playStartSound: 音频引擎未就绪');
             return;
         }
         
         try {
-            console.log('🔊 播放开始音效: MIDI 72');
             const result = this.playNote(72, 0.5, 100, 2);
-            if (!result) {
-                console.error('❌ 开始音效播放失败');
-            }
+            console.log(`🔊 开始音效结果: ${result ? '成功' : '失败'}`);
         } catch (error) {
             console.error('❌ playStartSound 错误:', error);
         }
