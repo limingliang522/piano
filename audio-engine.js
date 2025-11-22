@@ -47,28 +47,92 @@ class AudioEngine {
         }
     }
     
-    // 初始化专业音频处理链
+    // 初始化专业音频处理链（顶级音质版本）
     initAudioChain() {
         const ctx = this.audioContext;
         
         try {
-            console.log('initAudioChain: 创建多段压缩器（母带级）...');
+            console.log('🎛️ 初始化顶级音频处理链...');
             
-            // === 1. 多段压缩器系统 ===
+            // === 1. 输入增益控制 ===
+            this.inputGain = ctx.createGain();
+            this.inputGain.gain.value = 1.2; // 轻微提升输入信号
             
-            // 1.1 分频器（将音频分成三个频段 - Linkwitz-Riley 交叉）
-            this.multibandSplitter = ctx.createGain(); // 输入节点
+            // === 2. 高精度均衡器（5段参数均衡）===
+            console.log('🎚️ 创建5段参数均衡器...');
             
-            // 低频通道（20Hz - 150Hz）- 只处理极低音
+            // 超低频（Sub Bass）- 增强低音基础
+            this.eqSubBass = ctx.createBiquadFilter();
+            this.eqSubBass.type = 'lowshelf';
+            this.eqSubBass.frequency.value = 80;
+            this.eqSubBass.gain.value = 2.0; // 增强低音
+            
+            // 低频（Bass）- 温暖度
+            this.eqLow = ctx.createBiquadFilter();
+            this.eqLow.type = 'peaking';
+            this.eqLow.frequency.value = 250;
+            this.eqLow.Q.value = 1.0;
+            this.eqLow.gain.value = 1.5; // 增加温暖度
+            
+            // 中频（Midrange）- 清晰度
+            this.eqMid = ctx.createBiquadFilter();
+            this.eqMid.type = 'peaking';
+            this.eqMid.frequency.value = 1500;
+            this.eqMid.Q.value = 0.7;
+            this.eqMid.gain.value = 1.0; // 保持清晰
+            
+            // 高中频（Presence）- 存在感
+            this.eqPresence = ctx.createBiquadFilter();
+            this.eqPresence.type = 'peaking';
+            this.eqPresence.frequency.value = 4000;
+            this.eqPresence.Q.value = 1.2;
+            this.eqPresence.gain.value = 2.0; // 增强存在感
+            
+            // 高频（Treble）- 明亮度和空气感
+            this.eqHigh = ctx.createBiquadFilter();
+            this.eqHigh.type = 'highshelf';
+            this.eqHigh.frequency.value = 8000;
+            this.eqHigh.gain.value = 3.0; // 显著增强明亮度
+            
+            // === 3. 立体声增强器 ===
+            console.log('🎧 创建立体声增强器...');
+            this.stereoWidener = ctx.createStereoPanner();
+            this.stereoWidener.pan.value = 0; // 中心位置
+            
+            // === 4. 卷积混响（音乐厅效果）===
+            console.log('🏛️ 创建卷积混响...');
+            this.convolver = ctx.createConvolver();
+            this.createReverbImpulse();
+            
+            // 混响干湿比控制
+            this.reverbDry = ctx.createGain();
+            this.reverbDry.gain.value = 0.75; // 75% 干声
+            this.reverbWet = ctx.createGain();
+            this.reverbWet.gain.value = 0.25; // 25% 湿声（增加空间感）
+            
+            // === 5. 多段动态压缩器（母带级）===
+            console.log('🎛️ 创建多段动态压缩器...');
+            
+            // 分频器输入
+            this.multibandSplitter = ctx.createGain();
+            
+            // 低频通道（20Hz - 250Hz）
             this.lowpassFilter = ctx.createBiquadFilter();
             this.lowpassFilter.type = 'lowpass';
-            this.lowpassFilter.frequency.value = 150; // 降低分频点
-            this.lowpassFilter.Q.value = 0.707; // Butterworth 响应
+            this.lowpassFilter.frequency.value = 250;
+            this.lowpassFilter.Q.value = 0.707;
             
-            // 中频通道（150Hz - 5kHz）- 主要音乐内容
+            this.compressorLow = ctx.createDynamicsCompressor();
+            this.compressorLow.threshold.value = -24;
+            this.compressorLow.knee.value = 30;
+            this.compressorLow.ratio.value = 4;
+            this.compressorLow.attack.value = 0.003;
+            this.compressorLow.release.value = 0.25;
+            
+            // 中频通道（250Hz - 5kHz）
             this.bandpassFilterLow = ctx.createBiquadFilter();
             this.bandpassFilterLow.type = 'highpass';
-            this.bandpassFilterLow.frequency.value = 150;
+            this.bandpassFilterLow.frequency.value = 250;
             this.bandpassFilterLow.Q.value = 0.707;
             
             this.bandpassFilterHigh = ctx.createBiquadFilter();
@@ -76,57 +140,91 @@ class AudioEngine {
             this.bandpassFilterHigh.frequency.value = 5000;
             this.bandpassFilterHigh.Q.value = 0.707;
             
-            // 高频通道（5kHz - 20kHz）- 空气感和明亮度
+            this.compressorMid = ctx.createDynamicsCompressor();
+            this.compressorMid.threshold.value = -20;
+            this.compressorMid.knee.value = 30;
+            this.compressorMid.ratio.value = 3;
+            this.compressorMid.attack.value = 0.005;
+            this.compressorMid.release.value = 0.2;
+            
+            // 高频通道（5kHz - 20kHz）
             this.highpassFilter = ctx.createBiquadFilter();
             this.highpassFilter.type = 'highpass';
             this.highpassFilter.frequency.value = 5000;
             this.highpassFilter.Q.value = 0.707;
             
-            // 1.2 低频压缩器（极轻微压缩，保持原音）
-            this.compressorLow = ctx.createDynamicsCompressor();
-            this.compressorLow.threshold.value = -30; // 高阈值，很少触发
-            this.compressorLow.knee.value = 40; // 极柔和拐点
-            this.compressorLow.ratio.value = 3; // 温和压缩比
-            this.compressorLow.attack.value = 0.02; // 慢响应，保留瞬态
-            this.compressorLow.release.value = 0.25; // 慢释放
-            
-            // 1.3 中频压缩器（几乎不压缩，保持清晰）
-            this.compressorMid = ctx.createDynamicsCompressor();
-            this.compressorMid.threshold.value = -30;
-            this.compressorMid.knee.value = 40;
-            this.compressorMid.ratio.value = 2; // 极温和压缩
-            this.compressorMid.attack.value = 0.01;
-            this.compressorMid.release.value = 0.2;
-            
-            // 1.4 高频压缩器（几乎不工作，保持明亮）
             this.compressorHigh = ctx.createDynamicsCompressor();
-            this.compressorHigh.threshold.value = -20; // 极高阈值
-            this.compressorHigh.knee.value = 30;
-            this.compressorHigh.ratio.value = 1.5; // 极轻微压缩
-            this.compressorHigh.attack.value = 0.005;
-            this.compressorHigh.release.value = 0.15;
+            this.compressorHigh.threshold.value = -18;
+            this.compressorHigh.knee.value = 20;
+            this.compressorHigh.ratio.value = 2.5;
+            this.compressorHigh.attack.value = 0.001;
+            this.compressorHigh.release.value = 0.1;
             
-            // 1.5 各频段 Makeup Gain（移除增益，保持原音）
+            // Makeup Gain（补偿压缩损失）
             this.makeupGainLow = ctx.createGain();
-            this.makeupGainLow.gain.value = 1.0; // 不增益
+            this.makeupGainLow.gain.value = 1.3;
             
             this.makeupGainMid = ctx.createGain();
-            this.makeupGainMid.gain.value = 1.0; // 不增益
+            this.makeupGainMid.gain.value = 1.2;
             
             this.makeupGainHigh = ctx.createGain();
-            this.makeupGainHigh.gain.value = 1.0; // 不增益
+            this.makeupGainHigh.gain.value = 1.4;
             
-            // 1.6 合并器
+            // 合并器
             this.multibandMerger = ctx.createGain();
             
-            // 连接分频器（三个并行通道）
+            // === 6. 激励器（谐波增强）===
+            console.log('✨ 创建谐波激励器...');
+            this.exciter = ctx.createWaveShaper();
+            this.exciter.curve = this.makeExciterCurve();
+            this.exciter.oversample = '4x';
+            
+            this.exciterMix = ctx.createGain();
+            this.exciterMix.gain.value = 0.15; // 15% 激励效果
+            
+            // === 7. 砖墙限制器（最终保护）===
+            console.log('🧱 创建砖墙限制器...');
+            this.limiter = ctx.createDynamicsCompressor();
+            this.limiter.threshold.value = -1.0;
+            this.limiter.knee.value = 0;
+            this.limiter.ratio.value = 20;
+            this.limiter.attack.value = 0.001;
+            this.limiter.release.value = 0.1;
+            
+            // === 8. 主音量控制 ===
+            console.log('🔊 创建主音量控制...');
+            this.masterGain = ctx.createGain();
+            this.masterGain.gain.value = 2.5; // 适中音量，避免削波
+            
+            // === 连接音频处理链 ===
+            console.log('🔗 连接音频处理链...');
+            
+            // 输入 → 均衡器链
+            this.inputGain.connect(this.eqSubBass);
+            this.eqSubBass.connect(this.eqLow);
+            this.eqLow.connect(this.eqMid);
+            this.eqMid.connect(this.eqPresence);
+            this.eqPresence.connect(this.eqHigh);
+            
+            // 均衡器 → 混响（并行处理）
+            this.eqHigh.connect(this.reverbDry);
+            this.eqHigh.connect(this.convolver);
+            this.convolver.connect(this.reverbWet);
+            
+            // 混响合并 → 多段压缩器
+            const reverbMerger = ctx.createGain();
+            this.reverbDry.connect(reverbMerger);
+            this.reverbWet.connect(reverbMerger);
+            reverbMerger.connect(this.multibandSplitter);
+            
+            // 多段压缩器（三个并行通道）
             // 低频通道
             this.multibandSplitter.connect(this.lowpassFilter);
             this.lowpassFilter.connect(this.compressorLow);
             this.compressorLow.connect(this.makeupGainLow);
             this.makeupGainLow.connect(this.multibandMerger);
             
-            // 中频通道（串联两个滤波器形成带通）
+            // 中频通道
             this.multibandSplitter.connect(this.bandpassFilterLow);
             this.bandpassFilterLow.connect(this.bandpassFilterHigh);
             this.bandpassFilterHigh.connect(this.compressorMid);
@@ -139,67 +237,26 @@ class AudioEngine {
             this.compressorHigh.connect(this.makeupGainHigh);
             this.makeupGainHigh.connect(this.multibandMerger);
             
-            // 保留旧的 compressor 引用（用于兼容性）
-            this.compressor = this.multibandSplitter;
-            this.makeupGain = this.multibandMerger;
+            // 多段压缩器 → 激励器（并行）
+            const exciterSplitter = ctx.createGain();
+            this.multibandMerger.connect(exciterSplitter);
             
-            console.log('initAudioChain: 创建均衡器...');
-            // 2. 三段均衡器（精细调音）
-            this.eqLow = ctx.createBiquadFilter();
-            this.eqLow.type = 'lowshelf';
-            this.eqLow.frequency.value = 200;
-            this.eqLow.gain.value = 0.5; // 轻微增强，避免过度
+            exciterSplitter.connect(this.exciter);
+            this.exciter.connect(this.exciterMix);
             
-            this.eqMid = ctx.createBiquadFilter();
-            this.eqMid.type = 'peaking';
-            this.eqMid.frequency.value = 2500;
-            this.eqMid.Q.value = 0.8;
-            this.eqMid.gain.value = 0.5; // 轻微提升，避免过度
+            const exciterMerger = ctx.createGain();
+            exciterSplitter.connect(exciterMerger);
+            this.exciterMix.connect(exciterMerger);
             
-            this.eqHigh = ctx.createBiquadFilter();
-            this.eqHigh.type = 'highshelf';
-            this.eqHigh.frequency.value = 8000;
-            this.eqHigh.gain.value = 1.0; // 降低增益，避免破音
-            
-            console.log('initAudioChain: 创建混响...');
-            // 3. 卷积混响（音乐厅效果 - 轻量化）
-            this.convolver = ctx.createConvolver();
-            this.createReverbImpulse();
-            
-            // 混响干湿比控制（轻微混响，增加空间感）
-            this.reverbDry = ctx.createGain();
-            this.reverbDry.gain.value = 0.85; // 85% 干声
-            this.reverbWet = ctx.createGain();
-            this.reverbWet.gain.value = 0.15; // 15% 湿声（轻微混响）
-            
-            console.log('initAudioChain: 创建限制器...');
-            // 4. 砖墙限制器（绝对防止破音，最大化响度）
-            this.limiter = ctx.createDynamicsCompressor();
-            this.limiter.threshold.value = -0.3; // 极高阈值，接近0dB
-            this.limiter.knee.value = 0.5; // 极小拐点，快速响应
-            this.limiter.ratio.value = 20; // 极高压缩比，砖墙限制
-            this.limiter.attack.value = 0.0001; // 极快响应，不放过任何峰值
-            this.limiter.release.value = 0.05; // 快速释放
-            
-            console.log('initAudioChain: 创建平滑限幅器...');
-            // 4.5. 平滑限幅器（防止破音但保持音质）
-            this.hardClipper = ctx.createWaveShaper();
-            this.hardClipper.curve = this.makeHardClipCurve();
-            this.hardClipper.oversample = '4x'; // 高质量过采样，减少失真
-            
-            console.log('initAudioChain: 创建主音量...');
-            // 5. 主音量（极简版，超大音量）
-            this.masterGain = ctx.createGain();
-            this.masterGain.gain.value = 18.0; // 超大音量
-            
-            console.log('initAudioChain: 连接音频节点（简化版）...');
-            // 极简音频链：只保留主音量，移除所有可能导致失真的处理
-            // multibandSplitter（输入）→ 主音量 → 输出
-            this.multibandSplitter.connect(this.masterGain);
+            // 激励器 → 限制器 → 主音量 → 输出
+            exciterMerger.connect(this.limiter);
+            this.limiter.connect(this.masterGain);
             this.masterGain.connect(ctx.destination);
             
-            console.log('initAudioChain: 设置 3D 音频监听器...');
-            // 设置 3D 音频监听器位置
+            // 兼容性引用
+            this.compressor = this.inputGain;
+            
+            // === 设置 3D 音频监听器 ===
             this.listener = ctx.listener;
             if (this.listener.positionX) {
                 this.listener.positionX.value = 0;
@@ -213,44 +270,78 @@ class AudioEngine {
                 this.listener.upZ.value = 0;
             }
             
-            console.log('🎵 母带级多段压缩音频处理链已初始化');
-            console.log('📊 频段分配: 低频(20-150Hz) | 中频(150-5kHz) | 高频(5-20kHz)');
-            console.log('🎚️ 压缩策略: 低频激进 | 中频透明 | 高频轻微');
+            console.log('✅ 顶级音频处理链初始化完成！');
+            console.log('📊 处理链: 输入增益 → 5段EQ → 混响 → 多段压缩 → 激励器 → 限制器 → 输出');
+            console.log('🎚️ 特性: 母带级压缩 | 谐波激励 | 空间混响 | 砖墙限制');
         } catch (error) {
-            console.error('initAudioChain: 初始化失败:', error);
+            console.error('❌ 音频链初始化失败:', error);
             throw error;
         }
     }
     
-    // 创建自然混响脉冲响应（钢琴房效果）
+    // 创建激励器曲线（谐波增强）
+    makeExciterCurve() {
+        const samples = 2048;
+        const curve = new Float32Array(samples);
+        
+        for (let i = 0; i < samples; i++) {
+            const x = (i / samples) * 2 - 1;
+            // 使用双曲正切函数添加谐波
+            curve[i] = Math.tanh(x * 1.5);
+        }
+        
+        return curve;
+    }
+    
+    // 创建音乐厅级混响脉冲响应
     createReverbImpulse() {
         const ctx = this.audioContext;
         const sampleRate = ctx.sampleRate;
-        const length = sampleRate * 0.8; // 0.8秒混响（更短，更自然）
+        const length = sampleRate * 2.5; // 2.5秒混响（音乐厅效果）
         const impulse = ctx.createBuffer(2, length, sampleRate);
         const impulseL = impulse.getChannelData(0);
         const impulseR = impulse.getChannelData(1);
         
-        // 生成自然混响（钢琴房效果）
+        // 生成高质量音乐厅混响
         for (let i = 0; i < length; i++) {
-            // 更快的指数衰减（模拟小房间）
-            const decay = Math.exp(-i / (sampleRate * 0.3));
+            const t = i / sampleRate;
             
-            // 早期反射（前 20ms）- 更清晰
+            // 指数衰减（模拟音乐厅）
+            const decay = Math.exp(-t / 0.8);
+            
+            // 早期反射（前 80ms）- 模拟墙壁反射
             let earlyReflections = 0;
-            if (i < sampleRate * 0.02) {
-                earlyReflections = (Math.random() * 2 - 1) * 0.3 * decay;
+            if (t < 0.08) {
+                // 多个离散反射
+                const reflections = [
+                    { time: 0.012, gain: 0.6 },
+                    { time: 0.025, gain: 0.4 },
+                    { time: 0.038, gain: 0.3 },
+                    { time: 0.051, gain: 0.25 },
+                    { time: 0.067, gain: 0.2 }
+                ];
+                
+                for (const ref of reflections) {
+                    if (Math.abs(t - ref.time) < 0.001) {
+                        earlyReflections += (Math.random() * 2 - 1) * ref.gain * decay;
+                    }
+                }
             }
             
-            // 后期混响（更轻微）
-            const lateReverb = (Math.random() * 2 - 1) * decay * 0.15;
+            // 后期混响（扩散混响）
+            const lateReverb = (Math.random() * 2 - 1) * decay * 0.3;
             
-            // 左右声道略有不同
-            impulseL[i] = earlyReflections + lateReverb;
-            impulseR[i] = earlyReflections + lateReverb * 0.92;
+            // 调制效果（模拟空气流动）
+            const modulation = Math.sin(t * 2 * Math.PI * 0.5) * 0.1;
+            
+            // 左右声道差异（增强立体感）
+            const stereoWidth = 0.3;
+            impulseL[i] = (earlyReflections + lateReverb) * (1 + modulation);
+            impulseR[i] = (earlyReflections + lateReverb) * (1 - modulation) * (1 - stereoWidth);
         }
         
         this.convolver.buffer = impulse;
+        console.log('🏛️ 音乐厅级混响已创建（2.5秒衰减）');
     }
     
     // 创建极温和的限幅曲线（几乎透明的保护）
@@ -666,9 +757,10 @@ class AudioEngine {
         // 限制音量范围
         const clampedVolume = Math.max(0, Math.min(1, volume));
         
-        // 使用原始音量值乘以基础增益
-        const baseGain = 18.0; // 超大音量
-        this.masterGain.gain.value = clampedVolume * baseGain;
+        // 使用平滑的音量曲线（对数缩放，更符合人耳感知）
+        const baseGain = 2.5; // 适中基础音量
+        const volumeCurve = Math.pow(clampedVolume, 0.5); // 平方根曲线
+        this.masterGain.gain.setValueAtTime(volumeCurve * baseGain, this.audioContext.currentTime);
         
         console.log(`🔊 主音量设置为: ${Math.round(clampedVolume * 100)}%`);
     }
