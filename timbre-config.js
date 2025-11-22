@@ -12,7 +12,7 @@ class TimbreConfig {
             name: 'Steinway Grand Piano',
             description: '专业级多层采样，温暖厚重，真实动态',
             type: 'multilayer',
-            basePath: './钢琴/Steinway Grand  (DS)/',
+            basePath: './钢琴/',
             filePattern: 'Steinway_{note}_Dyn{dyn}_RR{rr}.mp3',
             samplePoints: ['C0', 'G0', 'D1', 'A1', 'E2', 'B2', 'F#3', 'C#4', 'G#4', 'D#5', 'A#5', 'F6'],
             dynamics: [1, 2, 3, 4],
@@ -121,7 +121,8 @@ class TimbreConfig {
             fileName = fileName.replace('{rr}', rr);
         }
         
-        return config.basePath + encodeURIComponent(fileName);
+        // 不对文件名进行 URL 编码，因为 # 符号在文件名中是合法的
+        return config.basePath + fileName;
     }
     
     // 生成采样键名
