@@ -165,25 +165,31 @@ const GROUND_LENGTH = 100;
 // 统一的移动速度（调整这个值可以改变所有移动速度）
 const moveSpeed = 0.50;
 
-// 固定最高画质配置（无限制）
+// 超高画质配置（120fps目标）
 const GRAPHICS_CONFIG = {
     shadowsEnabled: true,
     shadowType: THREE.PCFSoftShadowMap,
-    pixelRatio: window.devicePixelRatio, // 使用设备原生像素比，无限制
-    fogDistance: 120,
-    trailLength: 12,
-    playerSegments: 64, // 提高球体细节
-    trailSegments: 32   // 提高拖尾细节
+    pixelRatio: Math.min(window.devicePixelRatio * 1.5, 3), // 提升像素比到1.5倍，最高3倍
+    fogDistance: 150, // 增加雾效距离
+    trailLength: 15, // 增加拖尾长度
+    playerSegments: 128, // 大幅提高球体细节（原64）
+    trailSegments: 64,   // 大幅提高拖尾细节（原32）
+    targetFPS: 120, // 目标帧率120fps
+    shadowMapSize: 4096, // 4K阴影贴图
+    anisotropy: 16 // 各向异性过滤
 };
 
-// FPS 监控（仅用于显示，不影响画质）
+// FPS 监控和优化
 let lastFrameTime = performance.now();
 let fpsCheckTime = 0;
 let fpsHistory = [];
 let currentFPS = 0;
+let frameCount = 0;
+let lastFPSUpdate = 0;
 
-console.log('🎨 使用固定高画质配置');
-console.log('📊 帧率由浏览器自动适配屏幕刷新率');
+console.log('🎨 使用超高画质配置');
+console.log('🎯 目标帧率: 120 FPS');
+console.log('📊 像素比:', GRAPHICS_CONFIG.pixelRatio.toFixed(2) + 'x');
 
 // 性能监控工具
 const performanceMonitor = {
@@ -223,17 +229,21 @@ const performanceMonitor = {
 };
 
 function updateFPS(currentTime) {
-    const fps = Math.round(1000 / (currentTime - lastFrameTime));
-    fpsHistory.push(fps);
-    if (fpsHistory.length > 50) {
-        fpsHistory.shift();
-    }
+    frameCount++;
     
     // 每秒更新一次FPS显示
-    if (currentTime - fpsCheckTime > 1000) {
-        currentFPS = Math.round(fpsHistory.reduce((a, b) => a + b, 0) / fpsHistory.length);
+    if (currentTime - lastFPSUpdate >= 1000) {
+        currentFPS = Math.round(frameCount * 1000 / (currentTime - lastFPSUpdate));
         fpsElement.textContent = `${currentFPS} FPS`;
-        fpsCheckTime = currentTime;
+        
+        // 记录到历史
+        fpsHistory.push(currentFPS);
+        if (fpsHistory.length > 60) {
+            fpsHistory.shift();
+        }
+        
+        frameCount = 0;
+        lastFPSUpdate = currentTime;
     }
 }
 
@@ -242,7 +252,7 @@ function init() {
     // 创建场景
     scene = new THREE.Scene();
     // 不设置背景色，让背景透明，显示body的背景图
-    scene.fog = new THREE.Fog(0x000000, 30, 120); // 黑色雾效，更远更平滑的过渡
+    scene.fog = new THREE.Fog(0x000000, 40, GRAPHICS_CONFIG.fogDistance); // 黑色雾效，更远更平滑的过渡
     
     // 创建相机 - 更宽的视角以显示完整的5条轨道
     const aspect = window.innerWidth / window.innerHeight;
@@ -252,11 +262,11 @@ function init() {
     camera.position.set(0, 5.5, 8);
     camera.lookAt(0, 0, -8);
     
-    // 创建渲染器 - 最高画质设置（透明背景）
+    // 创建渲染器 - 超高画质设置（透明背景 + 120fps优化）
     const canvas = document.getElementById('gameCanvas');
     renderer = new THREE.WebGLRenderer({ 
         canvas: canvas,
-        antialias: true,
+        antialias: true, // 启用抗锯齿
         alpha: true, // 启用透明背景
         powerPreference: "high-performance",
         precision: "highp",
@@ -266,38 +276,53 @@ function init() {
         premultipliedAlpha: false // 改善透明度渲染
     });
     
-    // 启用高质量渲染
+    // 启用超高质量渲染
     renderer.sortObjects = true; // 正确排序透明物体
     renderer.toneMapping = THREE.ACESFilmicToneMapping; // 电影级色调映射
-    renderer.toneMappingExposure = 1.0;
+    renderer.toneMappingExposure = 1.2; // 提升曝光度，画面更明亮
+    renderer.outputEncoding = THREE.sRGBEncoding; // sRGB色彩空间，更真实的颜色
     
-    // 设置像素比以提高画质（最高3倍，支持高分辨率屏幕）
+    // 设置像素比以提高画质（1.5倍，最高3倍）
     renderer.setPixelRatio(GRAPHICS_CONFIG.pixelRatio);
     renderer.setSize(window.innerWidth, window.innerHeight);
     
     // 设置透明背景
     renderer.setClearColor(0x000000, 0); // 完全透明
     
-    // 固定高画质阴影设置
+    // 超高画质阴影设置
     renderer.shadowMap.enabled = GRAPHICS_CONFIG.shadowsEnabled;
     renderer.shadowMap.type = GRAPHICS_CONFIG.shadowType;
+    renderer.shadowMap.autoUpdate = true; // 自动更新阴影
     
-    // 添加光源 - 极简风格
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.3); // 降低环境光
+    // 添加光源 - 增强光照系统
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.4); // 提升环境光
     scene.add(ambientLight);
     
-    // 主光源（从上方照射）
-    const directionalLight = new THREE.DirectionalLight(0xffffff, 0.5);
-    directionalLight.position.set(0, 15, 0);
+    // 主光源（从上方照射）- 增强强度
+    const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+    directionalLight.position.set(0, 20, 5);
     directionalLight.castShadow = true;
-    directionalLight.shadow.camera.left = -20;
-    directionalLight.shadow.camera.right = 20;
-    directionalLight.shadow.camera.top = 20;
-    directionalLight.shadow.camera.bottom = -20;
-    directionalLight.shadow.mapSize.width = 4096; // 提高到4K阴影
-    directionalLight.shadow.mapSize.height = 4096;
-    directionalLight.shadow.bias = -0.0001; // 减少阴影瑕疵
+    directionalLight.shadow.camera.left = -25;
+    directionalLight.shadow.camera.right = 25;
+    directionalLight.shadow.camera.top = 25;
+    directionalLight.shadow.camera.bottom = -25;
+    directionalLight.shadow.camera.near = 0.5;
+    directionalLight.shadow.camera.far = 50;
+    directionalLight.shadow.mapSize.width = GRAPHICS_CONFIG.shadowMapSize;
+    directionalLight.shadow.mapSize.height = GRAPHICS_CONFIG.shadowMapSize;
+    directionalLight.shadow.bias = -0.00005; // 优化阴影瑕疵
+    directionalLight.shadow.radius = 2; // 柔和阴影边缘
     scene.add(directionalLight);
+    
+    // 添加补光（从前方照射，减少阴影过暗）
+    const fillLight = new THREE.DirectionalLight(0xaaccff, 0.3);
+    fillLight.position.set(0, 5, 10);
+    scene.add(fillLight);
+    
+    // 添加背光（从后方照射，增加轮廓光）
+    const backLight = new THREE.DirectionalLight(0xffccaa, 0.2);
+    backLight.position.set(0, 5, -10);
+    scene.add(backLight);
     
     // 取消点光源，避免白色光柱
     window.playerLight = null;
@@ -917,7 +942,7 @@ function getSharedGeometry(isTall) {
     }
 }
 
-// 创建音符方块（优化版 - 共享几何体，独立材质）
+// 创建音符方块（超高画质版 - 增强材质）
 function createNoteBlock(noteData) {
     // 使用预先分配的高度
     const isTall = noteData.isTall;
@@ -927,15 +952,19 @@ function createNoteBlock(noteData) {
     // 使用共享几何体（减少内存）
     const geometries = getSharedGeometry(isTall);
     
-    // 为每个方块创建独立的材质副本（避免共享材质导致的颜色问题）
-    const material = new THREE.MeshStandardMaterial({ 
-        color: 0x1a1a1a, // 深黑色
-        metalness: 0.9,
-        roughness: 0.2,
-        transparent: true, // 启用透明度，用于触发效果
-        opacity: 1.0, // 初始完全不透明
+    // 为每个方块创建独立的高质量材质
+    const material = new THREE.MeshPhysicalMaterial({ 
+        color: 0x0a0a0a, // 深黑色
+        metalness: 0.95, // 提升金属度
+        roughness: 0.15, // 降低粗糙度，更光滑
+        transparent: true,
+        opacity: 1.0,
         emissive: 0x0a0a0a,
-        emissiveIntensity: 0.2
+        emissiveIntensity: 0.3,
+        clearcoat: 0.5, // 添加清漆层
+        clearcoatRoughness: 0.1, // 清漆粗糙度
+        reflectivity: 0.9, // 提升反射率
+        envMapIntensity: 1.5 // 环境贴图强度
     });
     
     const noteBlock = new THREE.Mesh(geometries.block, material);
@@ -967,16 +996,20 @@ function createNoteBlock(noteData) {
     noteObjects.push(noteBlock);
 }
 
-// 创建地面
+// 创建地面（超高画质版）
 function createGround() {
-    // 极简风格：深蓝灰色地面
+    // 超高画质：深蓝灰色地面，增强反射
     const groundGeometry = new THREE.PlaneGeometry(LANES * LANE_WIDTH, GROUND_LENGTH);
-    const groundMaterial = new THREE.MeshStandardMaterial({ 
+    const groundMaterial = new THREE.MeshPhysicalMaterial({ 
         color: 0x1a1a2e, // 深蓝灰色
-        roughness: 0.3,
-        metalness: 0.8,
+        roughness: 0.2, // 降低粗糙度
+        metalness: 0.9, // 提升金属度
         transparent: true,
-        opacity: 0.9
+        opacity: 0.95,
+        clearcoat: 0.3, // 添加清漆层
+        clearcoatRoughness: 0.2,
+        reflectivity: 0.8,
+        envMapIntensity: 1.2
     });
     
     for (let i = 0; i < 3; i++) {
@@ -1053,23 +1086,30 @@ let trailPositions = [];
 const trailLength = 10;
 let trailSpheres = [];
 
-// 创建玩家（半透明白色小球 + 微光边缘）
+// 创建玩家（超高画质版 - 增强球体）
 function createPlayer() {
-    // 固定高画质球体细节
+    // 超高画质球体细节（128段）
     const geometry = new THREE.SphereGeometry(0.25, GRAPHICS_CONFIG.playerSegments, GRAPHICS_CONFIG.playerSegments);
     
-    const material = new THREE.MeshStandardMaterial({ 
+    const material = new THREE.MeshPhysicalMaterial({ 
         color: 0xffffff,
         emissive: 0xffffff,
-        emissiveIntensity: 0.4,
-        metalness: 0.3,
-        roughness: 0.4,
+        emissiveIntensity: 0.5,
+        metalness: 0.4,
+        roughness: 0.3,
         transparent: true,
-        opacity: 0.95
+        opacity: 0.98,
+        clearcoat: 0.8, // 添加清漆层，更有光泽
+        clearcoatRoughness: 0.1,
+        transmission: 0.1, // 轻微透射效果
+        thickness: 0.5,
+        reflectivity: 0.9,
+        envMapIntensity: 1.5
     });
     player = new THREE.Mesh(geometry, material);
     player.position.set(0, 0.25, 0);
     player.castShadow = true;
+    player.receiveShadow = true; // 接收阴影
     scene.add(player);
     
     // 创建拖尾球体
@@ -1225,14 +1265,17 @@ function cleanupObjects(objectArray) {
 function logPerformanceStats() {
     if (renderer && renderer.info) {
         const info = renderer.info;
+        const avgFPS = fpsHistory.length > 0 ? Math.round(fpsHistory.reduce((a, b) => a + b, 0) / fpsHistory.length) : currentFPS;
         console.log('╔═══════════════════════════════════════╗');
-        console.log('║         🎮 性能统计面板               ║');
+        console.log('║      🎮 超高画质性能统计面板          ║');
         console.log('╠═══════════════════════════════════════╣');
-        console.log(`║ 画质模式: 固定高画质`);
-        console.log(`║ 当前FPS: ${currentFPS}`);
+        console.log(`║ 画质模式: 超高画质 (120fps目标)`);
+        console.log(`║ 当前FPS: ${currentFPS} | 平均: ${avgFPS}`);
         console.log(`║ 像素比: ${renderer.getPixelRatio().toFixed(2)}x`);
-        console.log(`║ 阴影: ✅ PCF柔和阴影`);
-        console.log(`║ 材质: MeshPhysicalMaterial (玻璃质感)`);
+        console.log(`║ 阴影: ✅ PCF柔和阴影 (${GRAPHICS_CONFIG.shadowMapSize}x${GRAPHICS_CONFIG.shadowMapSize})`);
+        console.log(`║ 材质: MeshPhysicalMaterial (超高质感)`);
+        console.log(`║ 球体细节: ${GRAPHICS_CONFIG.playerSegments}段`);
+        console.log(`║ 色调映射: ACESFilmic (曝光${renderer.toneMappingExposure})`);
         console.log('╠═══════════════════════════════════════╣');
         console.log(`║ 渲染调用: ${info.render.calls}`);
         console.log(`║ 三角形数: ${info.render.triangles.toLocaleString()}`);
@@ -1761,6 +1804,7 @@ function animate(currentTime) {
     // 计算时间差（秒）
     if (lastUpdateTime === 0) {
         lastUpdateTime = currentTime;
+        lastFPSUpdate = currentTime;
     }
     deltaTime = (currentTime - lastUpdateTime) / 1000; // 转换为秒
     lastUpdateTime = currentTime;
@@ -1768,7 +1812,8 @@ function animate(currentTime) {
     // 更新FPS统计
     updateFPS(currentTime);
     
-    // 无需帧率检测和画质调整，浏览器自动适配
+    // 120fps优化：限制最大deltaTime，避免卡顿时跳跃过大
+    deltaTime = Math.min(deltaTime, 1/60); // 最大按60fps计算
     
     lastFrameTime = currentTime;
     
