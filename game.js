@@ -1177,6 +1177,12 @@ function updateNoteBlocks() {
                     // 碰撞了！
                     noteData.collided = true;
                     collisions++;
+                    
+                    // 播放碰撞音效
+                    if (audioEngine && audioEngine.playCollision) {
+                        audioEngine.playCollision();
+                    }
+                    
                     // 震动反馈（如果设备支持）
                     if (navigator.vibrate) {
                         navigator.vibrate(50); // 震动50毫秒
@@ -1950,6 +1956,12 @@ function initMidiList(filterText = '') {
         // 点击切换 MIDI
         item.addEventListener('click', (e) => {
             e.stopPropagation();
+            
+            // 播放点击音效
+            if (audioEngine && audioEngine.playClickSound) {
+                audioEngine.playClickSound();
+            }
+            
             if (index !== currentMidiIndex) {
                 selectMidi(index);
             }
@@ -2019,6 +2031,11 @@ function initRandomMidiButton() {
     
     randomBtn.addEventListener('click', (e) => {
         e.stopPropagation(); // 防止关闭灵动岛
+        
+        // 播放点击音效
+        if (audioEngine && audioEngine.playClickSound) {
+            audioEngine.playClickSound();
+        }
         
         if (midiFiles.length <= 1) {
             return;
@@ -2230,6 +2247,10 @@ function toggleIsland() {
 dynamicIsland.addEventListener('click', (e) => {
     // 如果点击的是胶囊本身（未展开状态）
     if (!isIslandExpanded) {
+        // 播放点击音效
+        if (audioEngine && audioEngine.playClickSound) {
+            audioEngine.playClickSound();
+        }
         toggleIsland();
     }
 });
@@ -2239,6 +2260,12 @@ document.addEventListener('click', (e) => {
     if (isIslandExpanded && !dynamicIsland.contains(e.target)) {
         e.preventDefault();
         e.stopPropagation();
+        
+        // 播放点击音效
+        if (audioEngine && audioEngine.playClickSound) {
+            audioEngine.playClickSound();
+        }
+        
         // 调用toggleIsland统一处理收起逻辑
         toggleIsland();
     }
