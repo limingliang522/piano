@@ -756,111 +756,7 @@ function startNormalGame() {
     gameRunning = true;
 }
 
-// 流式方块管理系统 - 只创建可见范围内的方块
-const blockStreamManager = {
-    createAheadTime: 10, // 提前创建时间（秒）
-    destroyBehindDistance: 20, // 销毁距离（触发线后方）
-    lastCheckTime: 0, // 上次检查的游戏时间
-    checkInterval: 0.5, // 每0.5秒检查一次
-    noteIndex: 0, // 当前处理到的音符索引
-    activeBlocks: new Map(), // 活跃的方块 Map<noteIndex, mesh>
-    
-    reset() {
-        this.noteIndex = 0;
-        this.lastCheckTime = 0;
-        this.activeBlocks.clear();
-    },
-    
-    // 更新方块（每帧调用）
-    update(currentGameTime, triggerLineZ) {
-        // 只在经过一定时间后才检查
-        if (currentGameTime - this.lastCheckTime < this.checkInterval) {
-            return;
-        }
-        this.lastCheckTime = currentGameTime;
-        
-        // 1. 创建新方块（基于游戏时间）
-        this.createNewBlocks(currentGameTime);
-        
-        // 2. 销毁旧方块（在触发线后方）
-        this.destroyOldBlocks(triggerLineZ);
-    },
-    
-    // 创建新方块（基于游戏时间）
-    createNewBlocks(currentGameTime) {
-        // 创建阈值：当前时间 + 提前时间
-        const createTimeThreshold = currentGameTime + this.createAheadTime;
-        
-        let createdCount = 0;
-        
-        // 从当前索引开始，创建所有应该出现的方块
-        while (this.noteIndex < midiNotes.length) {
-            const note = midiNotes[this.noteIndex];
-            
-            // 如果音符时间超过阈值，说明还不需要创建，停止
-            if (note.time > createTimeThreshold) {
-                break;
-            }
-            
-            // 创建方块
-            const block = createNoteBlock(note, this.noteIndex);
-            if (block) {
-                this.activeBlocks.set(this.noteIndex, block);
-                noteObjects.push(block);
-                createdCount++;
-            }
-            
-            this.noteIndex++;
-        }
-        
-        // 调试信息：显示创建进度
-        if (createdCount > 0) {
-            const progress = Math.round(this.noteIndex / this.totalNotesInMidi * 100);
-            console.log(`🎵 流式创建: +${createdCount}个方块 | 进度: ${this.noteIndex}/${this.totalNotesInMidi} (${progress}%) | 游戏时间: ${currentGameTime.toFixed(1)}s`);
-        }
-        
-        // 当所有方块都创建完成时，输出完成信息
-        if (this.noteIndex >= this.totalNotesInMidi && createdCount > 0) {
-            console.log(`✅ 所有 ${this.totalNotesInMidi} 个音符方块已创建完成！`);
-        }
-    },
-    
-    // 销毁旧方块
-    destroyOldBlocks(triggerLineZ) {
-        const destroyThreshold = triggerLineZ + this.destroyBehindDistance;
-        
-        // 遍历活跃方块，销毁超出范围的
-        for (const [index, block] of this.activeBlocks.entries()) {
-            if (block.position.z > destroyThreshold) {
-                // 从场景中移除
-                scene.remove(block);
-                
-                // 清理几何体和材质
-                if (block.geometry && !block.geometry.isShared) {
-                    block.geometry.dispose();
-                }
-                if (block.material) {
-                    if (Array.isArray(block.material)) {
-                        block.material.forEach(m => m.dispose());
-                    } else {
-                        block.material.dispose();
-                    }
-                }
-                
-                // 从数组中移除
-                const objIndex = noteObjects.indexOf(block);
-                if (objIndex > -1) {
-                    noteObjects.splice(objIndex, 1);
-                }
-                
-                // 从活跃列表中移除
-                this.activeBlocks.delete(index);
-            }
-        }
-    }
-};
-
-// 创建所有音符方块（带进度回调的版本）- 改为流式创建
+// 创建所有音符方块（带进度回调的版本）
 async function createAllNoteBlocksWithProgress(progressCallback) {
     // 防止重复创建
     if (blocksCreated && noteObjects.length > 0) {
@@ -874,10 +770,11 @@ async function createAllNoteBlocksWithProgress(progressCallback) {
         cleanupObjects(noteObjects);
     }
     
-    console.log(`✅ 创建所有 ${midiNotes.length} 个音符方块（分批处理）`);
+    console.log(`✅ 开始创建 ${midiNotes.length} 个音符方块（带进度）`);
     
-    const batchSize = 100; // 每批100个
+    const batchSize = 50;
     let currentIndex = 0;
+    const startTime = performance.now();
     
     return new Promise((resolve) => {
         function createBatch() {
@@ -885,11 +782,7 @@ async function createAllNoteBlocksWithProgress(progressCallback) {
             
             // 创建当前批次
             for (let i = currentIndex; i < endIndex; i++) {
-                const note = midiNotes[i];
-                const block = createNoteBlock(note, i);
-                if (block) {
-                    noteObjects.push(block);
-                }
+                createNoteBlock(midiNotes[i]);
             }
             
             currentIndex = endIndex;
@@ -905,7 +798,8 @@ async function createAllNoteBlocksWithProgress(progressCallback) {
                 requestAnimationFrame(createBatch);
             } else {
                 blocksCreated = true;
-                console.log(`✅ 所有 ${noteObjects.length} 个方块创建完成！`);
+                const totalTime = performance.now() - startTime;
+                console.log(`✅ 创建完成！实际创建了 ${noteObjects.length} 个方块，耗时 ${totalTime.toFixed(2)}ms`);
                 resolve();
             }
         }
@@ -946,9 +840,7 @@ function getSharedGeometry(isTall) {
     if (isTall) {
         if (!sharedGeometries.tallBlock) {
             sharedGeometries.tallBlock = new THREE.BoxGeometry(1.5, 3.0, 1.2);
-            sharedGeometries.tallBlock.isShared = true; // 标记为共享，不要销毁
             sharedGeometries.tallEdges = new THREE.EdgesGeometry(sharedGeometries.tallBlock);
-            sharedGeometries.tallEdges.isShared = true;
         }
         return {
             block: sharedGeometries.tallBlock,
@@ -957,9 +849,7 @@ function getSharedGeometry(isTall) {
     } else {
         if (!sharedGeometries.normalBlock) {
             sharedGeometries.normalBlock = new THREE.BoxGeometry(1.5, 0.4, 1.2);
-            sharedGeometries.normalBlock.isShared = true; // 标记为共享，不要销毁
             sharedGeometries.normalEdges = new THREE.EdgesGeometry(sharedGeometries.normalBlock);
-            sharedGeometries.normalEdges.isShared = true;
         }
         return {
             block: sharedGeometries.normalBlock,
@@ -969,7 +859,7 @@ function getSharedGeometry(isTall) {
 }
 
 // 创建音符方块（优化版 - 共享几何体，独立材质）
-function createNoteBlock(noteData, noteIndex) {
+function createNoteBlock(noteData) {
     // 使用预先分配的高度
     const isTall = noteData.isTall;
     const blockHeight = isTall ? 3.0 : 0.4;
@@ -1007,20 +897,15 @@ function createNoteBlock(noteData, noteIndex) {
     // 启用阴影
     noteBlock.castShadow = true;
     
-    // 视锥体剔除优化
-    noteBlock.frustumCulled = true;
-    
     noteBlock.userData = {
         noteData: noteData,
-        noteIndex: noteIndex,
         isNote: true,
         isTall: isTall,
         blockHeight: blockHeight
     };
     
     scene.add(noteBlock);
-    
-    return noteBlock;
+    noteObjects.push(noteBlock);
 }
 
 // 创建地面
@@ -1433,23 +1318,15 @@ function updateGround() {
 // 更新音符方块
 function updateNoteBlocks() {
     const triggerZ = triggerLine.position.z;
-    const triggerWindow = 0.2;
+    const triggerWindow = 0.2; // 触发窗口
     const playerLane = Math.round(currentLane);
-    const moveSpeed = midiSpeed * 60;
     
-    // 性能优化：只更新可见范围内的方块（前后100单位）
-    const visibleRangeStart = triggerZ - 100;
-    const visibleRangeEnd = triggerZ + 20;
+    // 基于时间的移动速度（每秒移动的距离）
+    const moveSpeed = midiSpeed * 60; // 转换为每秒的速度
     
     for (let i = noteObjects.length - 1; i >= 0; i--) {
         const noteBlock = noteObjects[i];
-        
-        // 只更新可见范围内的方块
-        if (noteBlock.position.z < visibleRangeStart) {
-            continue; // 还在远处，跳过
-        }
-        
-        noteBlock.position.z += moveSpeed * deltaTime;
+        noteBlock.position.z += moveSpeed * deltaTime; // 基于时间移动
         
         const noteData = noteBlock.userData.noteData;
         
@@ -1534,8 +1411,8 @@ function updateNoteBlocks() {
         }
     }
     
-    // 检查是否所有音符都已触发
-    if (notesTriggered >= totalNotes && totalNotes > 0 && !isCompletingRound) {
+    // 检查是否所有音符都已处理
+    if (noteObjects.length === 0 && notesTriggered > 0 && !isCompletingRound) {
         // 完成一轮！继续下一轮
         isCompletingRound = true;
         completeRound();
@@ -1642,9 +1519,6 @@ function completeRound() {
 function restartRound() {
     // 正确清理音符方块（释放内存）
     cleanupObjects(noteObjects);
-    
-    // 重置流式管理器
-    blockStreamManager.reset();
     
     // 重置音符状态
     notesTriggered = 0;
@@ -2113,9 +1987,6 @@ async function loadAndStartNewMidi() {
     cleanupObjects(coins);
     cleanupObjects(noteObjects);
     blocksCreated = false;
-    
-    // 重置流式管理器
-    blockStreamManager.reset();
     
     // 清理旧的 MIDI 数据
     midiNotes = [];
