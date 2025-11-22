@@ -1769,19 +1769,6 @@ function animate(currentTime) {
             midiSpeed += speedIncreaseRate * speedMultiplier;
         }
         updateNoteBlocks();
-        
-        // 性能优化：视锥剔除（每10帧执行一次，范围更大）
-        if (frameCount % 10 === 0) {
-            // 只隐藏非常远的方块（超出雾效范围）
-            noteObjects.forEach(block => {
-                // 只隐藏超出雾效范围的方块（z < -150 或 z > 20）
-                if (block.position.z < -150 || block.position.z > 20) {
-                    block.visible = false;
-                } else {
-                    block.visible = true;
-                }
-            });
-        }
     } else {
         updateObstacles();
         updateCoins();
