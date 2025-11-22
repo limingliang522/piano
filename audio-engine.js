@@ -233,9 +233,9 @@ class AudioEngine {
             this.hardClipper.oversample = '4x'; // 高质量过采样，减少失真
             
             console.log('initAudioChain: 创建主音量...');
-            // 5. 主音量（纯净原声，1.5 = 增强音量）
+            // 5. 主音量（纯净原声，15.0 = 超强音量）
             this.masterGain = ctx.createGain();
-            this.masterGain.gain.value = 1.5; // 增强音量 1.5 倍
+            this.masterGain.gain.value = 15.0; // 超强音量 15 倍
             
             console.log('initAudioChain: 连接音频节点（纯净原声）...');
             // 纯净原声模式：直接输出，不经过任何处理
