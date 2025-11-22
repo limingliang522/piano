@@ -234,30 +234,52 @@ class AudioEngine {
             this.hardClipper.oversample = '4x'; // 高质量过采样，减少失真
             
             console.log('initAudioChain: 创建主音量...');
-            // 5. 轻微混响（增加空间感和温暖度）
+            // 5. 立体声增强器（Haas 效果 - 增加宽度）
+            this.stereoWidener = ctx.createDelay();
+            this.stereoWidener.delayTime.value = 0.02; // 20ms 延迟
+            
+            this.stereoWidenerGain = ctx.createGain();
+            this.stereoWidenerGain.gain.value = 0.4; // 40% 立体声增强
+            
+            this.stereoMerger = ctx.createChannelMerger(2);
+            this.stereoSplitter = ctx.createChannelSplitter(2);
+            
+            // 6. 深度混响（大音乐厅效果）
             this.reverbGain = ctx.createGain();
-            this.reverbGain.gain.value = 0.25; // 25% 混响，让音色更有深度
+            this.reverbGain.gain.value = 0.45; // 45% 混响，强烈空间感
             
-            // 6. 主音量（优化后的音量）
+            // 7. 主音量
             this.masterGain = ctx.createGain();
-            this.masterGain.gain.value = 8.0; // 适中音量，避免过度失真
+            this.masterGain.gain.value = 10.0; // 增强音量
             
-            console.log('initAudioChain: 连接音频节点（优化音色）...');
-            // 优化音色链路：
-            // 音频源 → 均衡器（增强音色） → 混响（空间感） → 主音量 → 输出
+            console.log('initAudioChain: 连接音频节点（3D 立体空间）...');
+            // 立体空间音频链路：
+            // 音频源 → 均衡器 → 立体声增强 → 混响 → 主音量 → 输出
             
             // 连接均衡器链
             this.eqLow.connect(this.eqMid);
             this.eqMid.connect(this.eqHigh);
             
-            // 干声路径（75%）
+            // 立体声增强处理
+            this.eqHigh.connect(this.stereoSplitter);
+            
+            // 左声道：直通 + 延迟右声道
+            this.stereoSplitter.connect(this.stereoMerger, 0, 0); // 左 → 左
+            this.stereoSplitter.connect(this.stereoWidener, 1); // 右 → 延迟
+            this.stereoWidener.connect(this.stereoWidenerGain);
+            this.stereoWidenerGain.connect(this.stereoMerger, 0, 0); // 延迟 → 左
+            
+            // 右声道：直通 + 延迟左声道
+            this.stereoSplitter.connect(this.stereoMerger, 1, 1); // 右 → 右
+            
+            // 干声路径（55%）
             const dryGain = ctx.createGain();
-            dryGain.gain.value = 0.75;
-            this.eqHigh.connect(dryGain);
+            dryGain.gain.value = 0.55;
+            this.stereoMerger.connect(dryGain);
             dryGain.connect(this.masterGain);
             
-            // 湿声路径（25% 混响）
-            this.eqHigh.connect(this.convolver);
+            // 湿声路径（45% 深度混响）
+            this.stereoMerger.connect(this.convolver);
             this.convolver.connect(this.reverbGain);
             this.reverbGain.connect(this.masterGain);
             
@@ -282,9 +304,10 @@ class AudioEngine {
                 this.listener.upZ.value = 0;
             }
             
-            console.log('🎹 优化音色处理链已初始化');
-            console.log('✨ 增强低频温暖度 | 提升中频清晰度 | 增加高频明亮度');
-            console.log('🎵 25% 音乐厅混响 | 75% 干声 | 完美平衡');
+            console.log('🎹 3D 立体空间音频系统已初始化');
+            console.log('✨ Haas 立体声增强 | 大型音乐厅混响 (2.5秒)');
+            console.log('🎵 45% 深度混响 | 55% 干声 | 强烈空间感');
+            console.log('🎧 左右声道差异化处理 | 沉浸式 3D 体验');
             console.log('🎚️ 功能: 音频分析器 | 提前释放 | 性能模式切换');
         } catch (error) {
             console.error('initAudioChain: 初始化失败:', error);
@@ -292,32 +315,38 @@ class AudioEngine {
         }
     }
     
-    // 创建音乐厅混响脉冲响应（优化 FluidR3 GM 音色）
+    // 创建大型音乐厅混响脉冲响应（强烈 3D 空间感）
     createReverbImpulse() {
         const ctx = this.audioContext;
         const sampleRate = ctx.sampleRate;
-        const length = sampleRate * 1.5; // 1.5秒混响（中等音乐厅效果）
+        const length = sampleRate * 2.5; // 2.5秒混响（大型音乐厅）
         const impulse = ctx.createBuffer(2, length, sampleRate);
         const impulseL = impulse.getChannelData(0);
         const impulseR = impulse.getChannelData(1);
         
-        // 生成温暖的音乐厅混响
+        // 生成丰富的 3D 空间混响
         for (let i = 0; i < length; i++) {
-            // 温和的指数衰减（模拟中型音乐厅）
-            const decay = Math.exp(-i / (sampleRate * 0.5));
+            const t = i / sampleRate;
             
-            // 早期反射（前 50ms）- 增加空间感
+            // 慢速指数衰减（模拟大型音乐厅）
+            const decay = Math.exp(-t / 0.8);
+            
+            // 早期反射（前 80ms）- 强烈空间感
             let earlyReflections = 0;
-            if (i < sampleRate * 0.05) {
-                earlyReflections = (Math.random() * 2 - 1) * 0.5 * decay;
+            if (t < 0.08) {
+                // 多次反射模拟
+                earlyReflections += (Math.random() * 2 - 1) * 0.6 * decay;
+                if (t > 0.02) earlyReflections += (Math.random() * 2 - 1) * 0.4 * decay;
+                if (t > 0.04) earlyReflections += (Math.random() * 2 - 1) * 0.3 * decay;
             }
             
-            // 后期混响（温暖、丰富）
-            const lateReverb = (Math.random() * 2 - 1) * decay * 0.3;
+            // 后期混响（丰富、宽广）
+            const lateReverb = (Math.random() * 2 - 1) * decay * 0.5;
             
-            // 左右声道差异（增加立体感）
-            impulseL[i] = earlyReflections + lateReverb;
-            impulseR[i] = earlyReflections * 0.95 + lateReverb * 0.88;
+            // 左右声道明显差异（强烈立体感）
+            const stereoWidth = 0.3;
+            impulseL[i] = earlyReflections + lateReverb + (Math.random() * 2 - 1) * stereoWidth * decay;
+            impulseR[i] = earlyReflections * 0.9 + lateReverb * 0.85 + (Math.random() * 2 - 1) * stereoWidth * decay;
         }
         
         this.convolver.buffer = impulse;
