@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Steinway 钢琴音色测试</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #1a1a1a;
+            color: #fff;
+        }
+        h1 {
+            text-align: center;
+            color: #4CAF50;
+        }
+        .controls {
+            margin: 20px 0;
+            padding: 20px;
+            background: #2a2a2a;
+            border-radius: 10px;
+        }
+        button {
+            padding: 15px 30px;
+            margin: 10px;
+            font-size: 16px;
+            cursor: pointer;
+            background: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 5px;
+        }
+        button:hover {
+            background: #45a049;
+        }
+        button:disabled {
+            background: #666;
+            cursor: not-allowed;
+        }
+        .velocity-test {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 10px;
+            margin: 20px 0;
+        }
+        .velocity-btn {
+            padding: 20px;
+            background: #555;
+        }
+        .velocity-btn:nth-child(1) { background: #2196F3; }
+        .velocity-btn:nth-child(2) { background: #4CAF50; }
+        .velocity-btn:nth-child(3) { background: #FF9800; }
+        .velocity-btn:nth-child(4) { background: #F44336; }
+        #status {
+            margin: 20px 0;
+            padding: 15px;
+            background: #333;
+            border-radius: 5px;
+            font-family: monospace;
+        }
+        #progress {
+            width: 100%;
+            height: 30px;
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>🎹 Steinway 钢琴音色测试</h1>
+    
+    <div class="controls">
+        <h3>加载控制</h3>
+        <button id="loadBtn">加载 Steinway 采样</button>
+        <progress id="progress" value="0" max="100"></progress>
+        <div id="status">等待加载...</div>
+    </div>
+    
+    <div class="controls">
+        <h3>力度层测试（C4 音符）</h3>
+        <div class="velocity-test">
+            <button class="velocity-btn" data-velocity="16">Dyn1<br>轻柔 (16)</button>
+            <button class="velocity-btn" data-velocity="48">Dyn2<br>中轻 (48)</button>
+            <button class="velocity-btn" data-velocity="80">Dyn3<br>中强 (80)</button>
+            <button class="velocity-btn" data-velocity="112">Dyn4<br>强劲 (112)</button>
+        </div>
+    </div>
+    
+    <div class="controls">
+        <h3>Round Robin 测试</h3>
+        <button id="rrTest">连续播放 C4 (测试 RR 循环)</button>
+    </div>
+    
+    <div class="controls">
+        <h3>音阶测试</h3>
+        <button id="scaleTest">播放 C 大调音阶</button>
+    </div>
+
+    <script src="audio-engine.js"></script>
+    <script>
+        const audioEngine = new AudioEngine();
+        const loadBtn = document.getElementById('loadBtn');
+        const progress = document.getElementById('progress');
+        const status = document.getElementById('status');
+        
+        // 加载采样
+        loadBtn.addEventListener('click', async () => {
+            loadBtn.disabled = true;
+            status.textContent = '正在加载 Steinway 采样...';
+            
+            try {
+                await audioEngine.init((loaded, total) => {
+                    const percent = Math.round((loaded / total) * 100);
+                    progress.value = percent;
+                    status.textContent = `加载中: ${loaded}/${total} (${percent}%)`;
+                });
+                
+                await audioEngine.start();
+                
+                const engineStatus = audioEngine.getStatus();
+                status.innerHTML = `
+                    ✅ 加载完成！<br>
+                    📊 ${engineStatus.baseNotes} 个基础音符<br>
+                    🎵 ${engineStatus.samplesLoaded} 个采样文件<br>
+                    🎹 4 个力度层 × 2 个 RR 变化
+                `;
+                
+                // 启用测试按钮
+                document.querySelectorAll('.velocity-btn').forEach(btn => {
+                    btn.disabled = false;
+                });
+                document.getElementById('rrTest').disabled = false;
+                document.getElementById('scaleTest').disabled = false;
+                
+            } catch (error) {
+                status.textContent = '❌ 加载失败: ' + error.message;
+                loadBtn.disabled = false;
+            }
+        });
+        
+        // 力度层测试
+        document.querySelectorAll('.velocity-btn').forEach(btn => {
+            btn.disabled = true;
+            btn.addEventListener('click', () => {
+                const velocity = parseInt(btn.dataset.velocity);
+                audioEngine.playNote(60, 1.0, velocity, 2); // C4
+                status.textContent = `播放 C4，velocity=${velocity}`;
+            });
+        });
+        
+        // Round Robin 测试
+        const rrTestBtn = document.getElementById('rrTest');
+        rrTestBtn.disabled = true;
+        rrTestBtn.addEventListener('click', () => {
+            let count = 0;
+            const interval = setInterval(() => {
+                audioEngine.playNote(60, 0.5, 80, 2);
+                count++;
+                status.textContent = `RR 测试: 第 ${count} 次播放 (应该听到音色变化)`;
+                if (count >= 6) {
+                    clearInterval(interval);
+                }
+            }, 600);
+        });
+        
+        // 音阶测试
+        const scaleTestBtn = document.getElementById('scaleTest');
+        scaleTestBtn.disabled = true;
+        scaleTestBtn.addEventListener('click', () => {
+            const scale = [60, 62, 64, 65, 67, 69, 71, 72]; // C D E F G A B C
+            const velocities = [40, 50, 60, 70, 80, 90, 100, 110]; // 渐强
+            
+            scale.forEach((note, i) => {
+                setTimeout(() => {
+                    audioEngine.playNote(note, 0.8, velocities[i], 2);
+                    status.textContent = `音阶测试: ${['C', 'D', 'E', 'F', 'G', 'A', 'B', 'C'][i]} (velocity=${velocities[i]})`;
+                }, i * 400);
+            });
+        });
+    </script>
+</body>
+</html>
