@@ -480,7 +480,7 @@ async function preloadAllResources() {
                 };
                 
                 try {
-                    // 步骤1：启动音频引擎
+                    // 步骤1：启动音频引擎（10%）
                     gameStartLoader.updateProgress(0, '');
                     await audioEngine.start();
                     console.log('✅ 音频上下文已启动');
@@ -490,10 +490,12 @@ async function preloadAllResources() {
                         audioEngine.playClickSound();
                     }
                     
-                    // 等待一小段时间让用户看到进度
-                    await new Promise(resolve => setTimeout(resolve, 200));
+                    // 更新进度到10%
+                    loadingPercentage.textContent = '10%';
+                    loadingProgressBar.style.width = '10%';
+                    await new Promise(resolve => setTimeout(resolve, 100));
                     
-                    // 步骤2：处理音符数据
+                    // 步骤2：处理音符数据（20%）
                     gameStartLoader.updateProgress(1, '');
                     await new Promise(resolve => {
                         requestAnimationFrame(() => {
@@ -510,20 +512,75 @@ async function preloadAllResources() {
                         });
                     });
                     
-                    await new Promise(resolve => setTimeout(resolve, 200));
+                    loadingPercentage.textContent = '20%';
+                    loadingProgressBar.style.width = '20%';
+                    await new Promise(resolve => setTimeout(resolve, 100));
                     
-                    // 步骤3：创建游戏场景
+                    // 步骤3：预热渲染系统（30%）
+                    console.log('🎨 预热渲染系统...');
+                    await new Promise(resolve => {
+                        requestAnimationFrame(() => {
+                            // 预渲染一帧，确保所有着色器编译完成
+                            renderer.render(scene, camera);
+                            resolve();
+                        });
+                    });
+                    
+                    loadingPercentage.textContent = '30%';
+                    loadingProgressBar.style.width = '30%';
+                    await new Promise(resolve => setTimeout(resolve, 100));
+                    
+                    // 步骤4：创建所有黑块（30%-90%）
                     gameStartLoader.updateProgress(2, '');
+                    console.log('🎮 创建所有黑块...');
                     
-                    // 预先创建所有方块（带进度）
                     await createAllNoteBlocksWithProgress((progress) => {
-                        const percentage = Math.round(66 + (progress * 34)); // 66%-100%
+                        const percentage = Math.round(30 + (progress * 60)); // 30%-90%
                         loadingPercentage.textContent = `${percentage}%`;
                         loadingProgressBar.style.width = `${percentage}%`;
                     });
                     
+                    // 步骤5：初始化游戏效果系统（95%）
+                    console.log('✨ 初始化游戏效果...');
+                    await new Promise(resolve => {
+                        requestAnimationFrame(() => {
+                            // 确保触发线已创建
+                            if (!triggerLine) {
+                                createTriggerLine();
+                            }
+                            
+                            // 确保拖尾系统已初始化
+                            if (trailSpheres.length === 0) {
+                                console.warn('拖尾系统未初始化');
+                            }
+                            
+                            // 预创建一个光波效果池（避免首次触发时卡顿）
+                            const testWave = createTriggerWave(0, 0);
+                            setTimeout(() => {
+                                if (testWave && testWave.parent) {
+                                    scene.remove(testWave);
+                                }
+                            }, 50);
+                            
+                            resolve();
+                        });
+                    });
+                    
+                    loadingPercentage.textContent = '95%';
+                    loadingProgressBar.style.width = '95%';
+                    await new Promise(resolve => setTimeout(resolve, 100));
+                    
+                    // 步骤6：最终检查（100%）
+                    console.log('🔍 最终检查...');
+                    console.log(`✅ 黑块数量: ${noteObjects.length}/${totalNotes}`);
+                    console.log(`✅ 音频引擎: ${audioEngine.isReady ? '就绪' : '未就绪'}`);
+                    console.log(`✅ 触发线: ${triggerLine ? '已创建' : '未创建'}`);
+                    console.log(`✅ 拖尾系统: ${trailSpheres.length} 个球体`);
+                    
                     // 完成
                     gameStartLoader.updateProgress(3, '');
+                    loadingPercentage.textContent = '100%';
+                    loadingProgressBar.style.width = '100%';
                     await new Promise(resolve => setTimeout(resolve, 300));
                     
                     // 隐藏加载界面
@@ -534,6 +591,8 @@ async function preloadAllResources() {
                     
                     // 播放开始音效
                     audioEngine.playStartSound();
+                    
+                    console.log('🎮 游戏启动完成！所有资源已加载');
                     
                 } catch (error) {
                     console.error('游戏启动失败:', error);
@@ -2416,7 +2475,7 @@ async function selectMidi(index) {
             };
             
             try {
-                // 步骤1：启动音频引擎
+                // 步骤1：启动音频引擎（10%）
                 gameStartLoader.updateProgress(0, '');
                 await audioEngine.start();
                 console.log('✅ 音频上下文已启动');
@@ -2426,9 +2485,11 @@ async function selectMidi(index) {
                     audioEngine.playClickSound();
                 }
                 
-                await new Promise(resolve => setTimeout(resolve, 200));
+                loadingPercentage.textContent = '10%';
+                loadingProgressBar.style.width = '10%';
+                await new Promise(resolve => setTimeout(resolve, 100));
                 
-                // 步骤2：处理音符数据
+                // 步骤2：处理音符数据（20%）
                 gameStartLoader.updateProgress(1, '');
                 await new Promise(resolve => {
                     requestAnimationFrame(() => {
@@ -2441,20 +2502,57 @@ async function selectMidi(index) {
                     });
                 });
                 
-                await new Promise(resolve => setTimeout(resolve, 200));
+                loadingPercentage.textContent = '20%';
+                loadingProgressBar.style.width = '20%';
+                await new Promise(resolve => setTimeout(resolve, 100));
                 
-                // 步骤3：创建游戏场景
+                // 步骤3：预热渲染系统（30%）
+                console.log('🎨 预热渲染系统...');
+                await new Promise(resolve => {
+                    requestAnimationFrame(() => {
+                        renderer.render(scene, camera);
+                        resolve();
+                    });
+                });
+                
+                loadingPercentage.textContent = '30%';
+                loadingProgressBar.style.width = '30%';
+                await new Promise(resolve => setTimeout(resolve, 100));
+                
+                // 步骤4：创建所有黑块（30%-90%）
                 gameStartLoader.updateProgress(2, '');
+                console.log('🎮 创建所有黑块...');
                 
-                // 预先创建所有方块（带进度）
                 await createAllNoteBlocksWithProgress((progress) => {
-                    const percentage = Math.round(66 + (progress * 34));
+                    const percentage = Math.round(30 + (progress * 60)); // 30%-90%
                     loadingPercentage.textContent = `${percentage}%`;
                     loadingProgressBar.style.width = `${percentage}%`;
                 });
                 
+                // 步骤5：初始化游戏效果系统（95%）
+                console.log('✨ 初始化游戏效果...');
+                await new Promise(resolve => {
+                    requestAnimationFrame(() => {
+                        if (!triggerLine) {
+                            createTriggerLine();
+                        }
+                        resolve();
+                    });
+                });
+                
+                loadingPercentage.textContent = '95%';
+                loadingProgressBar.style.width = '95%';
+                await new Promise(resolve => setTimeout(resolve, 100));
+                
+                // 步骤6：最终检查（100%）
+                console.log('🔍 最终检查...');
+                console.log(`✅ 黑块数量: ${noteObjects.length}/${totalNotes}`);
+                console.log(`✅ 音频引擎: ${audioEngine.isReady ? '就绪' : '未就绪'}`);
+                
                 // 完成
                 gameStartLoader.updateProgress(3, '');
+                loadingPercentage.textContent = '100%';
+                loadingProgressBar.style.width = '100%';
                 await new Promise(resolve => setTimeout(resolve, 300));
                 
                 // 隐藏加载界面
@@ -2467,6 +2565,8 @@ async function selectMidi(index) {
                 
                 // 播放开始音效
                 audioEngine.playStartSound();
+                
+                console.log('🎮 游戏启动完成！所有资源已加载');
                 
             } catch (error) {
                 console.error('游戏启动失败:', error);
@@ -2559,6 +2659,9 @@ function createTriggerWave(x, z) {
             waveMaterial.dispose();
         }
     }, 30);
+    
+    // 返回wave对象，用于测试时清理
+    return wave;
 }
 
 // 全局清理函数（调试用）
