@@ -815,7 +815,13 @@ const blockStreamManager = {
         
         // 调试信息：显示创建进度
         if (createdCount > 0) {
-            console.log(`流式创建: +${createdCount}个方块，进度: ${this.noteIndex}/${midiNotes.length} (${Math.round(this.noteIndex/midiNotes.length*100)}%)`);
+            const progress = Math.round(this.noteIndex / this.totalNotesInMidi * 100);
+            console.log(`🎵 流式创建: +${createdCount}个方块 | 进度: ${this.noteIndex}/${this.totalNotesInMidi} (${progress}%) | 游戏时间: ${currentGameTime.toFixed(1)}s`);
+        }
+        
+        // 当所有方块都创建完成时，输出完成信息
+        if (this.noteIndex >= this.totalNotesInMidi && createdCount > 0) {
+            console.log(`✅ 所有 ${this.totalNotesInMidi} 个音符方块已创建完成！`);
         }
     },
     
@@ -872,9 +878,22 @@ async function createAllNoteBlocksWithProgress(progressCallback) {
     
     // 重置流式管理器
     blockStreamManager.reset();
+    blockStreamManager.totalNotesInMidi = midiNotes.length;
     
-    // 立即创建初始可见范围内的方块
-    const initialCreateCount = Math.min(200, midiNotes.length); // 初始创建200个
+    // 计算初始创建时间范围（前20秒的音符）
+    const initialCreateTime = 20; // 秒
+    let initialCreateCount = 0;
+    for (let i = 0; i < midiNotes.length; i++) {
+        if (midiNotes[i].time <= initialCreateTime) {
+            initialCreateCount++;
+        } else {
+            break;
+        }
+    }
+    
+    initialCreateCount = Math.max(1, initialCreateCount); // 至少创建1个
+    console.log(`初始将创建前 ${initialCreateTime} 秒的 ${initialCreateCount} 个音符`);
+    
     const batchSize = 50;
     let currentIndex = 0;
     
@@ -1530,8 +1549,8 @@ function updateNoteBlocks() {
         }
     }
     
-    // 检查是否所有音符都已处理
-    if (noteObjects.length === 0 && notesTriggered > 0 && !isCompletingRound) {
+    // 检查是否所有音符都已处理（修复：判断触发数量而不是方块数量）
+    if (notesTriggered >= totalNotes && notesTriggered > 0 && !isCompletingRound) {
         // 完成一轮！继续下一轮
         isCompletingRound = true;
         completeRound();
