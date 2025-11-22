@@ -926,11 +926,12 @@ function createNoteBlock(noteData) {
     noteBlock.add(edges);
     
     const x = (noteData.lane - 2) * LANE_WIDTH;
-    // 根据时间计算初始Z位置
+    // 根据时间计算初始Z位置（修复版：使用当前速度而非原始速度）
     // 触发线在z=2，黑块从迷雾深处移动过来
     // 添加缓冲距离，让黑块从远处出现
     const bufferDistance = 30; // 缓冲距离，让黑块从迷雾中出现
-    const zPosition = 2 - (noteData.time * originalBaseSpeed * 60) - bufferDistance;
+    // 使用当前的 midiSpeed 而不是 originalBaseSpeed，确保位置和速度匹配
+    const zPosition = 2 - (noteData.time * midiSpeed * 60) - bufferDistance;
     noteBlock.position.set(x, blockY, zPosition);
     
     // 启用阴影
@@ -1371,12 +1372,19 @@ function updateNoteBlocks() {
     // 批量更新位置（减少单独访问）
     for (let i = noteObjects.length - 1; i >= 0; i--) {
         const noteBlock = noteObjects[i];
+        
+        // 跳过已经被标记为删除的方块
+        if (!noteBlock || !noteBlock.parent) {
+            noteObjects.splice(i, 1);
+            continue;
+        }
+        
         noteBlock.position.z += moveSpeed * deltaTime;
         
         const noteData = noteBlock.userData.noteData;
         
-        // 提前剔除远离的方块
-        if (noteBlock.position.z > 10) {
+        // 提前剔除远离的方块（已触发的方块会在动画中被删除，这里只处理未触发的）
+        if (noteBlock.position.z > 10 && !noteData.triggered) {
             disposeObject(noteBlock);
             noteObjects.splice(i, 1);
             continue;
@@ -1440,17 +1448,37 @@ function updateNoteBlocks() {
             // 创建触发时的光波扩散效果
             createTriggerWave(noteBlock.position.x, noteBlock.position.z);
             
-            // 触发效果：放大并淡出（使用requestAnimationFrame优化）
-            const originalScale = { x: 1.5, y: 0.4, z: 1.2 };
+            // 触发效果：快速淡出并立即删除（修复版）
+            const isTall = noteBlock.userData.isTall;
+            const originalScale = isTall 
+                ? { x: 1.5, y: 3.0, z: 1.2 }  // 超高方块
+                : { x: 1.5, y: 0.4, z: 1.2 }; // 普通方块
+            
             let startTime = performance.now();
             const animateScale = () => {
                 const elapsed = (performance.now() - startTime) / 1000;
-                if (elapsed >= 0.5 || !noteBlock.parent) return;
                 
-                const progress = elapsed / 0.5;
-                const scale = 1 + progress * 2;
-                noteBlock.scale.set(originalScale.x * scale, originalScale.y * scale, originalScale.z * scale);
-                noteBlock.material.opacity = Math.max(0, 1 - progress * 2);
+                // 0.3秒后立即删除方块（缩短动画时间）
+                if (elapsed >= 0.3) {
+                    // 立即从场景和数组中删除
+                    disposeObject(noteBlock);
+                    const index = noteObjects.indexOf(noteBlock);
+                    if (index > -1) {
+                        noteObjects.splice(index, 1);
+                    }
+                    return;
+                }
+                
+                if (!noteBlock.parent) return;
+                
+                const progress = elapsed / 0.3;
+                const scale = 1 + progress * 1.5; // 减小放大倍数
+                noteBlock.scale.set(
+                    originalScale.x * scale, 
+                    originalScale.y * scale, 
+                    originalScale.z * scale
+                );
+                noteBlock.material.opacity = Math.max(0, 1 - progress * 3); // 更快淡出
                 
                 requestAnimationFrame(animateScale);
             };
@@ -1458,10 +1486,11 @@ function updateNoteBlocks() {
         }
     }
     
-    // 检查是否所有音符都已处理
-    if (noteObjects.length === 0 && notesTriggered > 0 && !isCompletingRound) {
+    // 检查是否所有音符都已触发（修复版：检查触发数量而不是方块数量）
+    if (notesTriggered >= totalNotes && totalNotes > 0 && !isCompletingRound) {
         // 完成一轮！继续下一轮
         isCompletingRound = true;
+        console.log(`🎉 所有音符已触发！触发数: ${notesTriggered}/${totalNotes}`);
         completeRound();
     }
 }
@@ -1567,6 +1596,7 @@ async function completeRound() {
 // 重新开始一轮（不重置星星和速度）
 async function restartRound() {
     console.log('🔄 开始新一轮...');
+    console.log(`当前速度倍数: ${speedMultiplier.toFixed(2)}x, midiSpeed: ${midiSpeed.toFixed(3)}`);
     
     // 暂停游戏
     gameRunning = false;
@@ -1575,7 +1605,8 @@ async function restartRound() {
     console.log(`🧹 清理 ${noteObjects.length} 个旧方块`);
     cleanupObjects(noteObjects);
     
-    // 等待一帧确保清理完成
+    // 等待两帧确保清理完成和渲染更新
+    await new Promise(resolve => requestAnimationFrame(resolve));
     await new Promise(resolve => requestAnimationFrame(resolve));
     
     // 重置音符状态
@@ -1585,9 +1616,9 @@ async function restartRound() {
         note.collided = false;
     });
     
-    // 重新创建音符方块
+    // 重新创建音符方块（使用当前的 midiSpeed）
     gameStartTime = Date.now() / 1000;
-    console.log('🎵 重新创建音符方块...');
+    console.log(`🎵 重新创建音符方块（速度: ${midiSpeed.toFixed(3)}）...`);
     await createAllNoteBlocks();
     
     // 重置完成标志
@@ -1601,6 +1632,7 @@ async function restartRound() {
     distanceElement.textContent = `速度: ${speedMultiplier.toFixed(2)}x`;
     
     console.log(`✅ 第 ${starsEarned} 轮开始！创建了 ${noteObjects.length} 个音符方块`);
+    console.log(`方块初始位置范围: z=${noteObjects[0]?.position.z.toFixed(1)} 到 z=${noteObjects[noteObjects.length-1]?.position.z.toFixed(1)}`);
 }
 
 // 游戏结束（碰撞死亡）
