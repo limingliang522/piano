@@ -346,6 +346,7 @@
             min-height: 0;
             margin: 0;
             border-top: 1px solid rgba(255, 255, 255, 0.1);
+            margin-bottom: 8px; /* 为底部按钮留出空间 */
         }
 
         .midi-list-container::-webkit-scrollbar {
@@ -366,6 +367,8 @@
             padding: 5px 6px 5px 6px;
             overflow: hidden; /* 防止溢出 */
             gap: 8px;
+            display: flex;
+            flex-direction: column;
         }
 
         /* 搜索框容器 */
@@ -523,11 +526,11 @@
         }
         
         .random-button-container {
-            margin-top: auto;
             padding: 8px 6px 5px 6px;
             background: transparent;
-            border-top: none;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
             flex-shrink: 0;
+            margin-top: 0;
         }
 
 
