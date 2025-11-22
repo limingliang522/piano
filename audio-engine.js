@@ -192,6 +192,9 @@ class AudioEngine {
             
             // 2. 三段均衡器
             this.eqLow = ctx.createBiquadFilter();
+            
+            // 连接多段压缩器到均衡器
+            this.multibandMerger.connect(this.eqLow);
             this.eqLow.type = 'lowshelf';
             this.eqLow.frequency.value = 250;
             this.eqLow.gain.value = 0; // 纯净原声，不增益
@@ -278,8 +281,8 @@ class AudioEngine {
             // 输出
             this.masterGain.connect(ctx.destination);
             
-            // 兼容性：compressor 指向均衡器输入
-            this.compressor = this.eqLow;
+            // 兼容性：compressor 指向多段压缩器输入（已在上面设置）
+            // this.compressor = this.multibandSplitter; (已设置，不要重复赋值)
             
             // 设置 3D 音频监听器位置
             this.listener = ctx.listener;
@@ -552,7 +555,7 @@ class AudioEngine {
             return null;
         }
         
-        console.log(`✅ 成功播放: MIDI ${midiNote} -> ${sampleKey}`);
+        console.log(`✅ 成功播放: MIDI ${midiNote} -> ${sampleKey}, 主音量=${this.masterGain.gain.value}`);
 
         try {
             const ctx = this.audioContext;
@@ -791,6 +794,8 @@ class AudioEngine {
         this.ensureAudioContext();
         
         console.log(`🎵 AudioContext 状态: ${this.audioContext.state}`);
+        console.log(`🔊 主音量: ${this.masterGain ? this.masterGain.gain.value : 'undefined'}`);
+        console.log(`🔊 采样数量: ${this.samples.size}`);
         
         if (this.audioContext.state === 'suspended') {
             try {
@@ -800,6 +805,8 @@ class AudioEngine {
                 console.error('❌ AudioContext 恢复失败:', error);
             }
         }
+        
+        console.log(`🎵 AudioContext 最终状态: ${this.audioContext.state}`);
         
         // 异步预热，不阻塞启动
         setTimeout(() => this.warmupAudio(), 100);
