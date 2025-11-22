@@ -188,24 +188,23 @@ class AudioEngine {
             this.compressor = this.multibandSplitter;
             this.makeupGain = this.multibandMerger;
             
-            console.log('initAudioChain: 创建均衡器...');
-            // 2. 三段均衡器（精细调音）
-            // 优化 FluidR3 GM 音色的均衡器设置
+            console.log('initAudioChain: 创建均衡器（纯净原声模式）...');
+            // 2. 三段均衡器（纯净原声 - 不增益）
             this.eqLow = ctx.createBiquadFilter();
             this.eqLow.type = 'lowshelf';
             this.eqLow.frequency.value = 250;
-            this.eqLow.gain.value = 3.0; // 增强低频，增加温暖度和厚度
+            this.eqLow.gain.value = 0; // 纯净原声，不增益
             
             this.eqMid = ctx.createBiquadFilter();
             this.eqMid.type = 'peaking';
             this.eqMid.frequency.value = 2000;
             this.eqMid.Q.value = 1.2;
-            this.eqMid.gain.value = 2.0; // 提升中频，增加清晰度和存在感
+            this.eqMid.gain.value = 0; // 纯净原声，不增益
             
             this.eqHigh = ctx.createBiquadFilter();
             this.eqHigh.type = 'highshelf';
             this.eqHigh.frequency.value = 6000;
-            this.eqHigh.gain.value = 4.0; // 增强高频，增加明亮度和空气感
+            this.eqHigh.gain.value = 0; // 纯净原声，不增益
             
             console.log('initAudioChain: 创建混响...');
             // 3. 卷积混响（音乐厅效果 - 轻量化）
@@ -234,23 +233,23 @@ class AudioEngine {
             this.hardClipper.oversample = '4x'; // 高质量过采样，减少失真
             
             console.log('initAudioChain: 创建主音量...');
-            // 5. 立体声增强器（Haas 效果 - 增加宽度）
+            // 5. 立体声增强器（Haas 效果 - 轻微增强）
             this.stereoWidener = ctx.createDelay();
-            this.stereoWidener.delayTime.value = 0.02; // 20ms 延迟
+            this.stereoWidener.delayTime.value = 0.015; // 15ms 延迟（更自然）
             
             this.stereoWidenerGain = ctx.createGain();
-            this.stereoWidenerGain.gain.value = 0.4; // 40% 立体声增强
+            this.stereoWidenerGain.gain.value = 0.2; // 20% 轻微立体声增强
             
             this.stereoMerger = ctx.createChannelMerger(2);
             this.stereoSplitter = ctx.createChannelSplitter(2);
             
             // 6. 深度混响（大音乐厅效果）
             this.reverbGain = ctx.createGain();
-            this.reverbGain.gain.value = 0.45; // 45% 混响，强烈空间感
+            this.reverbGain.gain.value = 0.15; // 15% 轻微混响，保持原声
             
             // 7. 主音量
             this.masterGain = ctx.createGain();
-            this.masterGain.gain.value = 10.0; // 增强音量
+            this.masterGain.gain.value = 1.0; // 纯净原声，不额外增益
             
             console.log('initAudioChain: 连接音频节点（3D 立体空间）...');
             // 立体空间音频链路：
@@ -272,13 +271,13 @@ class AudioEngine {
             // 右声道：直通 + 延迟左声道
             this.stereoSplitter.connect(this.stereoMerger, 1, 1); // 右 → 右
             
-            // 干声路径（55%）
+            // 干声路径（85% 纯净原声）
             const dryGain = ctx.createGain();
-            dryGain.gain.value = 0.55;
+            dryGain.gain.value = 0.85;
             this.stereoMerger.connect(dryGain);
             dryGain.connect(this.masterGain);
             
-            // 湿声路径（45% 深度混响）
+            // 湿声路径（15% 轻微混响）
             this.stereoMerger.connect(this.convolver);
             this.convolver.connect(this.reverbGain);
             this.reverbGain.connect(this.masterGain);
@@ -304,10 +303,10 @@ class AudioEngine {
                 this.listener.upZ.value = 0;
             }
             
-            console.log('🎹 3D 立体空间音频系统已初始化');
-            console.log('✨ Haas 立体声增强 | 大型音乐厅混响 (2.5秒)');
-            console.log('🎵 45% 深度混响 | 55% 干声 | 强烈空间感');
-            console.log('🎧 左右声道差异化处理 | 沉浸式 3D 体验');
+            console.log('🎹 纯净原声音频系统已初始化');
+            console.log('✨ 原声输出模式 | 轻微混响 (15%)');
+            console.log('🎵 85% 干声 | 15% 混响 | 保持原始音色');
+            console.log('🎧 自然立体声 | 无额外增益');
             console.log('🎚️ 功能: 音频分析器 | 提前释放 | 性能模式切换');
         } catch (error) {
             console.error('initAudioChain: 初始化失败:', error);
@@ -315,38 +314,37 @@ class AudioEngine {
         }
     }
     
-    // 创建大型音乐厅混响脉冲响应（强烈 3D 空间感）
+    // 创建自然房间混响脉冲响应（轻微空间感）
     createReverbImpulse() {
         const ctx = this.audioContext;
         const sampleRate = ctx.sampleRate;
-        const length = sampleRate * 2.5; // 2.5秒混响（大型音乐厅）
+        const length = sampleRate * 1.2; // 1.2秒混响（小型房间）
         const impulse = ctx.createBuffer(2, length, sampleRate);
         const impulseL = impulse.getChannelData(0);
         const impulseR = impulse.getChannelData(1);
         
-        // 生成丰富的 3D 空间混响
+        // 生成自然的房间混响
         for (let i = 0; i < length; i++) {
             const t = i / sampleRate;
             
-            // 慢速指数衰减（模拟大型音乐厅）
-            const decay = Math.exp(-t / 0.8);
+            // 快速指数衰减（模拟小型房间）
+            const decay = Math.exp(-t / 0.4);
             
-            // 早期反射（前 80ms）- 强烈空间感
+            // 早期反射（前 50ms）- 轻微空间感
             let earlyReflections = 0;
-            if (t < 0.08) {
-                // 多次反射模拟
-                earlyReflections += (Math.random() * 2 - 1) * 0.6 * decay;
-                if (t > 0.02) earlyReflections += (Math.random() * 2 - 1) * 0.4 * decay;
-                if (t > 0.04) earlyReflections += (Math.random() * 2 - 1) * 0.3 * decay;
+            if (t < 0.05) {
+                // 简单反射模拟
+                earlyReflections += (Math.random() * 2 - 1) * 0.3 * decay;
+                if (t > 0.015) earlyReflections += (Math.random() * 2 - 1) * 0.2 * decay;
             }
             
-            // 后期混响（丰富、宽广）
-            const lateReverb = (Math.random() * 2 - 1) * decay * 0.5;
+            // 后期混响（自然、温和）
+            const lateReverb = (Math.random() * 2 - 1) * decay * 0.3;
             
-            // 左右声道明显差异（强烈立体感）
-            const stereoWidth = 0.3;
+            // 左右声道轻微差异（自然立体感）
+            const stereoWidth = 0.15;
             impulseL[i] = earlyReflections + lateReverb + (Math.random() * 2 - 1) * stereoWidth * decay;
-            impulseR[i] = earlyReflections * 0.9 + lateReverb * 0.85 + (Math.random() * 2 - 1) * stereoWidth * decay;
+            impulseR[i] = earlyReflections * 0.95 + lateReverb * 0.9 + (Math.random() * 2 - 1) * stereoWidth * decay;
         }
         
         this.convolver.buffer = impulse;
@@ -381,52 +379,57 @@ class AudioEngine {
         // 确保AudioContext已创建
         this.ensureAudioContext();
         
-        // 定义实际存在的采样点 - Bright Acoustic Piano（52个音符）
+        // 定义实际存在的采样点 - Steinway Grand（12个音符 × 4力度 × 2轮询）
         const sampleNotes = [
-            'A0', 'B0',
-            'C1', 'D1', 'E1', 'F1', 'G1', 'A1', 'B1',
-            'C2', 'D2', 'E2', 'F2', 'G2', 'A2', 'B2',
-            'C3', 'D3', 'E3', 'F3', 'G3', 'A3', 'B3',
-            'C4', 'D4', 'E4', 'F4', 'G4', 'A4', 'B4',
-            'C5', 'D5', 'E5', 'F5', 'G5', 'A5', 'B5',
-            'C6', 'D6', 'E6', 'F6', 'G6', 'A6', 'B6',
-            'C7', 'D7', 'E7', 'F7', 'G7', 'A7', 'B7',
-            'C8'
+            'C0', 'G0', 'A1', 'D1', 'B2', 'E2', 
+            'F#3', 'C#4', 'G#4', 'A#5', 'D#5', 'F6'
         ];
+        const dynamics = [1, 2, 3, 4]; // 4个力度层
+        const roundRobins = [1, 2]; // 2个轮询
         
         let loadedCount = 0;
-        const total = sampleNotes.length;
+        const total = sampleNotes.length * dynamics.length * roundRobins.length;
         
-        // 加载单个音色（标准MP3格式）
-        const loadSample = async (noteName) => {
+        // 加载单个音色（Steinway格式）
+        const loadSample = async (noteName, dyn, rr) => {
             try {
-                const response = await fetch(`./piano-samples/${noteName}.mp3`);
+                const fileName = `Steinway_${noteName}_Dyn${dyn}_RR${rr}.mp3`;
+                const response = await fetch(`./钢琴/Steinway Grand  (DS)/${fileName}`);
                 if (!response.ok) {
                     throw new Error(`HTTP ${response.status}`);
                 }
                 const arrayBuffer = await response.arrayBuffer();
                 const audioBuffer = await this.audioContext.decodeAudioData(arrayBuffer);
-                this.samples.set(noteName, audioBuffer);
+                const sampleKey = `${noteName}_${dyn}_${rr}`;
+                this.samples.set(sampleKey, audioBuffer);
                 return true;
             } catch (error) {
-                console.warn(`${noteName} 加载失败:`, error);
+                console.warn(`${noteName}_${dyn}_${rr} 加载失败:`, error);
                 return false;
             }
         };
         
         // 并行加载所有音色（最快速度）
-        const allPromises = sampleNotes.map(async (noteName) => {
-            const success = await loadSample(noteName);
-            loadedCount++;
-            if (progressCallback) {
-                progressCallback(loadedCount, total);
+        const allPromises = [];
+        for (const noteName of sampleNotes) {
+            for (const dyn of dynamics) {
+                for (const rr of roundRobins) {
+                    allPromises.push(
+                        loadSample(noteName, dyn, rr).then(success => {
+                            loadedCount++;
+                            if (progressCallback) {
+                                progressCallback(loadedCount, total);
+                            }
+                            return success;
+                        })
+                    );
+                }
             }
-            return success;
-        });
+        }
         
         await Promise.all(allPromises);
         
-        console.log(`🎹 Bright Acoustic Piano 加载完成！共 ${this.samples.size}/52 个音符`);
+        console.log(`🎹 Steinway Grand 加载完成！共 ${this.samples.size}/96 个采样`);
         
         this.isReady = true;
         
@@ -440,8 +443,8 @@ class AudioEngine {
     // 使用真实采样预热（轻量版 - 不阻塞）
     async warmupWithSample() {
         try {
-            // 找到中音区的采样（C4）
-            const warmupNote = this.samples.get('C4') || this.samples.values().next().value;
+            // 找到中音区的采样（C#4 Dyn2 RR1）
+            const warmupNote = this.samples.get('C#4_2_1') || this.samples.values().next().value;
             if (!warmupNote) return;
             
             const ctx = this.audioContext;
@@ -466,7 +469,7 @@ class AudioEngine {
         }
     }
 
-    // 找到最接近的采样音符（Bright Acoustic Piano 版本）
+    // 找到最接近的采样音符（Steinway Grand 版本）
     findClosestSample(targetNote, velocity) {
         const noteToMidi = (noteName) => {
             const noteNames = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
@@ -481,17 +484,10 @@ class AudioEngine {
         
         const targetMidi = noteToMidi(targetNote);
         
-        // Bright Acoustic Piano 采样点（52个音符）
+        // Steinway Grand 采样点（12个音符）
         const sampleNotes = [
-            'A0', 'B0',
-            'C1', 'D1', 'E1', 'F1', 'G1', 'A1', 'B1',
-            'C2', 'D2', 'E2', 'F2', 'G2', 'A2', 'B2',
-            'C3', 'D3', 'E3', 'F3', 'G3', 'A3', 'B3',
-            'C4', 'D4', 'E4', 'F4', 'G4', 'A4', 'B4',
-            'C5', 'D5', 'E5', 'F5', 'G5', 'A5', 'B5',
-            'C6', 'D6', 'E6', 'F6', 'G6', 'A6', 'B6',
-            'C7', 'D7', 'E7', 'F7', 'G7', 'A7', 'B7',
-            'C8'
+            'C0', 'G0', 'A1', 'D1', 'B2', 'E2', 
+            'F#3', 'C#4', 'G#4', 'A#5', 'D#5', 'F6'
         ];
         
         let closestNote = null;
@@ -506,9 +502,17 @@ class AudioEngine {
             }
         }
         
+        // 根据 velocity 选择力度层（1-4）
+        const dyn = Math.ceil(velocity / 32); // 0-31→1, 32-63→2, 64-95→3, 96-127→4
+        
+        // 轮询选择（简单随机）
+        const rr = Math.random() < 0.5 ? 1 : 2;
+        
         return { 
             noteName: closestNote, 
-            semitoneOffset: targetMidi - noteToMidi(closestNote)
+            semitoneOffset: targetMidi - noteToMidi(closestNote),
+            dyn: dyn,
+            rr: rr
         };
     }
 
@@ -520,17 +524,18 @@ class AudioEngine {
         }
 
         const targetNote = this.midiToNoteName(midiNote);
-        const { noteName, semitoneOffset } = this.findClosestSample(targetNote, velocity);
+        const { noteName, semitoneOffset, dyn, rr } = this.findClosestSample(targetNote, velocity);
         
         if (!noteName) {
             console.warn('找不到合适的采样');
             return null;
         }
         
-        // 获取采样（单层采样，直接使用音符名）
-        const buffer = this.samples.get(noteName);
+        // 获取采样（多层采样，使用力度和轮询）
+        const sampleKey = `${noteName}_${dyn}_${rr}`;
+        const buffer = this.samples.get(sampleKey);
         if (!buffer) {
-            console.warn(`采样 ${noteName} 不存在`);
+            console.warn(`采样 ${sampleKey} 不存在`);
             return null;
         }
 
