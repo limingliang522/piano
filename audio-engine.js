@@ -433,41 +433,10 @@ class AudioEngine {
             const playbackRate = Math.pow(2, semitoneOffset / 12);
             source.playbackRate.value = playbackRate;
             
-            // === 3D 空间音频定位（根据性能模式和设置调整）===
-            let panner = null;
-            let stereoPanner = null;
-            
-            if (this.spatialAudioEnabled && (this.performanceMode === 'high' || this.performanceMode === 'medium')) {
-                // 高/中性能：使用 3D 空间音频
-                panner = ctx.createPanner();
-                panner.panningModel = this.performanceMode === 'high' ? 'HRTF' : 'equalpower';
-                panner.distanceModel = 'inverse';
-                panner.refDistance = 1;
-                panner.maxDistance = 10000;
-                panner.rolloffFactor = 1;
-                panner.coneInnerAngle = 360;
-                panner.coneOuterAngle = 360;
-                panner.coneOuterGain = 0;
-                
-                // 根据轨道位置设置 3D 空间位置
-                const laneWidth = 3;
-                const xPosition = (lane - 2) * laneWidth;
-                const yPosition = 0;
-                const zPosition = -5;
-                
-                if (panner.positionX) {
-                    panner.positionX.value = xPosition;
-                    panner.positionY.value = yPosition;
-                    panner.positionZ.value = zPosition;
-                } else {
-                    panner.setPosition(xPosition, yPosition, zPosition);
-                }
-            } else {
-                // 低性能或禁用3D音频：使用简单立体声
-                stereoPanner = ctx.createStereoPanner();
-                const panValue = (lane - 2) / 3;
-                stereoPanner.pan.value = Math.max(-0.8, Math.min(0.8, panValue));
-            }
+            // === 简单立体声定位 ===
+            const stereoPanner = ctx.createStereoPanner();
+            const panValue = (lane - 2) / 3;
+            stereoPanner.pan.value = Math.max(-0.8, Math.min(0.8, panValue));
             
             // === 音量包络（ADSR - 完美还原MIDI力度）===
             const gainNode = ctx.createGain();
@@ -502,21 +471,10 @@ class AudioEngine {
             // === 完美还原MIDI，不添加随机音高偏移 ===
             // 已移除随机 detune，保持音高精确
             
-            // === 连接音频处理链（根据性能模式）===
-            if (panner) {
-                // 高/中性能：3D 音频链
-                source.connect(panner);
-                panner.connect(gainNode);
-            } else if (stereoPanner) {
-                // 低性能：简单立体声
-                source.connect(stereoPanner);
-                stereoPanner.connect(gainNode);
-            } else {
-                // 超低性能：直连
-                source.connect(gainNode);
-            }
-            // 优化音色：经过均衡器和混响处理
-            gainNode.connect(this.compressor); // compressor 现在指向 eqLow
+            // === 连接音频处理链 ===
+            source.connect(stereoPanner);
+            stereoPanner.connect(gainNode);
+            gainNode.connect(this.compressor); // compressor 现在指向 masterGain
             
             // 播放
             source.start(now);
@@ -526,8 +484,7 @@ class AudioEngine {
             source.onended = () => {
                 try {
                     source.disconnect();
-                    if (panner) panner.disconnect();
-                    if (stereoPanner) stereoPanner.disconnect();
+                    stereoPanner.disconnect();
                     gainNode.disconnect();
                     // 从活跃音符列表中移除
                     this.activeNotes.delete(noteId);
@@ -734,32 +691,8 @@ class AudioEngine {
         };
     }
     
-    // 测试音频输出（播放简单的哔声）
-    testBeep() {
-        console.log('🔊 测试哔声...');
-        const ctx = this.audioContext;
-        const now = ctx.currentTime;
-        
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        
-        osc.frequency.value = 440; // A4
-        gain.gain.value = 0.3;
-        
-        osc.connect(gain);
-        gain.connect(ctx.destination); // 直接连接到输出
-        
-        osc.start(now);
-        osc.stop(now + 0.2);
-        
-        console.log('✅ 哔声已发送');
-    }
-    
     // 播放UI点击音效（使用钢琴音色）
     playClickSound() {
-        // 先测试哔声
-        this.testBeep();
-        
         if (!this.isReady || this.samples.size === 0) {
             return;
         }
