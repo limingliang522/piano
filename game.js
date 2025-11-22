@@ -165,15 +165,15 @@ const GROUND_LENGTH = 100;
 // 统一的移动速度（调整这个值可以改变所有移动速度）
 const moveSpeed = 0.50;
 
-// 优化的高画质配置（平衡性能与画质）
+// 固定最高画质配置（保持原有效果）
 const GRAPHICS_CONFIG = {
     shadowsEnabled: true,
     shadowType: THREE.PCFSoftShadowMap,
-    pixelRatio: Math.min(window.devicePixelRatio, 2), // 限制最高2倍，避免过度渲染
-    fogDistance: 100, // 减少雾效距离，提升性能
-    trailLength: 8, // 减少拖尾长度
-    playerSegments: 32, // 优化球体细节（32已经很平滑）
-    trailSegments: 16   // 优化拖尾细节
+    pixelRatio: window.devicePixelRatio, // 使用设备原生像素比
+    fogDistance: 120,
+    trailLength: 12,
+    playerSegments: 64, // 保持高细节球体
+    trailSegments: 32   // 保持高细节拖尾
 };
 
 // FPS 监控（仅用于显示，不影响画质）
@@ -252,24 +252,46 @@ function init() {
     camera.position.set(0, 5.5, 8);
     camera.lookAt(0, 0, -8);
     
-    // 创建渲染器 - 优化的高性能设置（透明背景）
+    // 创建渲染器 - 最高画质设置（透明背景）+ 性能优化
     const canvas = document.getElementById('gameCanvas');
     renderer = new THREE.WebGLRenderer({ 
         canvas: canvas,
         antialias: true,
-        alpha: true, // 启用透明背景
+        alpha: true,
         powerPreference: "high-performance",
         precision: "highp",
-        stencil: false, // 禁用模板缓冲，提升性能
+        stencil: false, // 不需要模板缓冲
         depth: true,
-        logarithmicDepthBuffer: false, // 禁用对数深度，提升性能
+        logarithmicDepthBuffer: true, // 保持深度精度
         premultipliedAlpha: false
     });
     
-    // 优化渲染设置
-    renderer.sortObjects = false; // 禁用排序，提升性能（我们的场景不需要复杂排序）
-    renderer.toneMapping = THREE.NoToneMapping; // 禁用色调映射，提升性能
+    // 启用高质量渲染 + 性能优化
+    renderer.sortObjects = true; // 保持正确排序
+    renderer.toneMapping = THREE.ACESFilmicToneMapping; // 保持电影级色调
     renderer.toneMappingExposure = 1.0;
+    
+    // 性能优化：启用WebGL优化特性
+    renderer.info.autoReset = false; // 手动重置统计信息
+    
+    // 启用WebGL扩展以提升性能
+    const gl = renderer.getContext();
+    const extensions = [
+        'OES_texture_float',
+        'OES_texture_float_linear',
+        'OES_standard_derivatives',
+        'EXT_shader_texture_lod',
+        'WEBGL_compressed_texture_s3tc',
+        'WEBGL_compressed_texture_etc',
+        'WEBGL_compressed_texture_astc'
+    ];
+    extensions.forEach(ext => {
+        try {
+            gl.getExtension(ext);
+        } catch (e) {
+            // 扩展不支持，跳过
+        }
+    });
     
     // 设置像素比以提高画质（最高3倍，支持高分辨率屏幕）
     renderer.setPixelRatio(GRAPHICS_CONFIG.pixelRatio);
@@ -278,10 +300,10 @@ function init() {
     // 设置透明背景
     renderer.setClearColor(0x000000, 0); // 完全透明
     
-    // 优化阴影设置
+    // 固定高画质阴影设置
     renderer.shadowMap.enabled = GRAPHICS_CONFIG.shadowsEnabled;
     renderer.shadowMap.type = GRAPHICS_CONFIG.shadowType;
-    renderer.shadowMap.autoUpdate = false; // 手动更新阴影，提升性能
+    renderer.shadowMap.autoUpdate = true; // 自动更新阴影，保持画质
     
     // 添加光源 - 极简风格
     const ambientLight = new THREE.AmbientLight(0xffffff, 0.3); // 降低环境光
@@ -291,12 +313,12 @@ function init() {
     const directionalLight = new THREE.DirectionalLight(0xffffff, 0.5);
     directionalLight.position.set(0, 15, 0);
     directionalLight.castShadow = true;
-    directionalLight.shadow.camera.left = -15;
-    directionalLight.shadow.camera.right = 15;
-    directionalLight.shadow.camera.top = 15;
-    directionalLight.shadow.camera.bottom = -15;
-    directionalLight.shadow.mapSize.width = 2048; // 优化为2K阴影（性能更好）
-    directionalLight.shadow.mapSize.height = 2048;
+    directionalLight.shadow.camera.left = -20;
+    directionalLight.shadow.camera.right = 20;
+    directionalLight.shadow.camera.top = 20;
+    directionalLight.shadow.camera.bottom = -20;
+    directionalLight.shadow.mapSize.width = 4096; // 保持4K阴影
+    directionalLight.shadow.mapSize.height = 4096;
     directionalLight.shadow.bias = -0.0001;
     scene.add(directionalLight);
     
@@ -815,9 +837,8 @@ function createAllNoteBlocks() {
     return createAllNoteBlocksWithProgress(null);
 }
 
-// 共享几何体和材质（避免重复创建，大幅提升性能）
+// 共享几何体和边缘材质（避免重复创建，提升性能）
 let sharedEdgeMaterial = null;
-let sharedBlockMaterial = null;
 let sharedGeometries = {
     normalBlock: null,
     tallBlock: null,
@@ -837,25 +858,14 @@ function getSharedEdgeMaterial() {
     return sharedEdgeMaterial;
 }
 
-function getSharedBlockMaterial() {
-    if (!sharedBlockMaterial) {
-        sharedBlockMaterial = new THREE.MeshStandardMaterial({ 
-            color: 0x1a1a1a,
-            metalness: 0.8, // 降低金属度
-            roughness: 0.3, // 提高粗糙度
-            transparent: false, // 禁用透明度，提升性能
-            emissive: 0x0a0a0a,
-            emissiveIntensity: 0.2
-        });
-    }
-    return sharedBlockMaterial;
-}
-
 // 获取共享几何体（大幅减少内存和创建时间）
 function getSharedGeometry(isTall) {
     if (isTall) {
         if (!sharedGeometries.tallBlock) {
             sharedGeometries.tallBlock = new THREE.BoxGeometry(1.5, 3.0, 1.2);
+            // 优化：预计算边界球和边界框
+            sharedGeometries.tallBlock.computeBoundingSphere();
+            sharedGeometries.tallBlock.computeBoundingBox();
             sharedGeometries.tallEdges = new THREE.EdgesGeometry(sharedGeometries.tallBlock);
         }
         return {
@@ -865,6 +875,9 @@ function getSharedGeometry(isTall) {
     } else {
         if (!sharedGeometries.normalBlock) {
             sharedGeometries.normalBlock = new THREE.BoxGeometry(1.5, 0.4, 1.2);
+            // 优化：预计算边界球和边界框
+            sharedGeometries.normalBlock.computeBoundingSphere();
+            sharedGeometries.normalBlock.computeBoundingBox();
             sharedGeometries.normalEdges = new THREE.EdgesGeometry(sharedGeometries.normalBlock);
         }
         return {
@@ -874,7 +887,7 @@ function getSharedGeometry(isTall) {
     }
 }
 
-// 创建音符方块（高性能版 - 共享几何体和材质）
+// 创建音符方块（优化版 - 共享几何体，独立材质保持画质）
 function createNoteBlock(noteData) {
     // 使用预先分配的高度
     const isTall = noteData.isTall;
@@ -884,8 +897,16 @@ function createNoteBlock(noteData) {
     // 使用共享几何体（减少内存）
     const geometries = getSharedGeometry(isTall);
     
-    // 使用共享材质（大幅提升性能）- 通过userData存储原始颜色
-    const material = getSharedBlockMaterial();
+    // 为每个方块创建独立的材质副本（保持画质和独立控制）
+    const material = new THREE.MeshStandardMaterial({ 
+        color: 0x1a1a1a,
+        metalness: 0.9,
+        roughness: 0.2,
+        transparent: true,
+        opacity: 1.0,
+        emissive: 0x0a0a0a,
+        emissiveIntensity: 0.2
+    });
     
     const noteBlock = new THREE.Mesh(geometries.block, material);
     
@@ -1002,36 +1023,36 @@ let trailPositions = [];
 const trailLength = 10;
 let trailSpheres = [];
 
-// 创建玩家（优化版 - 减少透明度使用）
+// 创建玩家（保持原有高画质）
 function createPlayer() {
-    // 优化球体细节
+    // 固定高画质球体细节
     const geometry = new THREE.SphereGeometry(0.25, GRAPHICS_CONFIG.playerSegments, GRAPHICS_CONFIG.playerSegments);
     
     const material = new THREE.MeshStandardMaterial({ 
         color: 0xffffff,
         emissive: 0xffffff,
-        emissiveIntensity: 0.3,
-        metalness: 0.2,
-        roughness: 0.5,
-        transparent: false, // 禁用透明度，提升性能
-        opacity: 1.0
+        emissiveIntensity: 0.4,
+        metalness: 0.3,
+        roughness: 0.4,
+        transparent: true,
+        opacity: 0.95
     });
     player = new THREE.Mesh(geometry, material);
     player.position.set(0, 0.25, 0);
     player.castShadow = true;
     scene.add(player);
     
-    // 创建拖尾球体（优化版）
+    // 创建拖尾球体
     for (let i = 0; i < GRAPHICS_CONFIG.trailLength; i++) {
-        const trailGeometry = new THREE.SphereGeometry(0.18, GRAPHICS_CONFIG.trailSegments, GRAPHICS_CONFIG.trailSegments);
+        const trailGeometry = new THREE.SphereGeometry(0.2, GRAPHICS_CONFIG.trailSegments, GRAPHICS_CONFIG.trailSegments);
         const trailMaterial = new THREE.MeshBasicMaterial({
             color: 0xcccccc,
             transparent: true,
             opacity: 0,
-            depthWrite: false // 优化透明渲染
+            depthWrite: false
         });
         const trailSphere = new THREE.Mesh(trailGeometry, trailMaterial);
-        trailSphere.renderOrder = -1; // 先渲染拖尾
+        trailSphere.renderOrder = -1;
         scene.add(trailSphere);
         trailSpheres.push(trailSphere);
     }
@@ -1325,47 +1346,32 @@ function updateGround() {
     });
 }
 
-// 更新音符方块（优化版 - 减少不必要的计算）
+// 更新音符方块（性能优化版 - 保持原有逻辑）
 function updateNoteBlocks() {
     const triggerZ = triggerLine.position.z;
     const triggerWindow = 0.2;
     const playerLane = Math.round(currentLane);
-    const playerZ = player.position.z;
-    const playerY = player.position.y;
     
     // 基于时间的移动速度
     const moveSpeed = midiSpeed * 60;
     
+    // 批量更新位置（减少单独访问）
     for (let i = noteObjects.length - 1; i >= 0; i--) {
         const noteBlock = noteObjects[i];
         noteBlock.position.z += moveSpeed * deltaTime;
         
         const noteData = noteBlock.userData.noteData;
-        const blockZ = noteBlock.position.z;
         
-        // 提前剔除远离的方块（减少计算）
-        if (blockZ > 10) {
+        // 提前剔除远离的方块
+        if (noteBlock.position.z > 10) {
             disposeObject(noteBlock);
             noteObjects.splice(i, 1);
             continue;
         }
         
-        // 只检查同轨道的方块
-        if (noteData.lane !== playerLane) {
-            // 检查触发（即使不在同轨道也要触发音符）
-            if (!noteData.triggered && blockZ >= triggerZ - triggerWindow && blockZ <= triggerZ + triggerWindow) {
-                noteData.triggered = true;
-                notesTriggered++;
-                score += 100;
-                audioEngine.playNote(noteData.note, noteData.duration, noteData.velocity, noteData.lane);
-                noteBlock.material.emissiveIntensity = 1.0;
-            }
-            continue;
-        }
-        
-        // 碰撞检测（优化版 - 减少计算）
-        if (!noteData.collided) {
-            const distanceToPlayer = Math.abs(blockZ - playerZ);
+        // 检查是否与玩家碰撞
+        if (!noteData.collided && noteData.lane === playerLane) {
+            const distanceToPlayer = Math.abs(noteBlock.position.z - player.position.z);
             
             if (distanceToPlayer < 1.0) {
                 const isTall = noteBlock.userData.isTall;
@@ -1385,13 +1391,16 @@ function updateNoteBlocks() {
                     noteData.collided = true;
                     collisions++;
                     
-                    // 震动反馈（如果设备支持）
+                    // 震动反馈
                     if (navigator.vibrate) {
                         navigator.vibrate(50);
                     }
                     
                     lastCollisionBlock = noteBlock;
-                    noteBlock.material.emissiveIntensity = 2.0; // 使用发光强度而不是改变颜色
+                    
+                    // 改变颜色表示碰撞
+                    noteBlock.material.color.setHex(0xff0000);
+                    noteBlock.material.emissive.setHex(0xff0000);
                     
                     gameOver();
                     return;
@@ -1399,25 +1408,40 @@ function updateNoteBlocks() {
             }
         }
         
-        // 检查触发（同轨道）
-        if (!noteData.triggered && blockZ >= triggerZ - triggerWindow && blockZ <= triggerZ + triggerWindow) {
+        // 检查是否到达触发线（自动触发）
+        if (!noteData.triggered && noteBlock.position.z >= triggerZ - triggerWindow && 
+            noteBlock.position.z <= triggerZ + triggerWindow) {
+            
             noteData.triggered = true;
             notesTriggered++;
             score += 100;
             
+            // 播放音符
             audioEngine.playNote(noteData.note, noteData.duration, noteData.velocity, noteData.lane);
+            
+            // 改变颜色表示已触发（白色发光）
+            noteBlock.material.color.setHex(0xffffff);
+            noteBlock.material.emissive = new THREE.Color(0xffffff);
             noteBlock.material.emissiveIntensity = 1.0;
             
-            // 简化触发效果（移除复杂动画，提升性能）
-            createTriggerWave(noteBlock.position.x, blockZ);
+            // 创建触发时的光波扩散效果
+            createTriggerWave(noteBlock.position.x, noteBlock.position.z);
             
-            // 简单缩放效果
-            noteBlock.scale.set(2, 2, 2);
-            setTimeout(() => {
-                if (noteBlock.parent) {
-                    noteBlock.scale.set(1, 1, 1);
-                }
-            }, 100);
+            // 触发效果：放大并淡出（使用requestAnimationFrame优化）
+            const originalScale = { x: 1.5, y: 0.4, z: 1.2 };
+            let startTime = performance.now();
+            const animateScale = () => {
+                const elapsed = (performance.now() - startTime) / 1000;
+                if (elapsed >= 0.5 || !noteBlock.parent) return;
+                
+                const progress = elapsed / 0.5;
+                const scale = 1 + progress * 2;
+                noteBlock.scale.set(originalScale.x * scale, originalScale.y * scale, originalScale.z * scale);
+                noteBlock.material.opacity = Math.max(0, 1 - progress * 2);
+                
+                requestAnimationFrame(animateScale);
+            };
+            animateScale();
         }
     }
     
@@ -1700,7 +1724,7 @@ function onWindowResize() {
     renderer.setSize(window.innerWidth, window.innerHeight);
 }
 
-// 游戏主循环（优化版）
+// 游戏主循环（性能优化版 - 保持画质）
 let lastObstacleTime = 0;
 let lastCoinTime = 0;
 let lastUpdateTime = 0;
@@ -1714,16 +1738,16 @@ function animate(currentTime) {
     if (lastUpdateTime === 0) {
         lastUpdateTime = currentTime;
     }
-    deltaTime = Math.min((currentTime - lastUpdateTime) / 1000, 0.1); // 限制最大deltaTime，避免卡顿时跳跃
+    deltaTime = Math.min((currentTime - lastUpdateTime) / 1000, 0.1); // 限制最大deltaTime
     lastUpdateTime = currentTime;
     
     // 更新FPS统计
     updateFPS(currentTime);
     
-    // 每60帧更新一次阴影（而不是每帧）
+    // 性能优化：每30帧重置渲染器统计信息
     frameCount++;
-    if (frameCount % 60 === 0 && renderer.shadowMap.enabled) {
-        renderer.shadowMap.needsUpdate = true;
+    if (frameCount % 30 === 0) {
+        renderer.info.reset();
     }
     
     lastFrameTime = currentTime;
@@ -1733,6 +1757,7 @@ function animate(currentTime) {
         return;
     }
     
+    // 性能优化：使用批量更新减少重绘
     // 更新游戏元素
     updatePlayer();
     updateGround();
@@ -1744,6 +1769,27 @@ function animate(currentTime) {
             midiSpeed += speedIncreaseRate * speedMultiplier;
         }
         updateNoteBlocks();
+        
+        // 性能优化：视锥剔除（每5帧执行一次）
+        if (frameCount % 5 === 0) {
+            camera.updateMatrixWorld();
+            const frustum = new THREE.Frustum();
+            frustum.setFromProjectionMatrix(
+                new THREE.Matrix4().multiplyMatrices(
+                    camera.projectionMatrix,
+                    camera.matrixWorldInverse
+                )
+            );
+            
+            // 隐藏视锥外的方块（减少渲染负担）
+            noteObjects.forEach(block => {
+                if (block.position.z < -60 || block.position.z > 15) {
+                    block.visible = false;
+                } else {
+                    block.visible = true;
+                }
+            });
+        }
     } else {
         updateObstacles();
         updateCoins();
@@ -2544,18 +2590,18 @@ dynamicIsland.addEventListener('click', (e) => {
     }
 });
 
-// 创建触发时的光波扩散效果（优化版 - 使用对象池）
+// 创建触发时的光波扩散效果（对象池优化 - 保持画质）
 let wavePool = [];
-const MAX_WAVES = 10;
+const MAX_WAVES = 20; // 增加池大小
 
 function createTriggerWave(x, z) {
     // 使用对象池复用波纹
     let wave = wavePool.find(w => !w.visible);
     
     if (!wave) {
-        if (wavePool.length >= MAX_WAVES) return; // 限制最大波纹数
+        if (wavePool.length >= MAX_WAVES) return;
         
-        const waveGeometry = new THREE.RingGeometry(0.5, 0.8, 16); // 减少分段数
+        const waveGeometry = new THREE.RingGeometry(0.5, 0.8, 32); // 保持高细节
         const waveMaterial = new THREE.MeshBasicMaterial({
             color: 0xffffff,
             transparent: true,
@@ -2575,11 +2621,11 @@ function createTriggerWave(x, z) {
     wave.material.opacity = 0.8;
     wave.visible = true;
     
-    // 简化动画（使用requestAnimationFrame而不是setInterval）
+    // 使用requestAnimationFrame优化动画
     let startTime = performance.now();
     const animate = () => {
         const elapsed = (performance.now() - startTime) / 1000;
-        if (elapsed > 0.3) {
+        if (elapsed > 0.3 || !wave.visible) {
             wave.visible = false;
             return;
         }

@@ -391,24 +391,33 @@ class AudioEngine {
         return { noteName: closestNote, semitoneOffset: targetMidi - noteToMidi(closestNote) };
     }
 
-    // 播放钢琴音符（优化版 - 简化3D音频，提升性能）
+    // 播放钢琴音符（极致音质版 - 3D空间音频）
     playNote(midiNote, duration = 0.5, velocity = 100, lane = 2) {
+        // 固定使用高性能模式
+        const performanceMode = 'high';
         if (!this.isReady || this.samples.size === 0) {
+            console.warn('钢琴采样尚未加载完成');
             return;
         }
 
         const targetNote = this.midiToNoteName(midiNote);
         const { noteName, semitoneOffset } = this.findClosestSample(targetNote);
         
-        if (!noteName) return;
+        if (!noteName) {
+            console.warn('找不到合适的采样');
+            return;
+        }
         
         const buffer = this.samples.get(noteName);
-        if (!buffer) return;
+        if (!buffer) {
+            console.warn(`采样 ${noteName} 不存在`);
+            return;
+        }
 
         try {
             const ctx = this.audioContext;
             const now = ctx.currentTime;
-            const noteDuration = Math.min(duration, 3); // 限制最大时长
+            const noteDuration = Math.min(duration, 5);
             
             // 创建音频源
             const source = ctx.createBufferSource();
@@ -418,10 +427,41 @@ class AudioEngine {
             const playbackRate = Math.pow(2, semitoneOffset / 12);
             source.playbackRate.value = playbackRate;
             
-            // === 简化的立体声定位（性能优化）===
-            const stereoPanner = ctx.createStereoPanner();
-            const panValue = (lane - 2) / 3;
-            stereoPanner.pan.value = Math.max(-0.7, Math.min(0.7, panValue));
+            // === 3D 空间音频定位（根据性能模式调整）===
+            let panner = null;
+            let stereoPanner = null;
+            
+            if (performanceMode === 'high' || performanceMode === 'medium') {
+                // 高/中性能：使用 3D 空间音频
+                panner = ctx.createPanner();
+                panner.panningModel = performanceMode === 'high' ? 'HRTF' : 'equalpower';
+                panner.distanceModel = 'inverse';
+                panner.refDistance = 1;
+                panner.maxDistance = 10000;
+                panner.rolloffFactor = 1;
+                panner.coneInnerAngle = 360;
+                panner.coneOuterAngle = 360;
+                panner.coneOuterGain = 0;
+                
+                // 根据轨道位置设置 3D 空间位置
+                const laneWidth = 3;
+                const xPosition = (lane - 2) * laneWidth;
+                const yPosition = 0;
+                const zPosition = -5;
+                
+                if (panner.positionX) {
+                    panner.positionX.value = xPosition;
+                    panner.positionY.value = yPosition;
+                    panner.positionZ.value = zPosition;
+                } else {
+                    panner.setPosition(xPosition, yPosition, zPosition);
+                }
+            } else {
+                // 低性能：只使用简单立体声
+                stereoPanner = ctx.createStereoPanner();
+                const panValue = (lane - 2) / 3;
+                stereoPanner.pan.value = Math.max(-0.8, Math.min(0.8, panValue));
+            }
             
             // === 音量包络（ADSR - 完美还原MIDI力度）===
             const gainNode = ctx.createGain();
@@ -456,9 +496,19 @@ class AudioEngine {
             // === 完美还原MIDI，不添加随机音高偏移 ===
             // 已移除随机 detune，保持音高精确
             
-            // === 简化的音频链（性能优化）===
-            source.connect(stereoPanner);
-            stereoPanner.connect(gainNode);
+            // === 连接音频处理链（根据性能模式）===
+            if (panner) {
+                // 高/中性能：3D 音频链
+                source.connect(panner);
+                panner.connect(gainNode);
+            } else if (stereoPanner) {
+                // 低性能：简单立体声
+                source.connect(stereoPanner);
+                stereoPanner.connect(gainNode);
+            } else {
+                // 超低性能：直连
+                source.connect(gainNode);
+            }
             gainNode.connect(this.compressor);
             
             // 播放
@@ -469,7 +519,8 @@ class AudioEngine {
             source.onended = () => {
                 try {
                     source.disconnect();
-                    stereoPanner.disconnect();
+                    if (panner) panner.disconnect();
+                    if (stereoPanner) stereoPanner.disconnect();
                     gainNode.disconnect();
                 } catch (e) {
                     // 已经断开连接
