@@ -749,9 +749,8 @@ function startMIDIGame() {
     dynamicIsland.classList.remove('expanded');
     isIslandExpanded = false;
     
-    // 立即启动游戏（方块已经创建完成）
-    gameRunning = true;
-    gameStartTime = Date.now() / 1000;
+    // 方块已经创建完成，准备启动游戏
+    // 注意：先不设置 gameRunning = true，等音频播放后再启动
     
     // 音频对齐逻辑：
     // 黑块初始位置：z = 2 - (noteTime * originalBaseSpeed * 60)
@@ -1611,9 +1610,6 @@ async function restartRound() {
         // 重新创建音符方块（不显示进度）
         await createAllNoteBlocksWithProgress();
         
-        // 确保游戏继续运行
-        gameRunning = true;
-        
         // 重新播放背景音乐（从0秒开始，使用新的速度倍数）
         if (audioEngine && audioEngine.bgmBuffer) {
             audioEngine.stopBGM();
@@ -1639,6 +1635,9 @@ async function restartRound() {
             // 始终从0秒开始播放，使用当前速度倍数
             audioEngine.playBGM(0, speedMultiplier);
         }
+        
+        // 确保游戏继续运行（在音频播放之后）
+        gameRunning = true;
         
         // 更新UI
         scoreElement.textContent = `⭐ ${starsEarned} | 音符: 0/${totalNotes}`;
