@@ -166,123 +166,17 @@ class AudioEngine {
             // 1.6 合并器
             this.multibandMerger = ctx.createGain();
             
-            // 连接分频器（三个并行通道）
-            // 低频通道
-            this.multibandSplitter.connect(this.lowpassFilter);
-            this.lowpassFilter.connect(this.compressorLow);
-            this.compressorLow.connect(this.makeupGainLow);
-            this.makeupGainLow.connect(this.multibandMerger);
+            // === 简化版：直接输出原声 ===
             
-            // 中频通道（串联两个滤波器形成带通）
-            this.multibandSplitter.connect(this.bandpassFilterLow);
-            this.bandpassFilterLow.connect(this.bandpassFilterHigh);
-            this.bandpassFilterHigh.connect(this.compressorMid);
-            this.compressorMid.connect(this.makeupGainMid);
-            this.makeupGainMid.connect(this.multibandMerger);
-            
-            // 高频通道
-            this.multibandSplitter.connect(this.highpassFilter);
-            this.highpassFilter.connect(this.compressorHigh);
-            this.compressorHigh.connect(this.makeupGainHigh);
-            this.makeupGainHigh.connect(this.multibandMerger);
-            
-            // 保留旧的 compressor 引用（用于兼容性）
-            this.compressor = this.multibandSplitter;
-            this.makeupGain = this.multibandMerger;
-            
-            // 2. 三段均衡器
-            this.eqLow = ctx.createBiquadFilter();
-            
-            // 连接多段压缩器到均衡器
-            this.multibandMerger.connect(this.eqLow);
-            this.eqLow.type = 'lowshelf';
-            this.eqLow.frequency.value = 250;
-            this.eqLow.gain.value = 0; // 纯净原声，不增益
-            
-            this.eqMid = ctx.createBiquadFilter();
-            this.eqMid.type = 'peaking';
-            this.eqMid.frequency.value = 2000;
-            this.eqMid.Q.value = 1.2;
-            this.eqMid.gain.value = 0; // 纯净原声，不增益
-            
-            this.eqHigh = ctx.createBiquadFilter();
-            this.eqHigh.type = 'highshelf';
-            this.eqHigh.frequency.value = 6000;
-            this.eqHigh.gain.value = 0;
-            
-            // 3. 卷积混响
-            this.convolver = ctx.createConvolver();
-            this.createReverbImpulse();
-            
-            // 混响干湿比控制（轻微混响，增加空间感）
-            this.reverbDry = ctx.createGain();
-            this.reverbDry.gain.value = 0.85; // 85% 干声
-            this.reverbWet = ctx.createGain();
-            this.reverbWet.gain.value = 0.15;
-            
-            // 4. 砖墙限制器
-            this.limiter = ctx.createDynamicsCompressor();
-            this.limiter.threshold.value = -3.0; // 安全阈值，留出余量
-            this.limiter.knee.value = 2; // 柔和拐点，更自然
-            this.limiter.ratio.value = 20; // 高压缩比，砖墙限制
-            this.limiter.attack.value = 0.001; // 快速响应
-            this.limiter.release.value = 0.1;
-            
-            // 4.5. 平滑限幅器
-            this.hardClipper = ctx.createWaveShaper();
-            this.hardClipper.curve = this.makeHardClipCurve();
-            this.hardClipper.oversample = '4x';
-            
-            // 5. 立体声增强器
-            this.stereoWidener = ctx.createDelay();
-            this.stereoWidener.delayTime.value = 0.015; // 15ms 延迟（更自然）
-            
-            this.stereoWidenerGain = ctx.createGain();
-            this.stereoWidenerGain.gain.value = 0.2; // 20% 轻微立体声增强
-            
-            this.stereoMerger = ctx.createChannelMerger(2);
-            this.stereoSplitter = ctx.createChannelSplitter(2);
-            
-            // 6. 深度混响（大音乐厅效果）
-            this.reverbGain = ctx.createGain();
-            this.reverbGain.gain.value = 0.15; // 15% 轻微混响，保持原声
-            
-            // 7. 主音量
+            // 主音量
             this.masterGain = ctx.createGain();
-            this.masterGain.gain.value = 1.0;
+            this.masterGain.gain.value = 0.8; // 稍微降低音量，防止破音
             
-            // 连接均衡器链
-            this.eqLow.connect(this.eqMid);
-            this.eqMid.connect(this.eqHigh);
-            
-            // 立体声增强处理
-            this.eqHigh.connect(this.stereoSplitter);
-            
-            // 左声道：直通 + 延迟右声道
-            this.stereoSplitter.connect(this.stereoMerger, 0, 0); // 左 → 左
-            this.stereoSplitter.connect(this.stereoWidener, 1); // 右 → 延迟
-            this.stereoWidener.connect(this.stereoWidenerGain);
-            this.stereoWidenerGain.connect(this.stereoMerger, 0, 0); // 延迟 → 左
-            
-            // 右声道：直通 + 延迟左声道
-            this.stereoSplitter.connect(this.stereoMerger, 1, 1); // 右 → 右
-            
-            // 干声路径（85% 纯净原声）
-            const dryGain = ctx.createGain();
-            dryGain.gain.value = 0.85;
-            this.stereoMerger.connect(dryGain);
-            dryGain.connect(this.masterGain);
-            
-            // 湿声路径（15% 轻微混响）
-            this.stereoMerger.connect(this.convolver);
-            this.convolver.connect(this.reverbGain);
-            this.reverbGain.connect(this.masterGain);
-            
-            // 输出
+            // 直接连接到输出
             this.masterGain.connect(ctx.destination);
             
-            // 兼容性：compressor 指向多段压缩器输入（已在上面设置）
-            // this.compressor = this.multibandSplitter; (已设置，不要重复赋值)
+            // 兼容性：compressor 指向主音量（简化版）
+            this.compressor = this.masterGain;
             
             // 设置 3D 音频监听器位置
             this.listener = ctx.listener;
@@ -506,19 +400,16 @@ class AudioEngine {
     // 播放钢琴音符（极致音质版 - 3D空间音频 + 提前释放）
     playNote(midiNote, duration = 0.5, velocity = 100, lane = 2) {
         if (!this.isReady || this.samples.size === 0) {
-            console.warn(`⚠️ playNote 失败: isReady=${this.isReady}, samples=${this.samples.size}`);
             return null;
         }
         
         // 自动恢复 AudioContext（如果被暂停）
         if (this.audioContext && this.audioContext.state === 'suspended') {
-            console.log('🔄 恢复 AudioContext...');
             this.audioContext.resume();
         }
 
         const sampleInfo = this.findClosestSample(midiNote, velocity);
         if (!sampleInfo) {
-            console.error(`❌ 找不到采样信息: MIDI ${midiNote}`);
             return null;
         }
         
@@ -526,11 +417,8 @@ class AudioEngine {
         
         const buffer = this.samples.get(sampleKey);
         if (!buffer) {
-            console.error(`❌ 找不到缓冲: ${sampleKey} (MIDI ${midiNote})`);
             return null;
         }
-        
-        console.log(`✅ 播放: MIDI ${midiNote} -> ${sampleKey}, offset=${semitoneOffset}`);
 
         try {
             const ctx = this.audioContext;
@@ -848,7 +736,6 @@ class AudioEngine {
     
     // 播放UI点击音效（使用钢琴音色）
     playClickSound() {
-        console.log(`🔊 playClickSound: isReady=${this.isReady}, samples=${this.samples.size}, ctx=${this.audioContext?.state}`);
         if (!this.isReady || this.samples.size === 0) {
             return;
         }
@@ -856,25 +743,20 @@ class AudioEngine {
         try {
             const highNotes = [72, 74, 76, 77, 79, 81, 83, 84];
             const randomNote = highNotes[Math.floor(Math.random() * highNotes.length)];
-            const result = this.playNote(randomNote, 0.3, 80, 2);
-            console.log(`🔊 点击音效结果: ${result ? '成功' : '失败'}`);
+            this.playNote(randomNote, 0.3, 80, 2);
         } catch (error) {
-            console.error('❌ playClickSound 错误:', error);
         }
     }
     
     // 播放开始游戏音效（单个音符）
     playStartSound() {
-        console.log(`🔊 playStartSound: isReady=${this.isReady}, samples=${this.samples.size}, ctx=${this.audioContext?.state}`);
         if (!this.isReady || this.samples.size === 0) {
             return;
         }
         
         try {
-            const result = this.playNote(72, 0.5, 100, 2);
-            console.log(`🔊 开始音效结果: ${result ? '成功' : '失败'}`);
+            this.playNote(72, 0.5, 100, 2);
         } catch (error) {
-            console.error('❌ playStartSound 错误:', error);
         }
     }
 }

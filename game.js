@@ -420,11 +420,8 @@ async function preloadAllResources() {
                     await audioEngine.start();
                     
                     // 播放点击音效
-                    console.log('🎮 准备播放点击音效...');
                     if (audioEngine && audioEngine.playClickSound) {
                         audioEngine.playClickSound();
-                    } else {
-                        console.error('❌ audioEngine 或 playClickSound 不存在');
                     }
                     
                     // 等待一小段时间让用户看到进度
@@ -465,7 +462,6 @@ async function preloadAllResources() {
                     startMIDIGame();
                     
                     // 播放开始音效
-                    console.log('🎮 准备播放开始音效...');
                     audioEngine.playStartSound();
                     
                 } catch (error) {
