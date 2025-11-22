@@ -393,12 +393,11 @@ class AudioEngine {
         let loadedCount = 0;
         const total = sampleNotes.length * dynamics.length * roundRobins.length;
         
-        // 加载单个音色（Steinway格式）
+        // 加载单个音色（Steinway格式 - MP3）
         const loadSample = async (noteName, dyn, rr) => {
             try {
-                // 转换音符名称格式（C#4 -> Cs4）
-                const steinwayNote = noteName.replace('#', 's');
-                const fileName = `Steinway_${steinwayNote}_Dyn${dyn}_RR${rr}.wav`;
+                // 文件名直接使用音符名称（保持 # 符号）
+                const fileName = `Steinway_${noteName}_Dyn${dyn}_RR${rr}.mp3`;
                 const response = await fetch(`./钢琴/Steinway Grand  (DS)/Samples/${fileName}`);
                 if (!response.ok) {
                     throw new Error(`HTTP ${response.status}`);
