@@ -2513,6 +2513,12 @@ async function selectMidi(index) {
     // 立即停止游戏
     gameRunning = false;
     
+    // 停止背景音乐
+    if (audioEngine && audioEngine.bgmIsPlaying) {
+        audioEngine.stopBGM();
+        console.log('🎵 停止当前背景音乐');
+    }
+    
     // === 第一步：立即清理所有旧数据 ===
     console.log('🧹 步骤1: 清理旧场景对象...');
     cleanupObjects(obstacles);
@@ -2677,6 +2683,11 @@ function toggleIsland() {
         isIslandExpanded = false;
         if (!gameRunning && wasGameRunningBeforePause) {
             gameRunning = true;
+            // 恢复背景音乐
+            if (audioEngine && audioEngine.bgmPauseTime > 0) {
+                audioEngine.resumeBGM();
+                console.log('🎵 灵动岛收起，恢复音频播放');
+            }
         }
     } else {
         // 展开 → 暂停游戏
@@ -2684,6 +2695,11 @@ function toggleIsland() {
         isIslandExpanded = true;
         wasGameRunningBeforePause = gameRunning;
         gameRunning = false;
+        // 暂停背景音乐
+        if (audioEngine && audioEngine.bgmIsPlaying) {
+            audioEngine.pauseBGM();
+            console.log('🎵 灵动岛展开，暂停音频播放');
+        }
         // 初始化列表
         if (midiFiles.length > 0) {
             initMidiList();
