@@ -92,12 +92,12 @@ class AudioEngine {
         return null;
     }
     
-    // 初始化专业音频处理链
+    // 初始化音频处理链（纯净原声模式）
     initAudioChain() {
         const ctx = this.audioContext;
         
         try {
-            console.log('initAudioChain: 创建多段压缩器（母带级）...');
+            console.log('initAudioChain: 初始化纯净原声输出模式...');
             
             // === 1. 多段压缩器系统 ===
             
@@ -233,15 +233,18 @@ class AudioEngine {
             this.hardClipper.oversample = '4x'; // 高质量过采样，减少失真
             
             console.log('initAudioChain: 创建主音量...');
-            // 5. 主音量（合理音量，防止破音）
+            // 5. 主音量（纯净原声，1.5 = 增强音量）
             this.masterGain = ctx.createGain();
-            this.masterGain.gain.value = 1.2; // 适中音量，防止削波
+            this.masterGain.gain.value = 1.5; // 增强音量 1.5 倍
             
-            console.log('initAudioChain: 连接音频节点（简化版）...');
-            // 极简音频链：只保留主音量，移除所有可能导致失真的处理
-            // multibandSplitter（输入）→ 主音量 → 输出
-            this.multibandSplitter.connect(this.masterGain);
+            console.log('initAudioChain: 连接音频节点（纯净原声）...');
+            // 纯净原声模式：直接输出，不经过任何处理
+            // 音频源 → 主音量 → 输出（无压缩、无混响、无均衡）
             this.masterGain.connect(ctx.destination);
+            
+            // multibandSplitter 作为输入节点（但不连接处理链）
+            this.compressor = ctx.createGain(); // 兼容性：用 gain 替代 compressor
+            this.compressor.gain.value = 1.0;
             
             console.log('initAudioChain: 设置 3D 音频监听器...');
             // 设置 3D 音频监听器位置
@@ -258,9 +261,9 @@ class AudioEngine {
                 this.listener.upZ.value = 0;
             }
             
-            console.log('🎵 母带级音频处理链已初始化 v3.0');
-            console.log('📊 频段分配: 低频(20-150Hz) | 中频(150-5kHz) | 高频(5-20kHz)');
-            console.log('🎚️ 新功能: 音频分析器 | 提前释放 | 性能模式切换');
+            console.log('🎹 纯净原声输出模式已初始化');
+            console.log('✨ 无压缩 | 无混响 | 无均衡 | 完美还原采样原音');
+            console.log('🎚️ 功能: 音频分析器 | 提前释放 | 性能模式切换');
         } catch (error) {
             console.error('initAudioChain: 初始化失败:', error);
             throw error;
@@ -401,7 +404,7 @@ class AudioEngine {
             gainNode.gain.value = 0.0001; // 几乎听不见
             
             source.connect(gainNode);
-            gainNode.connect(this.multibandSplitter);
+            gainNode.connect(this.masterGain); // 直连主音量，跳过所有处理
             
             source.start(now);
             source.stop(now + 0.01); // 10ms极短音
@@ -557,7 +560,8 @@ class AudioEngine {
                 // 超低性能：直连
                 source.connect(gainNode);
             }
-            gainNode.connect(this.compressor);
+            // 纯净原声：直连主音量，不经过任何处理
+            gainNode.connect(this.masterGain);
             
             // 播放
             source.start(now);
@@ -751,9 +755,8 @@ class AudioEngine {
         // 限制音量范围
         const clampedVolume = Math.max(0, Math.min(1, volume));
         
-        // 使用合理的基础增益，防止破音
-        const baseGain = 1.5; // 降低基础增益，防止削波失真
-        this.masterGain.gain.value = clampedVolume * baseGain;
+        // 纯净原声模式：直接使用用户设置的音量，不额外增益
+        this.masterGain.gain.value = clampedVolume;
         
         console.log(`🔊 主音量设置为: ${Math.round(clampedVolume * 100)}%`);
     }
