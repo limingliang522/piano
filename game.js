@@ -314,24 +314,31 @@ function init() {
     // 不在这里初始化MIDI，改为在预加载中初始化
 }
 
-// 获取midi文件夹中的所有MIDI文件
+// 获取音乐文件夹中的所有音乐
 async function getMidiFiles() {
-    // 这里手动列出midi文件夹中的文件
-    // 因为浏览器无法直接读取文件夹内容
-    return [
-        'midi/2025-09-08 17.35.08.mp3.mid',
-        'midi/2025-11-16 23.35.43.mp3.mid',
-        'midi/2025-11-19 17.06.11.mp3.mid',
-        'midi/2025-11-19 17.06.53.mp3.mid',
-        'midi/2025-11-19 17.07.45.mp3.mid'
-        // 在这里添加更多MIDI文件
-    ];
+    // 扫描音乐文件夹，返回音乐数据
+    // 每个音乐包含：文件夹名、MP3路径、MIDI路径、图片路径（可选）
+    const musicFolders = ['1']; // 音乐文件夹列表
+    
+    const musicList = [];
+    for (const folder of musicFolders) {
+        const baseName = '2025-11-19 17.06.11.mp3'; // 文件名（不含扩展名）
+        musicList.push({
+            name: folder,
+            mp3: `音乐/${folder}/${baseName}`,
+            midi: `音乐/${folder}/${baseName}.mid`,
+            image: null // 如果有图片，填写路径
+        });
+    }
+    
+    return musicList;
 }
 
-// 加载指定的MIDI文件（从缓存或网络）
+// 加载指定的音乐文件（从缓存或网络）
 async function loadMidiFile(index) {
     try {
-        console.log(`📥 开始加载 MIDI 文件: ${midiFiles[index]}`);
+        const music = midiFiles[index];
+        console.log(`📥 开始加载音乐: ${music.name}`);
         
         // 清理旧的音符方块（如果存在）
         if (noteObjects.length > 0) {
@@ -352,9 +359,8 @@ async function loadMidiFile(index) {
             console.log('⚠️ 缓存未命中，从网络加载');
             loadingElement.style.display = 'flex';
             
-            const fileName = midiFiles[index];
-            notes = await midiParser.loadMIDI(fileName + '?v=1');
-            currentMidiName = fileName.split('/').pop().replace('.mid', '');
+            notes = await midiParser.loadMIDI(music.midi + '?v=1');
+            currentMidiName = music.name;
             
             loadingElement.style.display = 'none';
         }
@@ -364,13 +370,16 @@ async function loadMidiFile(index) {
             return false;
         }
         
+        // 加载MP3音乐
+        await audioEngine.loadMusic(music.mp3);
+        
         // 处理音符数据
         processMIDINotes(notes);
         updateIslandTitle(currentMidiName);
         
         return true;
     } catch (error) {
-        console.error('加载MIDI文件失败:', error);
+        console.error('加载音乐文件失败:', error);
         loadingElement.style.display = 'none';
         return false;
     }
@@ -396,55 +405,37 @@ async function preloadAllResources() {
             return;
         }
         
-        // 计算总加载项：30个音色 + 所有MIDI文件
-        const totalItems = 30 + midiFiles.length;
+        // 计算总加载项：所有MIDI文件
+        const totalItems = midiFiles.length;
         loadingManager.init(totalItems);
         
-        // 随机选择一个MIDI文件作为默认
+        // 随机选择一个音乐作为默认
         currentMidiIndex = Math.floor(Math.random() * midiFiles.length);
         
-        // 并行加载所有资源
-        await Promise.all([
-            // 加载所有MIDI文件
-            (async () => {
-                loadingManager.updateUI('');
-                for (let i = 0; i < midiFiles.length; i++) {
-                    try {
-                        const fileName = midiFiles[i];
-                        const notes = await midiParser.loadMIDI(fileName + '?v=1');
-                        
-                        // 缓存MIDI数据
-                        preloadedMidiData[i] = {
-                            fileName: fileName,
-                            notes: notes,
-                            name: fileName.split('/').pop().replace('.mid', '')
-                        };
-                        
-                        loadingManager.increment('');
-                        console.log(`✅ MIDI ${i + 1}/${midiFiles.length} 加载完成`);
-                    } catch (error) {
-                        console.error(`MIDI文件 ${i} 加载失败:`, error);
-                        loadingManager.increment('');
-                    }
-                }
-            })(),
-            
-            // 加载钢琴音色
-            (async () => {
-                try {
-                    loadingManager.updateUI('');
-                    audioEngine.ensureAudioContext();
-                    
-                    await audioEngine.init((loaded, total) => {
-                        loadingManager.increment('');
-                    });
-                    
-                    console.log('✅ 钢琴音色加载完成');
-                } catch (error) {
-                    console.error('钢琴音色加载失败:', error);
-                }
-            })()
-        ]);
+        // 初始化音频引擎
+        audioEngine.ensureAudioContext();
+        await audioEngine.init();
+        
+        // 加载所有MIDI文件
+        loadingManager.updateUI('');
+        for (let i = 0; i < midiFiles.length; i++) {
+            try {
+                const music = midiFiles[i];
+                const notes = await midiParser.loadMIDI(music.midi + '?v=1');
+                
+                // 缓存MIDI数据
+                preloadedMidiData[i] = {
+                    notes: notes,
+                    name: music.name
+                };
+                
+                loadingManager.increment('');
+                console.log(`✅ 音乐 ${i + 1}/${midiFiles.length} 加载完成`);
+            } catch (error) {
+                console.error(`音乐文件 ${i} 加载失败:`, error);
+                loadingManager.increment('');
+            }
+        }
         
         // 完成加载（不在这里处理音符数据，延迟到点击开始时）
         loadingManager.complete();
@@ -746,6 +737,34 @@ function startMIDIGame() {
     // 立即启动游戏（方块已经创建完成）
     gameRunning = true;
     gameStartTime = Date.now() / 1000;
+    
+    // 计算第一个音符到达触发线需要的时间
+    // 第一个音符的初始位置和触发线的距离
+    if (midiNotes.length > 0 && noteObjects.length > 0) {
+        const firstNote = midiNotes[0];
+        const firstBlock = noteObjects[0];
+        const distanceToTrigger = 2 - firstBlock.position.z; // 触发线在z=2
+        const timeToTrigger = distanceToTrigger / (midiSpeed * 60); // 到达触发线需要的时间
+        
+        // 延迟播放MP3，让音频和第一个黑块对齐
+        const audioDelay = timeToTrigger - firstNote.time;
+        
+        console.log(`🎵 音频延迟: ${audioDelay.toFixed(3)}秒，让音频和黑块对齐`);
+        
+        if (audioDelay > 0) {
+            // 需要延迟播放音频
+            setTimeout(() => {
+                audioEngine.playMusic();
+            }, audioDelay * 1000);
+        } else {
+            // 音频需要从某个时间点开始播放
+            audioEngine.setCurrentTime(-audioDelay);
+            audioEngine.playMusic();
+        }
+    } else {
+        // 没有音符，直接播放
+        audioEngine.playMusic();
+    }
     
     console.log('🎮 游戏启动！方块数量:', noteObjects.length);
 }
@@ -1325,16 +1344,30 @@ function updateNoteBlocks() {
     const triggerWindow = 0.2; // 触发窗口
     const playerLane = Math.round(currentLane);
     
-    // 基于时间的移动速度（每秒移动的距离）
-    const moveSpeed = midiSpeed * 60; // 转换为每秒的速度
+    // 获取MP3当前播放时间
+    const currentMusicTime = audioEngine.getCurrentTime();
     
     // 定义迷雾边缘（视野范围）
     const fogEdgeZ = -50; // 迷雾边缘的Z坐标
     const renderDistance = 10; // 提前渲染的距离（在迷雾边缘前10个单位开始渲染）
     
+    // 定义提前量：黑块应该在音符时间之前多久到达触发线
+    const lookAheadTime = 3.0; // 提前3秒显示黑块
+    const speed = 20; // 黑块移动速度（单位/秒）
+    
     for (let i = noteObjects.length - 1; i >= 0; i--) {
         const noteBlock = noteObjects[i];
-        noteBlock.position.z += moveSpeed * deltaTime; // 基于时间移动
+        const noteTime = noteBlock.userData.noteTime;
+        
+        // 计算黑块应该在的位置
+        // 当 currentMusicTime = noteTime - lookAheadTime 时，黑块在 z = -60（远处）
+        // 当 currentMusicTime = noteTime 时，黑块在 z = 2（触发线）
+        const timeUntilTrigger = noteTime - currentMusicTime;
+        const distanceFromTrigger = timeUntilTrigger * speed;
+        const targetZ = triggerZ - distanceFromTrigger;
+        
+        // 平滑移动到目标位置
+        noteBlock.position.z = targetZ;
         
         // 检查是否进入视野范围（到达迷雾边缘）
         if (!noteBlock.userData.isRendered && noteBlock.position.z >= fogEdgeZ - renderDistance) {
@@ -1395,9 +1428,14 @@ function updateNoteBlocks() {
             notesTriggered++;
             score += 100;
             
-            // 播放音符（极致音质 - 传递轨道信息用于3D定位）
-            // 使用原始velocity，完美还原MIDI
-            audioEngine.playNote(noteData.note, noteData.duration, noteData.velocity, noteData.lane);
+            // 不再播放单独的音符，音乐由MP3提供
+            // 但可以检查音频同步情况（调试用）
+            const currentAudioTime = audioEngine.getCurrentTime();
+            const expectedTime = noteData.time;
+            const timeDiff = Math.abs(currentAudioTime - expectedTime);
+            if (timeDiff > 0.1) {
+                console.warn(`⚠️ 音频不同步: 期望${expectedTime.toFixed(2)}s, 实际${currentAudioTime.toFixed(2)}s, 差异${timeDiff.toFixed(3)}s`);
+            }
             
             // 改变颜色表示已触发（白色发光）
             noteBlock.material.color.setHex(0xffffff);
@@ -1580,6 +1618,9 @@ function gameOver() {
     gameOverElement.style.display = 'block';
     instructionsElement.style.display = 'none';
     
+    // 停止音乐
+    audioEngine.stopMusic();
+    
     if (midiNotes.length > 0) {
         document.getElementById('finalScore').textContent = `游戏结束！`;
         document.getElementById('finalDistance').textContent = `获得 ${starsEarned} 颗星 ⭐ | 速度: ${speedMultiplier.toFixed(2)}x`;
@@ -1595,6 +1636,9 @@ function continueGame() {
     
     gameOverElement.style.display = 'none';
     gameRunning = true;
+    
+    // 恢复音乐播放
+    audioEngine.resumeMusic();
     
     // 找到所有未触发的黑块
     const untriggeredBlocks = noteObjects.filter(block => !block.userData.noteData.triggered);
