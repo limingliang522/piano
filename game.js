@@ -446,9 +446,6 @@ async function preloadAllResources() {
             })()
         ]);
         
-        // 初始化黑块对象池（预加载500个黑块）
-        initBlockPool();
-        
         // 完成加载（不在这里处理音符数据，延迟到点击开始时）
         loadingManager.complete();
         console.log('✅ 所有资源预加载完成！');
@@ -803,7 +800,6 @@ async function createAllNoteBlocksWithProgress(progressCallback) {
                 blocksCreated = true;
                 const totalTime = performance.now() - startTime;
                 console.log(`✅ 创建完成！实际创建了 ${noteObjects.length} 个方块，耗时 ${totalTime.toFixed(2)}ms`);
-                console.log(`🎱 对象池状态 - 激活: ${blockPool.active.length}, 普通池: ${blockPool.normal.length}, 超高池: ${blockPool.tall.length}`);
                 resolve();
             }
         }
@@ -817,15 +813,6 @@ async function createAllNoteBlocksWithProgress(progressCallback) {
 function createAllNoteBlocks() {
     return createAllNoteBlocksWithProgress(null);
 }
-
-// ========== 黑块对象池系统 ==========
-// 对象池配置
-const BLOCK_POOL_SIZE = 500; // 预加载500个黑块
-let blockPool = {
-    normal: [], // 普通黑块池
-    tall: [],   // 超高黑块池
-    active: []  // 当前激活的黑块
-};
 
 // 共享几何体和边缘材质（避免重复创建，提升性能）
 let sharedEdgeMaterial = null;
@@ -871,176 +858,54 @@ function getSharedGeometry(isTall) {
     }
 }
 
-// 初始化对象池（预创建500个黑块）
-function initBlockPool() {
-    console.log('🎱 初始化黑块对象池...');
-    const startTime = performance.now();
-    
-    // 清空现有池
-    blockPool.normal = [];
-    blockPool.tall = [];
-    blockPool.active = [];
-    
-    // 预创建普通黑块（300个）
-    const normalCount = Math.floor(BLOCK_POOL_SIZE * 0.6);
-    for (let i = 0; i < normalCount; i++) {
-        const block = createPooledBlock(false);
-        block.visible = false; // 初始隐藏
-        blockPool.normal.push(block);
-    }
-    
-    // 预创建超高黑块（200个）
-    const tallCount = BLOCK_POOL_SIZE - normalCount;
-    for (let i = 0; i < tallCount; i++) {
-        const block = createPooledBlock(true);
-        block.visible = false; // 初始隐藏
-        blockPool.tall.push(block);
-    }
-    
-    const duration = performance.now() - startTime;
-    console.log(`✅ 对象池初始化完成！预创建 ${BLOCK_POOL_SIZE} 个黑块，耗时 ${duration.toFixed(2)}ms`);
-    console.log(`   - 普通黑块: ${normalCount} 个`);
-    console.log(`   - 超高黑块: ${tallCount} 个`);
-}
-
-// 创建池化的黑块（不添加到场景，只创建对象）
-function createPooledBlock(isTall) {
+// 创建音符方块（优化版 - 共享几何体，独立材质）
+function createNoteBlock(noteData) {
+    // 使用预先分配的高度
+    const isTall = noteData.isTall;
     const blockHeight = isTall ? 3.0 : 0.4;
     const blockY = isTall ? 1.55 : 0.25;
     
-    // 使用共享几何体
+    // 使用共享几何体（减少内存）
     const geometries = getSharedGeometry(isTall);
     
-    // 创建独立材质
+    // 为每个方块创建独立的材质副本（避免共享材质导致的颜色问题）
     const material = new THREE.MeshStandardMaterial({ 
-        color: 0x1a1a1a,
+        color: 0x1a1a1a, // 深黑色
         metalness: 0.9,
         roughness: 0.2,
-        transparent: true,
-        opacity: 1.0,
+        transparent: true, // 启用透明度，用于触发效果
+        opacity: 1.0, // 初始完全不透明
         emissive: 0x0a0a0a,
         emissiveIntensity: 0.2
     });
     
     const noteBlock = new THREE.Mesh(geometries.block, material);
     
-    // 添加发光边缘
+    // 添加发光边缘（使用共享材质，因为边缘不会改变颜色）
     const edgesMaterial = getSharedEdgeMaterial();
     const edges = new THREE.LineSegments(geometries.edges, edgesMaterial);
     noteBlock.add(edges);
     
+    const x = (noteData.lane - 2) * LANE_WIDTH;
+    // 根据时间计算初始Z位置
+    // 触发线在z=2，黑块从迷雾深处移动过来
+    // 添加缓冲距离，让黑块从远处出现
+    const bufferDistance = 30; // 缓冲距离，让黑块从迷雾中出现
+    const zPosition = 2 - (noteData.time * originalBaseSpeed * 60) - bufferDistance;
+    noteBlock.position.set(x, blockY, zPosition);
+    
     // 启用阴影
     noteBlock.castShadow = true;
     
-    // 初始化用户数据
     noteBlock.userData = {
-        noteData: null,
+        noteData: noteData,
         isNote: true,
         isTall: isTall,
-        blockHeight: blockHeight,
-        blockY: blockY,
-        isPooled: true // 标记为池化对象
+        blockHeight: blockHeight
     };
     
-    // 添加到场景（但初始隐藏）
     scene.add(noteBlock);
-    
-    return noteBlock;
-}
-
-// 从对象池获取黑块
-function getBlockFromPool(noteData) {
-    const isTall = noteData.isTall;
-    const pool = isTall ? blockPool.tall : blockPool.normal;
-    
-    let block;
-    if (pool.length > 0) {
-        // 从池中取出
-        block = pool.pop();
-    } else {
-        // 池已空，动态创建新的（不应该发生，但作为后备）
-        console.warn(`⚠️ ${isTall ? '超高' : '普通'}黑块池已空，动态创建新黑块`);
-        console.warn(`   当前激活: ${blockPool.active.length}, 普通池: ${blockPool.normal.length}, 超高池: ${blockPool.tall.length}`);
-        block = createPooledBlock(isTall);
-    }
-    
-    // 重置黑块状态
-    resetBlock(block, noteData);
-    
-    // 添加到激活列表
-    blockPool.active.push(block);
-    
-    return block;
-}
-
-// 重置黑块状态（复用时调用）
-function resetBlock(block, noteData) {
-    const isTall = noteData.isTall;
-    const blockY = isTall ? 1.55 : 0.25;
-    
-    // 重置位置
-    const x = (noteData.lane - 2) * LANE_WIDTH;
-    const bufferDistance = 30;
-    const zPosition = 2 - (noteData.time * originalBaseSpeed * 60) - bufferDistance;
-    block.position.set(x, blockY, zPosition);
-    
-    // 重置材质
-    block.material.color.setHex(0x1a1a1a);
-    block.material.emissive.setHex(0x0a0a0a);
-    block.material.emissiveIntensity = 0.2;
-    block.material.opacity = 1.0;
-    
-    // 重置缩放
-    block.scale.set(1, 1, 1);
-    
-    // 重置用户数据
-    block.userData.noteData = noteData;
-    
-    // 根据初始位置决定是否可见（在迷雾范围内才显示）
-    const fogBoundary = -GRAPHICS_CONFIG.fogDistance;
-    block.visible = (zPosition >= fogBoundary);
-}
-
-// 回收黑块到对象池
-function recycleBlock(block) {
-    if (!block || !block.userData.isPooled) return;
-    
-    // 隐藏黑块
-    block.visible = false;
-    
-    // 从激活列表移除
-    const index = blockPool.active.indexOf(block);
-    if (index > -1) {
-        blockPool.active.splice(index, 1);
-    }
-    
-    // 放回对应的池
-    const isTall = block.userData.isTall;
-    if (isTall) {
-        blockPool.tall.push(block);
-    } else {
-        blockPool.normal.push(block);
-    }
-}
-
-// 清理对象池（游戏结束或切换歌曲时）
-function clearBlockPool() {
-    console.log('🧹 清理对象池...');
-    console.log(`   清理前 - 激活: ${blockPool.active.length}, 普通池: ${blockPool.normal.length}, 超高池: ${blockPool.tall.length}`);
-    
-    // 回收所有激活的黑块
-    while (blockPool.active.length > 0) {
-        const block = blockPool.active[0];
-        recycleBlock(block);
-    }
-    
-    console.log(`✅ 对象池清理完成！池中剩余: 普通=${blockPool.normal.length}, 超高=${blockPool.tall.length}`);
-}
-
-// 创建音符方块（使用对象池）
-function createNoteBlock(noteData) {
-    const block = getBlockFromPool(noteData);
-    noteObjects.push(block);
+    noteObjects.push(noteBlock);
 }
 
 // 创建地面
@@ -1280,31 +1145,20 @@ function disposeObject(obj) {
     }
 }
 
-// 批量清理对象数组（优化版 - 使用对象池）
+// 批量清理对象数组
 function cleanupObjects(objectArray) {
     if (!objectArray || objectArray.length === 0) return;
     
     const count = objectArray.length;
+    for (let i = objectArray.length - 1; i >= 0; i--) {
+        disposeObject(objectArray[i]);
+    }
+    objectArray.length = 0; // 清空数组
     
-    // 如果是音符方块，回收到对象池
+    // 如果清理的是音符方块，重置标志
     if (objectArray === noteObjects) {
-        for (let i = objectArray.length - 1; i >= 0; i--) {
-            const block = objectArray[i];
-            if (block.userData.isPooled) {
-                recycleBlock(block);
-            } else {
-                disposeObject(block);
-            }
-        }
-        objectArray.length = 0;
         blocksCreated = false;
-        console.log(`🧹 回收了 ${count} 个音符方块到对象池`);
-    } else {
-        // 其他对象正常清理
-        for (let i = objectArray.length - 1; i >= 0; i--) {
-            disposeObject(objectArray[i]);
-        }
-        objectArray.length = 0;
+        console.log(`🧹 清理了 ${count} 个音符方块，重置创建标志`);
     }
 }
 
@@ -1339,13 +1193,6 @@ setInterval(() => {
         logPerformanceStats();
     }
 }, 30000);
-
-// 每5秒输出对象池状态（调试用）
-setInterval(() => {
-    if (gameRunning && blockPool) {
-        console.log(`🎱 对象池状态 - 激活: ${blockPool.active.length}, 普通池: ${blockPool.normal.length}, 超高池: ${blockPool.tall.length}, noteObjects: ${noteObjects.length}`);
-    }
-}, 5000);
 
 // 更新玩家位置
 function updatePlayer() {
@@ -1468,35 +1315,20 @@ function updateGround() {
     });
 }
 
-// 更新音符方块（优化版 - 只渲染到迷雾位置）
+// 更新音符方块
 function updateNoteBlocks() {
     const triggerZ = triggerLine.position.z;
     const triggerWindow = 0.2; // 触发窗口
     const playerLane = Math.round(currentLane);
-    
-    // 迷雾边界（只渲染到这个位置的黑块）
-    const fogBoundary = -GRAPHICS_CONFIG.fogDistance;
     
     // 基于时间的移动速度（每秒移动的距离）
     const moveSpeed = midiSpeed * 60; // 转换为每秒的速度
     
     for (let i = noteObjects.length - 1; i >= 0; i--) {
         const noteBlock = noteObjects[i];
+        noteBlock.position.z += moveSpeed * deltaTime; // 基于时间移动
+        
         const noteData = noteBlock.userData.noteData;
-        
-        // 移动黑块（始终移动，不管是否可见）
-        noteBlock.position.z += moveSpeed * deltaTime;
-        
-        // 根据位置决定是否渲染（优化性能）
-        if (noteBlock.position.z < fogBoundary) {
-            // 超出迷雾范围，隐藏但继续移动
-            noteBlock.visible = false;
-        } else if (noteBlock.position.z <= 10) {
-            // 在可见范围内，确保显示
-            if (!noteBlock.visible && !noteData.triggered) {
-                noteBlock.visible = true;
-            }
-        }
         
         // 检查是否与玩家碰撞
         if (!noteData.collided && noteData.lane === playerLane) {
@@ -1572,9 +1404,9 @@ function updateNoteBlocks() {
             }, 50);
         }
         
-        // 移除屏幕外的方块（回收到对象池）
+        // 移除屏幕外的方块（正确释放内存）
         if (noteBlock.position.z > 10) {
-            recycleBlock(noteBlock);
+            disposeObject(noteBlock);
             noteObjects.splice(i, 1);
         }
     }
@@ -1685,8 +1517,7 @@ function completeRound() {
 
 // 重新开始一轮（不重置星星和速度）
 function restartRound() {
-    // 清理音符方块（回收到对象池）
-    clearBlockPool();
+    // 正确清理音符方块（释放内存）
     cleanupObjects(noteObjects);
     
     // 重置音符状态
@@ -1788,131 +1619,64 @@ function continueGame() {
     lastCollisionBlock = null;
 }
 
-// 重新开始（异步版本，带加载界面）
-async function restart() {
-    // 隐藏游戏结束界面
-    gameOverElement.style.display = 'none';
+// 重新开始
+function restart() {
+    // 正确清理场景（释放内存）
+    cleanupObjects(obstacles);
+    cleanupObjects(coins);
+    cleanupObjects(noteObjects);
+    blocksCreated = false; // 重置创建标志
     
-    // 如果是MIDI模式，显示加载界面并重新创建
+    // 重置游戏状态
+    score = 0;
+    distance = 0;
+    speed = 0.3;
+    currentLane = 2;
+    targetLane = 2;
+    lastObstacleTime = 0;
+    lastCoinTime = 0;
+    
+    // 重置MIDI状态
+    notesTriggered = 0;
+    collisions = 0;
+    starsEarned = 0;
+    speedMultiplier = 1.0;
+    isCompletingRound = false;
+    // 重置速度到原始状态
+    midiSpeed = originalBaseSpeed;
+    
+    // 重置音符状态
+    midiNotes.forEach(note => {
+        note.triggered = false;
+        note.collided = false;
+    });
+    
+    // 重置 UI
     if (midiNotes.length > 0) {
-        // 显示加载界面
-        loadingElement.style.display = 'flex';
-        
-        // 清理场景（回收黑块到对象池）
-        clearBlockPool();
-        cleanupObjects(obstacles);
-        cleanupObjects(coins);
-        cleanupObjects(noteObjects);
-        blocksCreated = false;
-        
-        // 重置游戏状态
-        score = 0;
-        distance = 0;
-        speed = 0.3;
-        currentLane = 2;
-        targetLane = 2;
-        lastObstacleTime = 0;
-        lastCoinTime = 0;
-        
-        // 重置MIDI状态
-        notesTriggered = 0;
-        collisions = 0;
-        starsEarned = 0;
-        speedMultiplier = 1.0;
-        isCompletingRound = false;
-        midiSpeed = originalBaseSpeed;
-        
-        // 重置音符状态
-        midiNotes.forEach(note => {
-            note.triggered = false;
-            note.collided = false;
-        });
-        
-        // 重置玩家位置和状态
-        player.position.set(0, groundY, 0);
-        player.scale.set(1, 1, 1);
-        isJumping = false;
-        verticalVelocity = 0;
-        
-        // 初始化加载管理器
-        const restartLoader = {
-            total: 2,
-            current: 0,
-            
-            updateProgress(step) {
-                this.current = step;
-                const percentage = Math.round((this.current / this.total) * 100);
-                loadingPercentage.textContent = `${percentage}%`;
-                loadingProgressBar.style.width = `${percentage}%`;
-            }
-        };
-        
-        try {
-            // 步骤1：重置场景
-            restartLoader.updateProgress(0);
-            await new Promise(resolve => setTimeout(resolve, 200));
-            
-            // 步骤2：创建黑块
-            restartLoader.updateProgress(1);
-            await createAllNoteBlocksWithProgress((progress) => {
-                const percentage = Math.round(50 + (progress * 50));
-                loadingPercentage.textContent = `${percentage}%`;
-                loadingProgressBar.style.width = `${percentage}%`;
-            });
-            
-            // 完成
-            restartLoader.updateProgress(2);
-            await new Promise(resolve => setTimeout(resolve, 300));
-            
-            // 隐藏加载界面
-            loadingElement.style.display = 'none';
-            
-            // 重置 UI
-            scoreElement.textContent = `⭐ 0 | 音符: 0/${totalNotes}`;
-            distanceElement.textContent = `速度: 1.00x`;
-            accuracyElement.textContent = `剩余: ${totalNotes}`;
-            comboElement.style.display = 'none';
-            instructionsElement.style.display = 'block';
-            
-            // 开始游戏
-            gameStartTime = Date.now() / 1000;
-            gameRunning = true;
-            
-            console.log('✅ 重新开始完成！');
-            
-        } catch (error) {
-            console.error('重新开始失败:', error);
-            loadingElement.style.display = 'none';
-            gameOverElement.style.display = 'block';
-        }
+        scoreElement.textContent = `⭐ 0 | 音符: 0/${totalNotes}`;
+        distanceElement.textContent = `速度: 1.00x`;
+        accuracyElement.textContent = `剩余: ${totalNotes}`;
     } else {
-        // 普通模式，直接重启
-        clearBlockPool();
-        cleanupObjects(obstacles);
-        cleanupObjects(coins);
-        cleanupObjects(noteObjects);
-        blocksCreated = false;
-        
-        score = 0;
-        distance = 0;
-        speed = 0.3;
-        currentLane = 2;
-        targetLane = 2;
-        lastObstacleTime = 0;
-        lastCoinTime = 0;
-        
         scoreElement.textContent = `分数: 0`;
         distanceElement.textContent = `距离: 0m`;
-        comboElement.style.display = 'none';
-        instructionsElement.style.display = 'block';
-        
-        player.position.set(0, 0.6, 0);
-        player.scale.set(1, 1, 1);
-        isJumping = false;
-        verticalVelocity = 0;
-        
-        gameRunning = true;
     }
+    comboElement.style.display = 'none';
+    gameOverElement.style.display = 'none';
+    instructionsElement.style.display = 'block';
+    
+    // 重置玩家位置和状态
+    player.position.set(0, 0.6, 0);
+    player.scale.set(1, 1, 1);
+    isJumping = false;
+    verticalVelocity = 0;
+    
+    // 如果是MIDI模式，重新创建音符方块
+    if (midiNotes.length > 0) {
+        gameStartTime = Date.now() / 1000;
+        createAllNoteBlocks();
+    }
+    
+    gameRunning = true;
 }
 
 // 窗口大小调整
@@ -2219,7 +1983,6 @@ async function loadAndStartNewMidi() {
     
     // === 立即清理所有旧数据 ===
     console.log('🧹 清理旧数据...');
-    clearBlockPool();
     cleanupObjects(obstacles);
     cleanupObjects(coins);
     cleanupObjects(noteObjects);
@@ -2565,7 +2328,6 @@ async function selectMidi(index) {
     
     // === 第一步：立即清理所有旧数据 ===
     console.log('🧹 步骤1: 清理旧场景对象...');
-    clearBlockPool();
     cleanupObjects(obstacles);
     cleanupObjects(coins);
     cleanupObjects(noteObjects);
