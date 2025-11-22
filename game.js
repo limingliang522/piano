@@ -319,8 +319,8 @@ async function getMidiFiles() {
     // 这里手动列出midi文件夹中的文件
     // 因为浏览器无法直接读取文件夹内容
     return [
-        'midi/1.mid'
-        // 在这里添加更多MIDI文件
+        'midi/1.mid',
+        'midi/2.mid'
     ];
 }
 
