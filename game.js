@@ -756,7 +756,99 @@ function startNormalGame() {
     gameRunning = true;
 }
 
-// 创建所有音符方块（带进度回调的版本）
+// 流式方块管理系统 - 只创建可见范围内的方块
+const blockStreamManager = {
+    visibleRange: 80, // 可见范围（从触发线往前）
+    createAheadDistance: 100, // 提前创建距离
+    destroyBehindDistance: 20, // 销毁距离（触发线后方）
+    lastCheckZ: -Infinity, // 上次检查的Z位置
+    checkInterval: 5, // 每移动5个单位检查一次
+    noteIndex: 0, // 当前处理到的音符索引
+    activeBlocks: new Map(), // 活跃的方块 Map<noteIndex, mesh>
+    
+    reset() {
+        this.noteIndex = 0;
+        this.lastCheckZ = -Infinity;
+        this.activeBlocks.clear();
+    },
+    
+    // 更新方块（每帧调用）
+    update(triggerLineZ) {
+        // 只在移动一定距离后才检查
+        if (Math.abs(triggerLineZ - this.lastCheckZ) < this.checkInterval) {
+            return;
+        }
+        this.lastCheckZ = triggerLineZ;
+        
+        // 1. 创建新方块（在可见范围前方）
+        this.createNewBlocks(triggerLineZ);
+        
+        // 2. 销毁旧方块（在触发线后方）
+        this.destroyOldBlocks(triggerLineZ);
+    },
+    
+    // 创建新方块
+    createNewBlocks(triggerLineZ) {
+        const createThreshold = triggerLineZ - this.createAheadDistance;
+        
+        // 从当前索引开始，创建所有在范围内的方块
+        while (this.noteIndex < midiNotes.length) {
+            const note = midiNotes[this.noteIndex];
+            const bufferDistance = 30;
+            const noteZ = 2 - (note.time * originalBaseSpeed * 60) - bufferDistance;
+            
+            // 如果方块还太远，停止创建
+            if (noteZ < createThreshold) {
+                break;
+            }
+            
+            // 创建方块
+            const block = createNoteBlock(note, this.noteIndex);
+            if (block) {
+                this.activeBlocks.set(this.noteIndex, block);
+                noteObjects.push(block);
+            }
+            
+            this.noteIndex++;
+        }
+    },
+    
+    // 销毁旧方块
+    destroyOldBlocks(triggerLineZ) {
+        const destroyThreshold = triggerLineZ + this.destroyBehindDistance;
+        
+        // 遍历活跃方块，销毁超出范围的
+        for (const [index, block] of this.activeBlocks.entries()) {
+            if (block.position.z > destroyThreshold) {
+                // 从场景中移除
+                scene.remove(block);
+                
+                // 清理几何体和材质
+                if (block.geometry && !block.geometry.isShared) {
+                    block.geometry.dispose();
+                }
+                if (block.material) {
+                    if (Array.isArray(block.material)) {
+                        block.material.forEach(m => m.dispose());
+                    } else {
+                        block.material.dispose();
+                    }
+                }
+                
+                // 从数组中移除
+                const objIndex = noteObjects.indexOf(block);
+                if (objIndex > -1) {
+                    noteObjects.splice(objIndex, 1);
+                }
+                
+                // 从活跃列表中移除
+                this.activeBlocks.delete(index);
+            }
+        }
+    }
+};
+
+// 创建所有音符方块（带进度回调的版本）- 改为流式创建
 async function createAllNoteBlocksWithProgress(progressCallback) {
     // 防止重复创建
     if (blocksCreated && noteObjects.length > 0) {
@@ -770,36 +862,45 @@ async function createAllNoteBlocksWithProgress(progressCallback) {
         cleanupObjects(noteObjects);
     }
     
-    console.log(`✅ 开始创建 ${midiNotes.length} 个音符方块（带进度）`);
+    console.log(`✅ 使用流式创建系统，总共 ${midiNotes.length} 个音符`);
     
+    // 重置流式管理器
+    blockStreamManager.reset();
+    
+    // 立即创建初始可见范围内的方块
+    const initialCreateCount = Math.min(200, midiNotes.length); // 初始创建200个
     const batchSize = 50;
     let currentIndex = 0;
-    const startTime = performance.now();
     
     return new Promise((resolve) => {
         function createBatch() {
-            const endIndex = Math.min(currentIndex + batchSize, midiNotes.length);
+            const endIndex = Math.min(currentIndex + batchSize, initialCreateCount);
             
             // 创建当前批次
             for (let i = currentIndex; i < endIndex; i++) {
-                createNoteBlock(midiNotes[i]);
+                const note = midiNotes[i];
+                const block = createNoteBlock(note, i);
+                if (block) {
+                    blockStreamManager.activeBlocks.set(i, block);
+                    noteObjects.push(block);
+                }
             }
             
+            blockStreamManager.noteIndex = endIndex;
             currentIndex = endIndex;
             
             // 更新进度
-            const progress = currentIndex / midiNotes.length;
+            const progress = currentIndex / initialCreateCount;
             if (progressCallback) {
                 progressCallback(progress);
             }
             
-            if (currentIndex < midiNotes.length) {
+            if (currentIndex < initialCreateCount) {
                 // 继续下一批
                 requestAnimationFrame(createBatch);
             } else {
                 blocksCreated = true;
-                const totalTime = performance.now() - startTime;
-                console.log(`✅ 创建完成！实际创建了 ${noteObjects.length} 个方块，耗时 ${totalTime.toFixed(2)}ms`);
+                console.log(`✅ 初始创建完成！创建了 ${noteObjects.length} 个方块，剩余 ${midiNotes.length - initialCreateCount} 个将流式创建`);
                 resolve();
             }
         }
@@ -840,7 +941,9 @@ function getSharedGeometry(isTall) {
     if (isTall) {
         if (!sharedGeometries.tallBlock) {
             sharedGeometries.tallBlock = new THREE.BoxGeometry(1.5, 3.0, 1.2);
+            sharedGeometries.tallBlock.isShared = true; // 标记为共享，不要销毁
             sharedGeometries.tallEdges = new THREE.EdgesGeometry(sharedGeometries.tallBlock);
+            sharedGeometries.tallEdges.isShared = true;
         }
         return {
             block: sharedGeometries.tallBlock,
@@ -849,7 +952,9 @@ function getSharedGeometry(isTall) {
     } else {
         if (!sharedGeometries.normalBlock) {
             sharedGeometries.normalBlock = new THREE.BoxGeometry(1.5, 0.4, 1.2);
+            sharedGeometries.normalBlock.isShared = true; // 标记为共享，不要销毁
             sharedGeometries.normalEdges = new THREE.EdgesGeometry(sharedGeometries.normalBlock);
+            sharedGeometries.normalEdges.isShared = true;
         }
         return {
             block: sharedGeometries.normalBlock,
@@ -859,7 +964,7 @@ function getSharedGeometry(isTall) {
 }
 
 // 创建音符方块（优化版 - 共享几何体，独立材质）
-function createNoteBlock(noteData) {
+function createNoteBlock(noteData, noteIndex) {
     // 使用预先分配的高度
     const isTall = noteData.isTall;
     const blockHeight = isTall ? 3.0 : 0.4;
@@ -899,13 +1004,15 @@ function createNoteBlock(noteData) {
     
     noteBlock.userData = {
         noteData: noteData,
+        noteIndex: noteIndex, // 添加索引，用于流式管理
         isNote: true,
         isTall: isTall,
         blockHeight: blockHeight
     };
     
     scene.add(noteBlock);
-    noteObjects.push(noteBlock);
+    
+    return noteBlock; // 返回方块对象
 }
 
 // 创建地面
@@ -1324,6 +1431,9 @@ function updateNoteBlocks() {
     // 基于时间的移动速度（每秒移动的距离）
     const moveSpeed = midiSpeed * 60; // 转换为每秒的速度
     
+    // 更新流式方块管理器（自动创建/销毁方块）
+    blockStreamManager.update(triggerZ);
+    
     for (let i = noteObjects.length - 1; i >= 0; i--) {
         const noteBlock = noteObjects[i];
         noteBlock.position.z += moveSpeed * deltaTime; // 基于时间移动
@@ -1519,6 +1629,9 @@ function completeRound() {
 function restartRound() {
     // 正确清理音符方块（释放内存）
     cleanupObjects(noteObjects);
+    
+    // 重置流式管理器
+    blockStreamManager.reset();
     
     // 重置音符状态
     notesTriggered = 0;
@@ -1987,6 +2100,9 @@ async function loadAndStartNewMidi() {
     cleanupObjects(coins);
     cleanupObjects(noteObjects);
     blocksCreated = false;
+    
+    // 重置流式管理器
+    blockStreamManager.reset();
     
     // 清理旧的 MIDI 数据
     midiNotes = [];
