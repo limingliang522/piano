@@ -183,7 +183,7 @@ let fpsHistory = [];
 let currentFPS = 0;
 
 console.log('🎨 使用固定高画质配置');
-console.log('📊 目标帧率: 120 FPS');
+console.log('📊 帧率由浏览器自动适配屏幕刷新率');
 
 // 性能监控工具
 const performanceMonitor = {
@@ -196,7 +196,7 @@ const performanceMonitor = {
     end(label) {
         if (this.marks[label]) {
             const duration = performance.now() - this.marks[label];
-            if (duration > 8) { // 超过一帧的时间（120fps = 8.33ms）
+            if (duration > 16) { // 超过一帧的时间（60fps = 16.67ms）
                 console.warn(`⚠️ 性能警告: ${label} 耗时 ${duration.toFixed(2)}ms`);
             } else {
                 console.log(`✅ ${label} 耗时 ${duration.toFixed(2)}ms`);
@@ -720,7 +720,7 @@ function processMIDINotes(notes) {
         // 调整速度：让音符间隔在屏幕上看起来合适
         // 目标：音符间隔约为 3-5 个单位距离
         const targetDistance = 4;
-        const calculatedSpeed = targetDistance / (medianInterval * 120); // 120fps 基准
+        const calculatedSpeed = targetDistance / (medianInterval * 60); // 60fps 基准
         
         // 限制速度范围
         const finalSpeed = Math.max(0.08, Math.min(0.6, calculatedSpeed));
@@ -891,7 +891,7 @@ function createNoteBlock(noteData) {
     // 触发线在z=2，黑块从迷雾深处移动过来
     // 添加缓冲距离，让黑块从远处出现
     const bufferDistance = 30; // 缓冲距离，让黑块从迷雾中出现
-    const zPosition = 2 - (noteData.time * originalBaseSpeed * 120) - bufferDistance;
+    const zPosition = 2 - (noteData.time * originalBaseSpeed * 60) - bufferDistance;
     noteBlock.position.set(x, blockY, zPosition);
     
     // 启用阴影
@@ -1203,7 +1203,7 @@ function updatePlayer() {
         const diff = targetX - currentX;
         
         // 使用恒定速度移动
-        const moveDistance = moveSpeed * 120 * deltaTime; // 转换为每秒的速度（120fps基准）
+        const moveDistance = moveSpeed * 60 * deltaTime; // 转换为每秒的速度
         
         if (Math.abs(diff) <= moveDistance) {
             // 距离很近，直接到达
@@ -1236,8 +1236,8 @@ function updatePlayer() {
     // 跳跃物理 - 基于时间，使用重力系统
     if (isJumping) {
         // 使用 deltaTime 让跳跃在不同帧率下一致
-        const gravityPerSecond = gravity * 120; // 转换为每秒的重力（120fps基准）
-        const velocityPerSecond = verticalVelocity * 120; // 转换为每秒的速度（120fps基准）
+        const gravityPerSecond = gravity * 60; // 转换为每秒的重力
+        const velocityPerSecond = verticalVelocity * 60; // 转换为每秒的速度
         
         // 应用重力
         verticalVelocity += gravityPerSecond * deltaTime;
@@ -1306,7 +1306,7 @@ function roll() {
 
 // 更新地面
 function updateGround() {
-    const moveSpeed = speed * 120; // 转换为每秒的速度（120fps基准）
+    const moveSpeed = speed * 60; // 转换为每秒的速度
     ground.forEach(g => {
         g.position.z += moveSpeed * deltaTime;
         if (g.position.z > GROUND_LENGTH) {
@@ -1322,7 +1322,7 @@ function updateNoteBlocks() {
     const playerLane = Math.round(currentLane);
     
     // 基于时间的移动速度（每秒移动的距离）
-    const moveSpeed = midiSpeed * 120; // 转换为每秒的速度（120fps基准）
+    const moveSpeed = midiSpeed * 60; // 转换为每秒的速度
     
     for (let i = noteObjects.length - 1; i >= 0; i--) {
         const noteBlock = noteObjects[i];
@@ -1421,11 +1421,11 @@ function updateNoteBlocks() {
 
 // 更新障碍物
 function updateObstacles() {
-    const moveSpeed = speed * 120; // 120fps基准
+    const moveSpeed = speed * 60;
     for (let i = obstacles.length - 1; i >= 0; i--) {
         const obstacle = obstacles[i];
         obstacle.position.z += moveSpeed * deltaTime;
-        obstacle.rotation.y += 0.02 * (deltaTime * 120);
+        obstacle.rotation.y += 0.02 * (deltaTime * 60);
         
         if (obstacle.position.z > 5) {
             disposeObject(obstacle);
@@ -1436,11 +1436,11 @@ function updateObstacles() {
 
 // 更新金币
 function updateCoins() {
-    const moveSpeed = speed * 120; // 120fps基准
+    const moveSpeed = speed * 60;
     for (let i = coins.length - 1; i >= 0; i--) {
         const coin = coins[i];
         coin.position.z += moveSpeed * deltaTime;
-        coin.rotation.z += 0.1 * (deltaTime * 120);
+        coin.rotation.z += 0.1 * (deltaTime * 60);
         
         if (coin.position.z > 5) {
             disposeObject(coin);
