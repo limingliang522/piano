@@ -327,12 +327,17 @@ class AudioEngine {
         // 确保AudioContext已创建
         this.ensureAudioContext();
         
-        // 定义实际存在的采样点
+        // 定义实际存在的采样点 - FluidR3 GM 音色库（52个音符）
         const sampleNotes = [
-            'A0', 'C1', 'Ds1', 'Fs1', 'A1', 'C2', 'Ds2', 'Fs2',
-            'A2', 'C3', 'Ds3', 'Fs3', 'A3', 'C4', 'Ds4', 'Fs4',
-            'A4', 'C5', 'Ds5', 'Fs5', 'A5', 'C6', 'Ds6', 'Fs6',
-            'A6', 'C7', 'Ds7', 'Fs7', 'A7', 'C8'
+            'A0', 'B0',
+            'C1', 'D1', 'E1', 'F1', 'G1', 'A1', 'B1',
+            'C2', 'D2', 'E2', 'F2', 'G2', 'A2', 'B2',
+            'C3', 'D3', 'E3', 'F3', 'G3', 'A3', 'B3',
+            'C4', 'D4', 'E4', 'F4', 'G4', 'A4', 'B4',
+            'C5', 'D5', 'E5', 'F5', 'G5', 'A5', 'B5',
+            'C6', 'D6', 'E6', 'F6', 'G6', 'A6', 'B6',
+            'C7', 'D7', 'E7', 'F7', 'G7', 'A7', 'B7',
+            'C8'
         ];
         
         let loadedCount = 0;
@@ -367,7 +372,7 @@ class AudioEngine {
         
         await Promise.all(allPromises);
         
-        console.log(`钢琴采样加载完成！共 ${this.samples.size}/30 个音符`);
+        console.log(`🎹 FluidR3 GM 钢琴音色加载完成！共 ${this.samples.size}/52 个音符`);
         
         this.isReady = true;
         
