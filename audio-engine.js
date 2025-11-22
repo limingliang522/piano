@@ -358,12 +358,16 @@ class AudioEngine {
     
     // 找到最接近的采样音符
     findClosestSample(targetMidi, velocity) {
+        console.log(`🔍 查找采样: MIDI ${targetMidi}, velocity ${velocity}`);
+        console.log(`📋 可用采样点:`, this.sampleNotes);
+        
         let closestNote = null;
         let minDistance = Infinity;
         
         // 找到最接近的采样点
         for (const noteName of this.sampleNotes) {
             const sampleMidi = this.noteNameToMidi(noteName);
+            console.log(`  - ${noteName} = MIDI ${sampleMidi}, 距离 ${Math.abs(sampleMidi - targetMidi)}`);
             const distance = Math.abs(sampleMidi - targetMidi);
             if (distance < minDistance) {
                 minDistance = distance;
@@ -371,7 +375,10 @@ class AudioEngine {
             }
         }
         
-        if (!closestNote) return null;
+        if (!closestNote) {
+            console.error('❌ 找不到最接近的采样点！');
+            return null;
+        }
         
         const closestMidi = this.noteNameToMidi(closestNote);
         const semitoneOffset = targetMidi - closestMidi;
@@ -387,6 +394,9 @@ class AudioEngine {
         const rr = this.roundRobins[Math.floor(Math.random() * this.roundRobins.length)];
         
         const sampleKey = `${closestNote}_${dyn}_${rr}`;
+        
+        console.log(`✅ 选择: ${closestNote} (MIDI ${closestMidi}), offset=${semitoneOffset}, key=${sampleKey}`);
+        console.log(`🔑 检查采样是否存在:`, this.samples.has(sampleKey));
         
         return {
             noteName: closestNote,
