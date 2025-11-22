@@ -901,10 +901,14 @@ function createNoteBlock(noteData) {
         noteData: noteData,
         isNote: true,
         isTall: isTall,
-        blockHeight: blockHeight
+        blockHeight: blockHeight,
+        isRendered: false // 标记是否已渲染
     };
     
-    scene.add(noteBlock);
+    // 初始状态：不添加到场景中，等待进入视野范围
+    // scene.add(noteBlock); // 注释掉，改为按需添加
+    noteBlock.visible = false; // 初始不可见
+    
     noteObjects.push(noteBlock);
 }
 
@@ -1324,9 +1328,22 @@ function updateNoteBlocks() {
     // 基于时间的移动速度（每秒移动的距离）
     const moveSpeed = midiSpeed * 60; // 转换为每秒的速度
     
+    // 定义迷雾边缘（视野范围）
+    const fogEdgeZ = -50; // 迷雾边缘的Z坐标
+    const renderDistance = 10; // 提前渲染的距离（在迷雾边缘前10个单位开始渲染）
+    
     for (let i = noteObjects.length - 1; i >= 0; i--) {
         const noteBlock = noteObjects[i];
         noteBlock.position.z += moveSpeed * deltaTime; // 基于时间移动
+        
+        // 检查是否进入视野范围（到达迷雾边缘）
+        if (!noteBlock.userData.isRendered && noteBlock.position.z >= fogEdgeZ - renderDistance) {
+            // 黑块到达迷雾边缘，开始渲染
+            noteBlock.userData.isRendered = true;
+            noteBlock.visible = true;
+            scene.add(noteBlock);
+            console.log(`🎨 黑块进入视野: z=${noteBlock.position.z.toFixed(2)}`);
+        }
         
         const noteData = noteBlock.userData.noteData;
         
