@@ -379,6 +379,7 @@ class AudioEngine {
             try {
                 const response = await fetch(item.fileName);
                 if (!response.ok) {
+                    console.error(`❌ 加载失败: ${item.fileName} (HTTP ${response.status})`);
                     throw new Error(`HTTP ${response.status}`);
                 }
                 const arrayBuffer = await response.arrayBuffer();
@@ -387,6 +388,7 @@ class AudioEngine {
                 successCount++;
                 return true;
             } catch (error) {
+                console.error(`❌ 错误: ${item.fileName}`, error.message);
                 return false;
             }
         };
@@ -528,6 +530,7 @@ class AudioEngine {
         
         const buffer = this.samples.get(sampleKey);
         if (!buffer) {
+            console.warn(`⚠️ 找不到采样: ${sampleKey} (MIDI ${midiNote}, velocity ${velocity})`);
             return null;
         }
 
