@@ -165,15 +165,15 @@ const GROUND_LENGTH = 100;
 // 统一的移动速度（调整这个值可以改变所有移动速度）
 const moveSpeed = 0.50;
 
-// 固定最高画质配置（保持原有效果）
+// 固定最高画质配置（无限制）
 const GRAPHICS_CONFIG = {
     shadowsEnabled: true,
     shadowType: THREE.PCFSoftShadowMap,
-    pixelRatio: window.devicePixelRatio, // 使用设备原生像素比
+    pixelRatio: window.devicePixelRatio, // 使用设备原生像素比，无限制
     fogDistance: 120,
     trailLength: 12,
-    playerSegments: 64, // 保持高细节球体
-    trailSegments: 32   // 保持高细节拖尾
+    playerSegments: 64, // 提高球体细节
+    trailSegments: 32   // 提高拖尾细节
 };
 
 // FPS 监控（仅用于显示，不影响画质）
@@ -252,46 +252,24 @@ function init() {
     camera.position.set(0, 5.5, 8);
     camera.lookAt(0, 0, -8);
     
-    // 创建渲染器 - 最高画质设置（透明背景）+ 性能优化
+    // 创建渲染器 - 最高画质设置（透明背景）
     const canvas = document.getElementById('gameCanvas');
     renderer = new THREE.WebGLRenderer({ 
         canvas: canvas,
         antialias: true,
-        alpha: true,
+        alpha: true, // 启用透明背景
         powerPreference: "high-performance",
         precision: "highp",
-        stencil: false, // 不需要模板缓冲
+        stencil: true,
         depth: true,
-        logarithmicDepthBuffer: true, // 保持深度精度
-        premultipliedAlpha: false
+        logarithmicDepthBuffer: true, // 提高深度精度
+        premultipliedAlpha: false // 改善透明度渲染
     });
     
-    // 启用高质量渲染 + 性能优化
-    renderer.sortObjects = true; // 保持正确排序
-    renderer.toneMapping = THREE.ACESFilmicToneMapping; // 保持电影级色调
+    // 启用高质量渲染
+    renderer.sortObjects = true; // 正确排序透明物体
+    renderer.toneMapping = THREE.ACESFilmicToneMapping; // 电影级色调映射
     renderer.toneMappingExposure = 1.0;
-    
-    // 性能优化：启用WebGL优化特性
-    renderer.info.autoReset = false; // 手动重置统计信息
-    
-    // 启用WebGL扩展以提升性能
-    const gl = renderer.getContext();
-    const extensions = [
-        'OES_texture_float',
-        'OES_texture_float_linear',
-        'OES_standard_derivatives',
-        'EXT_shader_texture_lod',
-        'WEBGL_compressed_texture_s3tc',
-        'WEBGL_compressed_texture_etc',
-        'WEBGL_compressed_texture_astc'
-    ];
-    extensions.forEach(ext => {
-        try {
-            gl.getExtension(ext);
-        } catch (e) {
-            // 扩展不支持，跳过
-        }
-    });
     
     // 设置像素比以提高画质（最高3倍，支持高分辨率屏幕）
     renderer.setPixelRatio(GRAPHICS_CONFIG.pixelRatio);
@@ -303,7 +281,6 @@ function init() {
     // 固定高画质阴影设置
     renderer.shadowMap.enabled = GRAPHICS_CONFIG.shadowsEnabled;
     renderer.shadowMap.type = GRAPHICS_CONFIG.shadowType;
-    renderer.shadowMap.autoUpdate = true; // 自动更新阴影，保持画质
     
     // 添加光源 - 极简风格
     const ambientLight = new THREE.AmbientLight(0xffffff, 0.3); // 降低环境光
@@ -317,9 +294,9 @@ function init() {
     directionalLight.shadow.camera.right = 20;
     directionalLight.shadow.camera.top = 20;
     directionalLight.shadow.camera.bottom = -20;
-    directionalLight.shadow.mapSize.width = 4096; // 保持4K阴影
+    directionalLight.shadow.mapSize.width = 4096; // 提高到4K阴影
     directionalLight.shadow.mapSize.height = 4096;
-    directionalLight.shadow.bias = -0.0001;
+    directionalLight.shadow.bias = -0.0001; // 减少阴影瑕疵
     scene.add(directionalLight);
     
     // 取消点光源，避免白色光柱
@@ -503,53 +480,56 @@ async function preloadAllResources() {
                 };
                 
                 try {
-                    // 步骤1：启动音频引擎（完整加载）
+                    // 步骤1：启动音频引擎
                     gameStartLoader.updateProgress(0, '');
-                    console.log('🔊 启动音频引擎...');
                     await audioEngine.start();
-                    console.log('✅ 音频上下文已完全启动并预热');
+                    console.log('✅ 音频上下文已启动');
                     
                     // 播放点击音效（音频上下文启动后）
                     if (audioEngine && audioEngine.playClickSound) {
                         audioEngine.playClickSound();
                     }
                     
+                    // 等待一小段时间让用户看到进度
+                    await new Promise(resolve => setTimeout(resolve, 200));
+                    
                     // 步骤2：处理音符数据
                     gameStartLoader.updateProgress(1, '');
-                    console.log('🎵 处理MIDI音符数据...');
+                    await new Promise(resolve => {
+                        requestAnimationFrame(() => {
+                            performanceMonitor.start('处理MIDI音符数据');
+                            
+                            if (preloadedMidiData[currentMidiIndex]) {
+                                processMIDINotes(preloadedMidiData[currentMidiIndex].notes);
+                                currentMidiName = preloadedMidiData[currentMidiIndex].name;
+                                updateIslandTitle(currentMidiName);
+                            }
+                            
+                            performanceMonitor.end('处理MIDI音符数据');
+                            resolve();
+                        });
+                    });
                     
-                    performanceMonitor.start('处理MIDI音符数据');
+                    await new Promise(resolve => setTimeout(resolve, 200));
                     
-                    if (preloadedMidiData[currentMidiIndex]) {
-                        processMIDINotes(preloadedMidiData[currentMidiIndex].notes);
-                        currentMidiName = preloadedMidiData[currentMidiIndex].name;
-                        updateIslandTitle(currentMidiName);
-                    }
-                    
-                    performanceMonitor.end('处理MIDI音符数据');
-                    console.log('✅ MIDI音符数据处理完成');
-                    
-                    // 步骤3：创建游戏场景（一次性完整加载所有方块）
+                    // 步骤3：创建游戏场景
                     gameStartLoader.updateProgress(2, '');
-                    console.log('🎮 创建所有游戏方块...');
                     
-                    // 一次性创建所有方块（带进度显示）
+                    // 预先创建所有方块（带进度）
                     await createAllNoteBlocksWithProgress((progress) => {
                         const percentage = Math.round(66 + (progress * 34)); // 66%-100%
                         loadingPercentage.textContent = `${percentage}%`;
                         loadingProgressBar.style.width = `${percentage}%`;
                     });
                     
-                    console.log('✅ 所有游戏方块创建完成');
-                    
                     // 完成
                     gameStartLoader.updateProgress(3, '');
+                    await new Promise(resolve => setTimeout(resolve, 300));
                     
                     // 隐藏加载界面
                     loadingElement.style.display = 'none';
                     
                     // 开始游戏
-                    console.log('🎮 游戏启动！');
                     startMIDIGame();
                     
                     // 播放开始音效
@@ -776,7 +756,7 @@ function startNormalGame() {
     gameRunning = true;
 }
 
-// 创建所有音符方块（一次性完整加载版本）
+// 创建所有音符方块（带进度回调的版本）
 async function createAllNoteBlocksWithProgress(progressCallback) {
     // 防止重复创建
     if (blocksCreated && noteObjects.length > 0) {
@@ -786,43 +766,47 @@ async function createAllNoteBlocksWithProgress(progressCallback) {
     
     // 先清理已存在的方块
     if (noteObjects.length > 0) {
-        console.warn(`🧹 清理 ${noteObjects.length} 个旧方块`);
+        console.warn(`清理 ${noteObjects.length} 个旧方块`);
         cleanupObjects(noteObjects);
-        // 等待一帧确保清理完成
-        await new Promise(resolve => requestAnimationFrame(resolve));
     }
     
-    console.log(`✅ 开始一次性创建 ${midiNotes.length} 个音符方块（完整加载）`);
+    console.log(`✅ 开始创建 ${midiNotes.length} 个音符方块（带进度）`);
     
+    const batchSize = 50;
+    let currentIndex = 0;
     const startTime = performance.now();
     
-    // 一次性创建所有方块，不分批
-    for (let i = 0; i < midiNotes.length; i++) {
-        createNoteBlock(midiNotes[i]);
-        
-        // 更新进度（每10个更新一次UI，减少重绘）
-        if (i % 10 === 0 && progressCallback) {
-            const progress = (i + 1) / midiNotes.length;
-            progressCallback(progress);
+    return new Promise((resolve) => {
+        function createBatch() {
+            const endIndex = Math.min(currentIndex + batchSize, midiNotes.length);
+            
+            // 创建当前批次
+            for (let i = currentIndex; i < endIndex; i++) {
+                createNoteBlock(midiNotes[i]);
+            }
+            
+            currentIndex = endIndex;
+            
+            // 更新进度
+            const progress = currentIndex / midiNotes.length;
+            if (progressCallback) {
+                progressCallback(progress);
+            }
+            
+            if (currentIndex < midiNotes.length) {
+                // 继续下一批
+                requestAnimationFrame(createBatch);
+            } else {
+                blocksCreated = true;
+                const totalTime = performance.now() - startTime;
+                console.log(`✅ 创建完成！实际创建了 ${noteObjects.length} 个方块，耗时 ${totalTime.toFixed(2)}ms`);
+                resolve();
+            }
         }
-    }
-    
-    // 最后更新一次进度到100%
-    if (progressCallback) {
-        progressCallback(1.0);
-    }
-    
-    blocksCreated = true;
-    const totalTime = performance.now() - startTime;
-    console.log(`✅ 创建完成！实际创建了 ${noteObjects.length} 个方块，耗时 ${totalTime.toFixed(2)}ms`);
-    
-    // 确保所有方块都可见
-    let visibleCount = 0;
-    noteObjects.forEach(block => {
-        block.visible = true; // 强制设置为可见
-        if (block.visible) visibleCount++;
+        
+        // 立即开始
+        createBatch();
     });
-    console.log(`📊 所有方块已设置为可见: ${visibleCount}/${noteObjects.length}`);
 }
 
 // 创建所有音符方块（无进度回调的版本，用于其他地方）
@@ -856,9 +840,6 @@ function getSharedGeometry(isTall) {
     if (isTall) {
         if (!sharedGeometries.tallBlock) {
             sharedGeometries.tallBlock = new THREE.BoxGeometry(1.5, 3.0, 1.2);
-            // 优化：预计算边界球和边界框
-            sharedGeometries.tallBlock.computeBoundingSphere();
-            sharedGeometries.tallBlock.computeBoundingBox();
             sharedGeometries.tallEdges = new THREE.EdgesGeometry(sharedGeometries.tallBlock);
         }
         return {
@@ -868,9 +849,6 @@ function getSharedGeometry(isTall) {
     } else {
         if (!sharedGeometries.normalBlock) {
             sharedGeometries.normalBlock = new THREE.BoxGeometry(1.5, 0.4, 1.2);
-            // 优化：预计算边界球和边界框
-            sharedGeometries.normalBlock.computeBoundingSphere();
-            sharedGeometries.normalBlock.computeBoundingBox();
             sharedGeometries.normalEdges = new THREE.EdgesGeometry(sharedGeometries.normalBlock);
         }
         return {
@@ -880,7 +858,7 @@ function getSharedGeometry(isTall) {
     }
 }
 
-// 创建音符方块（优化版 - 共享几何体，独立材质保持画质）
+// 创建音符方块（优化版 - 共享几何体，独立材质）
 function createNoteBlock(noteData) {
     // 使用预先分配的高度
     const isTall = noteData.isTall;
@@ -890,20 +868,20 @@ function createNoteBlock(noteData) {
     // 使用共享几何体（减少内存）
     const geometries = getSharedGeometry(isTall);
     
-    // 为每个方块创建独立的材质副本（保持画质和独立控制）
+    // 为每个方块创建独立的材质副本（避免共享材质导致的颜色问题）
     const material = new THREE.MeshStandardMaterial({ 
-        color: 0x1a1a1a,
+        color: 0x1a1a1a, // 深黑色
         metalness: 0.9,
         roughness: 0.2,
-        transparent: true,
-        opacity: 1.0,
+        transparent: true, // 启用透明度，用于触发效果
+        opacity: 1.0, // 初始完全不透明
         emissive: 0x0a0a0a,
         emissiveIntensity: 0.2
     });
     
     const noteBlock = new THREE.Mesh(geometries.block, material);
     
-    // 添加发光边缘（使用共享材质）
+    // 添加发光边缘（使用共享材质，因为边缘不会改变颜色）
     const edgesMaterial = getSharedEdgeMaterial();
     const edges = new THREE.LineSegments(geometries.edges, edgesMaterial);
     noteBlock.add(edges);
@@ -918,9 +896,6 @@ function createNoteBlock(noteData) {
     
     // 启用阴影
     noteBlock.castShadow = true;
-    
-    // 确保方块初始可见
-    noteBlock.visible = true;
     
     noteBlock.userData = {
         noteData: noteData,
@@ -1019,7 +994,7 @@ let trailPositions = [];
 const trailLength = 10;
 let trailSpheres = [];
 
-// 创建玩家（保持原有高画质）
+// 创建玩家（半透明白色小球 + 微光边缘）
 function createPlayer() {
     // 固定高画质球体细节
     const geometry = new THREE.SphereGeometry(0.25, GRAPHICS_CONFIG.playerSegments, GRAPHICS_CONFIG.playerSegments);
@@ -1044,11 +1019,9 @@ function createPlayer() {
         const trailMaterial = new THREE.MeshBasicMaterial({
             color: 0xcccccc,
             transparent: true,
-            opacity: 0,
-            depthWrite: false
+            opacity: 0
         });
         const trailSphere = new THREE.Mesh(trailGeometry, trailMaterial);
-        trailSphere.renderOrder = -1;
         scene.add(trailSphere);
         trailSpheres.push(trailSphere);
     }
@@ -1342,28 +1315,20 @@ function updateGround() {
     });
 }
 
-// 更新音符方块（性能优化版 - 保持原有逻辑）
+// 更新音符方块
 function updateNoteBlocks() {
     const triggerZ = triggerLine.position.z;
-    const triggerWindow = 0.2;
+    const triggerWindow = 0.2; // 触发窗口
     const playerLane = Math.round(currentLane);
     
-    // 基于时间的移动速度
-    const moveSpeed = midiSpeed * 60;
+    // 基于时间的移动速度（每秒移动的距离）
+    const moveSpeed = midiSpeed * 60; // 转换为每秒的速度
     
-    // 批量更新位置（减少单独访问）
     for (let i = noteObjects.length - 1; i >= 0; i--) {
         const noteBlock = noteObjects[i];
-        noteBlock.position.z += moveSpeed * deltaTime;
+        noteBlock.position.z += moveSpeed * deltaTime; // 基于时间移动
         
         const noteData = noteBlock.userData.noteData;
-        
-        // 提前剔除远离的方块
-        if (noteBlock.position.z > 10) {
-            disposeObject(noteBlock);
-            noteObjects.splice(i, 1);
-            continue;
-        }
         
         // 检查是否与玩家碰撞
         if (!noteData.collided && noteData.lane === playerLane) {
@@ -1386,18 +1351,19 @@ function updateNoteBlocks() {
                     // 碰撞了！
                     noteData.collided = true;
                     collisions++;
-                    
-                    // 震动反馈
+                    // 震动反馈（如果设备支持）
                     if (navigator.vibrate) {
-                        navigator.vibrate(50);
+                        navigator.vibrate(50); // 震动50毫秒
                     }
                     
+                    // 记录碰撞的黑块
                     lastCollisionBlock = noteBlock;
                     
                     // 改变颜色表示碰撞
                     noteBlock.material.color.setHex(0xff0000);
                     noteBlock.material.emissive.setHex(0xff0000);
                     
+                    // 游戏结束
                     gameOver();
                     return;
                 }
@@ -1412,7 +1378,8 @@ function updateNoteBlocks() {
             notesTriggered++;
             score += 100;
             
-            // 播放音符
+            // 播放音符（极致音质 - 传递轨道信息用于3D定位）
+            // 使用原始velocity，完美还原MIDI
             audioEngine.playNote(noteData.note, noteData.duration, noteData.velocity, noteData.lane);
             
             // 改变颜色表示已触发（白色发光）
@@ -1423,21 +1390,24 @@ function updateNoteBlocks() {
             // 创建触发时的光波扩散效果
             createTriggerWave(noteBlock.position.x, noteBlock.position.z);
             
-            // 触发效果：放大并淡出（使用requestAnimationFrame优化）
+            // 触发效果：放大并淡出
             const originalScale = { x: 1.5, y: 0.4, z: 1.2 };
-            let startTime = performance.now();
-            const animateScale = () => {
-                const elapsed = (performance.now() - startTime) / 1000;
-                if (elapsed >= 0.5 || !noteBlock.parent) return;
-                
-                const progress = elapsed / 0.5;
-                const scale = 1 + progress * 2;
+            let scaleTime = 0;
+            const scaleInterval = setInterval(() => {
+                scaleTime += 0.05;
+                const scale = 1 + scaleTime * 2;
                 noteBlock.scale.set(originalScale.x * scale, originalScale.y * scale, originalScale.z * scale);
-                noteBlock.material.opacity = Math.max(0, 1 - progress * 2);
-                
-                requestAnimationFrame(animateScale);
-            };
-            animateScale();
+                noteBlock.material.opacity = Math.max(0, 1 - scaleTime * 2);
+                if (scaleTime >= 0.5) {
+                    clearInterval(scaleInterval);
+                }
+            }, 50);
+        }
+        
+        // 移除屏幕外的方块（正确释放内存）
+        if (noteBlock.position.z > 10) {
+            disposeObject(noteBlock);
+            noteObjects.splice(i, 1);
         }
     }
     
@@ -1531,9 +1501,7 @@ function checkCollision() {
 }
 
 // 完成一轮
-async function completeRound() {
-    console.log('🎉 完成一轮！');
-    
+function completeRound() {
     // 获得一颗星
     starsEarned++;
     
@@ -1544,22 +1512,13 @@ async function completeRound() {
     midiSpeed = originalBaseSpeed * speedMultiplier;
     
     // 直接继续下一轮，不显示提示
-    await restartRound();
+    restartRound();
 }
 
 // 重新开始一轮（不重置星星和速度）
-async function restartRound() {
-    console.log('🔄 开始新一轮...');
-    
-    // 暂停游戏
-    gameRunning = false;
-    
+function restartRound() {
     // 正确清理音符方块（释放内存）
-    console.log(`🧹 清理 ${noteObjects.length} 个旧方块`);
     cleanupObjects(noteObjects);
-    
-    // 等待一帧确保清理完成
-    await new Promise(resolve => requestAnimationFrame(resolve));
     
     // 重置音符状态
     notesTriggered = 0;
@@ -1570,8 +1529,7 @@ async function restartRound() {
     
     // 重新创建音符方块
     gameStartTime = Date.now() / 1000;
-    console.log('🎵 重新创建音符方块...');
-    await createAllNoteBlocks();
+    createAllNoteBlocks();
     
     // 重置完成标志
     isCompletingRound = false;
@@ -1583,7 +1541,7 @@ async function restartRound() {
     scoreElement.textContent = `⭐ ${starsEarned} | 音符: 0/${totalNotes}`;
     distanceElement.textContent = `速度: ${speedMultiplier.toFixed(2)}x`;
     
-    console.log(`✅ 第 ${starsEarned} 轮开始！创建了 ${noteObjects.length} 个音符方块`);
+    console.log(`第 ${starsEarned} 轮开始！创建了 ${noteObjects.length} 个音符方块`);
 }
 
 // 游戏结束（碰撞死亡）
@@ -1732,12 +1690,11 @@ function onWindowResize() {
     renderer.setSize(window.innerWidth, window.innerHeight);
 }
 
-// 游戏主循环（性能优化版 - 保持画质）
+// 游戏主循环
 let lastObstacleTime = 0;
 let lastCoinTime = 0;
 let lastUpdateTime = 0;
 let deltaTime = 0;
-let frameCount = 0;
 
 function animate(currentTime) {
     requestAnimationFrame(animate);
@@ -1746,17 +1703,13 @@ function animate(currentTime) {
     if (lastUpdateTime === 0) {
         lastUpdateTime = currentTime;
     }
-    deltaTime = Math.min((currentTime - lastUpdateTime) / 1000, 0.1); // 限制最大deltaTime
+    deltaTime = (currentTime - lastUpdateTime) / 1000; // 转换为秒
     lastUpdateTime = currentTime;
     
     // 更新FPS统计
     updateFPS(currentTime);
     
-    // 性能优化：每30帧重置渲染器统计信息
-    frameCount++;
-    if (frameCount % 30 === 0) {
-        renderer.info.reset();
-    }
+    // 无需帧率检测和画质调整，浏览器自动适配
     
     lastFrameTime = currentTime;
     
@@ -1765,7 +1718,6 @@ function animate(currentTime) {
         return;
     }
     
-    // 性能优化：使用批量更新减少重绘
     // 更新游戏元素
     updatePlayer();
     updateGround();
@@ -1777,9 +1729,6 @@ function animate(currentTime) {
             midiSpeed += speedIncreaseRate * speedMultiplier;
         }
         updateNoteBlocks();
-        
-        // 取消视锥剔除优化 - 所有方块始终可见
-        // 确保所有方块都渲染，不做任何隐藏优化
     } else {
         updateObstacles();
         updateCoins();
@@ -2467,50 +2416,51 @@ async function selectMidi(index) {
             };
             
             try {
-                // 步骤1：启动音频引擎（完整加载）
+                // 步骤1：启动音频引擎
                 gameStartLoader.updateProgress(0, '');
-                console.log('🔊 启动音频引擎...');
                 await audioEngine.start();
-                console.log('✅ 音频上下文已完全启动并预热');
+                console.log('✅ 音频上下文已启动');
                 
                 // 播放点击音效（音频上下文启动后）
                 if (audioEngine && audioEngine.playClickSound) {
                     audioEngine.playClickSound();
                 }
                 
+                await new Promise(resolve => setTimeout(resolve, 200));
+                
                 // 步骤2：处理音符数据
                 gameStartLoader.updateProgress(1, '');
-                console.log('🎵 重置音符状态...');
-                
-                // 重置音符状态
-                midiNotes.forEach(note => {
-                    note.triggered = false;
-                    note.collided = false;
+                await new Promise(resolve => {
+                    requestAnimationFrame(() => {
+                        // 重置音符状态
+                        midiNotes.forEach(note => {
+                            note.triggered = false;
+                            note.collided = false;
+                        });
+                        resolve();
+                    });
                 });
                 
-                console.log('✅ 音符状态重置完成');
+                await new Promise(resolve => setTimeout(resolve, 200));
                 
-                // 步骤3：创建游戏场景（一次性完整加载所有方块）
+                // 步骤3：创建游戏场景
                 gameStartLoader.updateProgress(2, '');
-                console.log('🎮 创建所有游戏方块...');
                 
-                // 一次性创建所有方块（带进度显示）
+                // 预先创建所有方块（带进度）
                 await createAllNoteBlocksWithProgress((progress) => {
                     const percentage = Math.round(66 + (progress * 34));
                     loadingPercentage.textContent = `${percentage}%`;
                     loadingProgressBar.style.width = `${percentage}%`;
                 });
                 
-                console.log('✅ 所有游戏方块创建完成');
-                
                 // 完成
                 gameStartLoader.updateProgress(3, '');
+                await new Promise(resolve => setTimeout(resolve, 300));
                 
                 // 隐藏加载界面
                 loadingElement.style.display = 'none';
                 
                 // 开始游戏
-                console.log('🎮 游戏启动！');
                 gameStartTime = Date.now() / 1000;
                 midiSpeed = originalBaseSpeed;
                 startMIDIGame();
@@ -2579,53 +2529,36 @@ dynamicIsland.addEventListener('click', (e) => {
     }
 });
 
-// 创建触发时的光波扩散效果（对象池优化 - 保持画质）
-let wavePool = [];
-const MAX_WAVES = 20; // 增加池大小
-
+// 创建触发时的光波扩散效果
 function createTriggerWave(x, z) {
-    // 使用对象池复用波纹
-    let wave = wavePool.find(w => !w.visible);
-    
-    if (!wave) {
-        if (wavePool.length >= MAX_WAVES) return;
-        
-        const waveGeometry = new THREE.RingGeometry(0.5, 0.8, 32); // 保持高细节
-        const waveMaterial = new THREE.MeshBasicMaterial({
-            color: 0xffffff,
-            transparent: true,
-            opacity: 0.8,
-            side: THREE.DoubleSide,
-            depthWrite: false
-        });
-        wave = new THREE.Mesh(waveGeometry, waveMaterial);
-        wave.rotation.x = -Math.PI / 2;
-        scene.add(wave);
-        wavePool.push(wave);
-    }
-    
-    // 重置波纹
+    const waveGeometry = new THREE.RingGeometry(0.5, 0.8, 32);
+    const waveMaterial = new THREE.MeshBasicMaterial({
+        color: 0xffffff,
+        transparent: true,
+        opacity: 0.8,
+        side: THREE.DoubleSide
+    });
+    const wave = new THREE.Mesh(waveGeometry, waveMaterial);
+    wave.rotation.x = -Math.PI / 2;
     wave.position.set(x, 0.05, z);
-    wave.scale.set(1, 1, 1);
-    wave.material.opacity = 0.8;
-    wave.visible = true;
+    scene.add(wave);
     
-    // 使用requestAnimationFrame优化动画
-    let startTime = performance.now();
-    const animate = () => {
-        const elapsed = (performance.now() - startTime) / 1000;
-        if (elapsed > 0.3 || !wave.visible) {
-            wave.visible = false;
-            return;
+    // 扩散动画
+    let scale = 1;
+    let opacity = 0.8;
+    const expandInterval = setInterval(() => {
+        scale += 0.3;
+        opacity -= 0.08;
+        wave.scale.set(scale, scale, 1);
+        waveMaterial.opacity = Math.max(0, opacity);
+        
+        if (opacity <= 0) {
+            clearInterval(expandInterval);
+            scene.remove(wave);
+            waveGeometry.dispose();
+            waveMaterial.dispose();
         }
-        
-        const progress = elapsed / 0.3;
-        wave.scale.set(1 + progress * 2, 1 + progress * 2, 1);
-        wave.material.opacity = 0.8 * (1 - progress);
-        
-        requestAnimationFrame(animate);
-    };
-    animate();
+    }, 30);
 }
 
 // 全局清理函数（调试用）
