@@ -1636,8 +1636,8 @@ async function restartRound() {
                 console.log(`   预期：${gameTimeToTrigger.toFixed(2)}秒后，黑块到达触发线，音频播放到 ${firstNoteTime.toFixed(2)}秒`);
             }
             
-            // 延迟0.1秒后播放音频，确保黑块和音频完美对齐
-            await new Promise(resolve => setTimeout(resolve, 100));
+            // 延迟0.2秒后播放音频，确保黑块和音频完美对齐
+            await new Promise(resolve => setTimeout(resolve, 200));
             
             // 始终从0秒开始播放，使用当前速度倍数
             audioEngine.playBGM(0, speedMultiplier);
