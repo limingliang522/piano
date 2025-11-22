@@ -353,19 +353,23 @@ class AudioEngine {
 
 
 
-    // 初始化钢琴采样器（使用音色配置系统）
+    // 初始化钢琴采样器
     async init(progressCallback) {
         // 确保AudioContext已创建
         this.ensureAudioContext();
         
-        // 获取当前音色配置
-        const timbreConfig = this.timbreConfig.getCurrentTimbre();
-        if (!timbreConfig) {
-            return false;
+        // 生成加载列表
+        const loadList = [];
+        for (const note of this.sampleNotes) {
+            for (const dyn of this.dynamics) {
+                for (const rr of this.roundRobins) {
+                    const fileName = `./钢琴/Steinway_${note}_Dyn${dyn}_RR${rr}.mp3`;
+                    const sampleKey = `${note}_${dyn}_${rr}`;
+                    loadList.push({ fileName, sampleKey });
+                }
+            }
         }
         
-        // 获取加载列表
-        const loadList = this.timbreConfig.getLoadList(this.currentTimbreId);
         const total = loadList.length;
         let loadedCount = 0;
         let successCount = 0;
