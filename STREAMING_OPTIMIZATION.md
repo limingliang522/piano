@@ -16,13 +16,18 @@
 #### 1. 流式管理器 (blockStreamManager)
 ```javascript
 const blockStreamManager = {
-    visibleRange: 80,           // 可见范围
-    createAheadDistance: 100,   // 提前创建距离
+    createAheadTime: 10,        // 提前创建时间（秒）
     destroyBehindDistance: 20,  // 销毁距离
+    checkInterval: 0.5,         // 检查间隔（秒）
     noteIndex: 0,               // 当前处理索引
     activeBlocks: Map           // 活跃方块映射
 }
 ```
+
+**关键改进：基于时间而非位置**
+- 使用游戏时间判断，而不是Z坐标
+- 提前10秒创建即将出现的音符
+- 避免初始化时创建所有方块
 
 #### 2. 工作流程
 
@@ -31,9 +36,10 @@ const blockStreamManager = {
 - 快速启动，无卡顿
 
 **游戏运行时：**
-- 每移动5个单位检查一次
-- 自动创建前方即将进入视野的方块
-- 自动销毁后方已经离开视野的方块
+- 每0.5秒检查一次
+- 自动创建未来10秒内的音符方块
+- 自动销毁已经通过触发线的方块
+- 基于游戏时间判断，精确控制创建时机
 
 **内存管理：**
 - 使用共享几何体（减少内存）
@@ -74,8 +80,11 @@ const blockStreamManager = {
 ```javascript
 // 游戏循环中自动更新
 function updateNoteBlocks() {
-    // 自动管理方块创建/销毁
-    blockStreamManager.update(triggerZ);
+    // 计算当前游戏时间
+    const currentGameTime = (Date.now() / 1000) - gameStartTime;
+    
+    // 自动管理方块创建/销毁（基于时间）
+    blockStreamManager.update(currentGameTime, triggerZ);
     
     // 正常的方块更新逻辑
     // ...

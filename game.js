@@ -758,47 +758,47 @@ function startNormalGame() {
 
 // 流式方块管理系统 - 只创建可见范围内的方块
 const blockStreamManager = {
-    visibleRange: 80, // 可见范围（从触发线往前）
-    createAheadDistance: 100, // 提前创建距离
+    createAheadTime: 10, // 提前创建时间（秒）
     destroyBehindDistance: 20, // 销毁距离（触发线后方）
-    lastCheckZ: -Infinity, // 上次检查的Z位置
-    checkInterval: 5, // 每移动5个单位检查一次
+    lastCheckTime: 0, // 上次检查的游戏时间
+    checkInterval: 0.5, // 每0.5秒检查一次
     noteIndex: 0, // 当前处理到的音符索引
     activeBlocks: new Map(), // 活跃的方块 Map<noteIndex, mesh>
     
     reset() {
         this.noteIndex = 0;
-        this.lastCheckZ = -Infinity;
+        this.lastCheckTime = 0;
         this.activeBlocks.clear();
     },
     
     // 更新方块（每帧调用）
-    update(triggerLineZ) {
-        // 只在移动一定距离后才检查
-        if (Math.abs(triggerLineZ - this.lastCheckZ) < this.checkInterval) {
+    update(currentGameTime, triggerLineZ) {
+        // 只在经过一定时间后才检查
+        if (currentGameTime - this.lastCheckTime < this.checkInterval) {
             return;
         }
-        this.lastCheckZ = triggerLineZ;
+        this.lastCheckTime = currentGameTime;
         
-        // 1. 创建新方块（在可见范围前方）
-        this.createNewBlocks(triggerLineZ);
+        // 1. 创建新方块（基于游戏时间）
+        this.createNewBlocks(currentGameTime);
         
         // 2. 销毁旧方块（在触发线后方）
         this.destroyOldBlocks(triggerLineZ);
     },
     
-    // 创建新方块
-    createNewBlocks(triggerLineZ) {
-        const createThreshold = triggerLineZ - this.createAheadDistance;
+    // 创建新方块（基于游戏时间）
+    createNewBlocks(currentGameTime) {
+        // 创建阈值：当前时间 + 提前时间
+        const createTimeThreshold = currentGameTime + this.createAheadTime;
         
-        // 从当前索引开始，创建所有在范围内的方块
+        let createdCount = 0;
+        
+        // 从当前索引开始，创建所有应该出现的方块
         while (this.noteIndex < midiNotes.length) {
             const note = midiNotes[this.noteIndex];
-            const bufferDistance = 30;
-            const noteZ = 2 - (note.time * originalBaseSpeed * 60) - bufferDistance;
             
-            // 如果方块还太远，停止创建
-            if (noteZ < createThreshold) {
+            // 如果音符时间超过阈值，说明还不需要创建，停止
+            if (note.time > createTimeThreshold) {
                 break;
             }
             
@@ -807,9 +807,15 @@ const blockStreamManager = {
             if (block) {
                 this.activeBlocks.set(this.noteIndex, block);
                 noteObjects.push(block);
+                createdCount++;
             }
             
             this.noteIndex++;
+        }
+        
+        // 调试信息：显示创建进度
+        if (createdCount > 0) {
+            console.log(`流式创建: +${createdCount}个方块，进度: ${this.noteIndex}/${midiNotes.length} (${Math.round(this.noteIndex/midiNotes.length*100)}%)`);
         }
     },
     
@@ -1431,8 +1437,11 @@ function updateNoteBlocks() {
     // 基于时间的移动速度（每秒移动的距离）
     const moveSpeed = midiSpeed * 60; // 转换为每秒的速度
     
+    // 计算当前游戏时间（从游戏开始算起）
+    const currentGameTime = (Date.now() / 1000) - gameStartTime;
+    
     // 更新流式方块管理器（自动创建/销毁方块）
-    blockStreamManager.update(triggerZ);
+    blockStreamManager.update(currentGameTime, triggerZ);
     
     for (let i = noteObjects.length - 1; i >= 0; i--) {
         const noteBlock = noteObjects[i];
