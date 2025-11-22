@@ -803,6 +803,7 @@ async function createAllNoteBlocksWithProgress(progressCallback) {
                 blocksCreated = true;
                 const totalTime = performance.now() - startTime;
                 console.log(`✅ 创建完成！实际创建了 ${noteObjects.length} 个方块，耗时 ${totalTime.toFixed(2)}ms`);
+                console.log(`🎱 对象池状态 - 激活: ${blockPool.active.length}, 普通池: ${blockPool.normal.length}, 超高池: ${blockPool.tall.length}`);
                 resolve();
             }
         }
@@ -995,8 +996,9 @@ function resetBlock(block, noteData) {
     // 重置用户数据
     block.userData.noteData = noteData;
     
-    // 显示黑块
-    block.visible = true;
+    // 根据初始位置决定是否可见（在迷雾范围内才显示）
+    const fogBoundary = -GRAPHICS_CONFIG.fogDistance;
+    block.visible = (zPosition >= fogBoundary);
 }
 
 // 回收黑块到对象池
@@ -1337,6 +1339,13 @@ setInterval(() => {
         logPerformanceStats();
     }
 }, 30000);
+
+// 每5秒输出对象池状态（调试用）
+setInterval(() => {
+    if (gameRunning && blockPool) {
+        console.log(`🎱 对象池状态 - 激活: ${blockPool.active.length}, 普通池: ${blockPool.normal.length}, 超高池: ${blockPool.tall.length}, noteObjects: ${noteObjects.length}`);
+    }
+}, 5000);
 
 // 更新玩家位置
 function updatePlayer() {
@@ -1779,65 +1788,131 @@ function continueGame() {
     lastCollisionBlock = null;
 }
 
-// 重新开始
-function restart() {
-    // 清理场景（回收黑块到对象池）
-    clearBlockPool();
-    cleanupObjects(obstacles);
-    cleanupObjects(coins);
-    cleanupObjects(noteObjects);
-    blocksCreated = false; // 重置创建标志
+// 重新开始（异步版本，带加载界面）
+async function restart() {
+    // 隐藏游戏结束界面
+    gameOverElement.style.display = 'none';
     
-    // 重置游戏状态
-    score = 0;
-    distance = 0;
-    speed = 0.3;
-    currentLane = 2;
-    targetLane = 2;
-    lastObstacleTime = 0;
-    lastCoinTime = 0;
-    
-    // 重置MIDI状态
-    notesTriggered = 0;
-    collisions = 0;
-    starsEarned = 0;
-    speedMultiplier = 1.0;
-    isCompletingRound = false;
-    // 重置速度到原始状态
-    midiSpeed = originalBaseSpeed;
-    
-    // 重置音符状态
-    midiNotes.forEach(note => {
-        note.triggered = false;
-        note.collided = false;
-    });
-    
-    // 重置 UI
+    // 如果是MIDI模式，显示加载界面并重新创建
     if (midiNotes.length > 0) {
-        scoreElement.textContent = `⭐ 0 | 音符: 0/${totalNotes}`;
-        distanceElement.textContent = `速度: 1.00x`;
-        accuracyElement.textContent = `剩余: ${totalNotes}`;
+        // 显示加载界面
+        loadingElement.style.display = 'flex';
+        
+        // 清理场景（回收黑块到对象池）
+        clearBlockPool();
+        cleanupObjects(obstacles);
+        cleanupObjects(coins);
+        cleanupObjects(noteObjects);
+        blocksCreated = false;
+        
+        // 重置游戏状态
+        score = 0;
+        distance = 0;
+        speed = 0.3;
+        currentLane = 2;
+        targetLane = 2;
+        lastObstacleTime = 0;
+        lastCoinTime = 0;
+        
+        // 重置MIDI状态
+        notesTriggered = 0;
+        collisions = 0;
+        starsEarned = 0;
+        speedMultiplier = 1.0;
+        isCompletingRound = false;
+        midiSpeed = originalBaseSpeed;
+        
+        // 重置音符状态
+        midiNotes.forEach(note => {
+            note.triggered = false;
+            note.collided = false;
+        });
+        
+        // 重置玩家位置和状态
+        player.position.set(0, groundY, 0);
+        player.scale.set(1, 1, 1);
+        isJumping = false;
+        verticalVelocity = 0;
+        
+        // 初始化加载管理器
+        const restartLoader = {
+            total: 2,
+            current: 0,
+            
+            updateProgress(step) {
+                this.current = step;
+                const percentage = Math.round((this.current / this.total) * 100);
+                loadingPercentage.textContent = `${percentage}%`;
+                loadingProgressBar.style.width = `${percentage}%`;
+            }
+        };
+        
+        try {
+            // 步骤1：重置场景
+            restartLoader.updateProgress(0);
+            await new Promise(resolve => setTimeout(resolve, 200));
+            
+            // 步骤2：创建黑块
+            restartLoader.updateProgress(1);
+            await createAllNoteBlocksWithProgress((progress) => {
+                const percentage = Math.round(50 + (progress * 50));
+                loadingPercentage.textContent = `${percentage}%`;
+                loadingProgressBar.style.width = `${percentage}%`;
+            });
+            
+            // 完成
+            restartLoader.updateProgress(2);
+            await new Promise(resolve => setTimeout(resolve, 300));
+            
+            // 隐藏加载界面
+            loadingElement.style.display = 'none';
+            
+            // 重置 UI
+            scoreElement.textContent = `⭐ 0 | 音符: 0/${totalNotes}`;
+            distanceElement.textContent = `速度: 1.00x`;
+            accuracyElement.textContent = `剩余: ${totalNotes}`;
+            comboElement.style.display = 'none';
+            instructionsElement.style.display = 'block';
+            
+            // 开始游戏
+            gameStartTime = Date.now() / 1000;
+            gameRunning = true;
+            
+            console.log('✅ 重新开始完成！');
+            
+        } catch (error) {
+            console.error('重新开始失败:', error);
+            loadingElement.style.display = 'none';
+            gameOverElement.style.display = 'block';
+        }
     } else {
+        // 普通模式，直接重启
+        clearBlockPool();
+        cleanupObjects(obstacles);
+        cleanupObjects(coins);
+        cleanupObjects(noteObjects);
+        blocksCreated = false;
+        
+        score = 0;
+        distance = 0;
+        speed = 0.3;
+        currentLane = 2;
+        targetLane = 2;
+        lastObstacleTime = 0;
+        lastCoinTime = 0;
+        
         scoreElement.textContent = `分数: 0`;
         distanceElement.textContent = `距离: 0m`;
+        comboElement.style.display = 'none';
+        instructionsElement.style.display = 'block';
+        
+        player.position.set(0, 0.6, 0);
+        player.scale.set(1, 1, 1);
+        isJumping = false;
+        verticalVelocity = 0;
+        
+        gameRunning = true;
     }
-    comboElement.style.display = 'none';
-    gameOverElement.style.display = 'none';
-    instructionsElement.style.display = 'block';
-    
-    // 重置玩家位置和状态
-    player.position.set(0, 0.6, 0);
-    player.scale.set(1, 1, 1);
-    isJumping = false;
-    verticalVelocity = 0;
-    
-    // 如果是MIDI模式，重新创建音符方块
-    if (midiNotes.length > 0) {
-        gameStartTime = Date.now() / 1000;
-        createAllNoteBlocks();
-    }
-    
-    gameRunning = true;
 }
 
 // 窗口大小调整
