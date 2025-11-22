@@ -235,7 +235,7 @@ class AudioSettings {
         const status = this.audioEngine.getStatus();
         statusDiv.innerHTML = `
             <p>✅ 就绪状态: ${status.isReady ? '是' : '否'}</p>
-            <p>🎹 Steinway 采样: ${status.baseNotes} 音符 × 4 力度 × 2 RR = ${status.samplesLoaded} 个</p>
+            <p>🎹 已加载采样: ${status.samplesLoaded}/12 个音符</p>
             <p>🎵 活跃音符: ${status.activeNotes}</p>
             <p>🎮 性能模式: ${status.performanceMode}</p>
             <p>🎧 3D音频: ${status.spatialAudioEnabled ? '开启' : '关闭'}</p>
