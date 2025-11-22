@@ -376,57 +376,66 @@ class AudioEngine {
         return noteName + octave;
     }
 
-    // 初始化钢琴采样器（标准单层采样）
+    // 初始化钢琴采样器（分批加载，避免手机卡顿）
     async init(progressCallback) {
         // 确保AudioContext已创建
         this.ensureAudioContext();
         
-        // 定义实际存在的采样点 - Bright Acoustic Piano（52个音符）
+        // 定义实际存在的采样点 - Steinway Grand 音色库（12个音符 × 4力度 × 2轮询）
         const sampleNotes = [
-            'A0', 'B0',
-            'C1', 'D1', 'E1', 'F1', 'G1', 'A1', 'B1',
-            'C2', 'D2', 'E2', 'F2', 'G2', 'A2', 'B2',
-            'C3', 'D3', 'E3', 'F3', 'G3', 'A3', 'B3',
-            'C4', 'D4', 'E4', 'F4', 'G4', 'A4', 'B4',
-            'C5', 'D5', 'E5', 'F5', 'G5', 'A5', 'B5',
-            'C6', 'D6', 'E6', 'F6', 'G6', 'A6', 'B6',
-            'C7', 'D7', 'E7', 'F7', 'G7', 'A7', 'B7',
-            'C8'
+            'C0', 'G0', 'A1', 'D1', 'B2', 'E2', 
+            'F#3', 'C#4', 'G#4', 'A#5', 'D#5', 'F6'
         ];
         
-        let loadedCount = 0;
-        const total = sampleNotes.length;
+        const dynamics = [1, 2, 3, 4]; // 4个力度层
+        const roundRobins = [1, 2]; // 2个轮询采样
         
-        // 加载单个音色（标准MP3格式）
-        const loadSample = async (noteName) => {
+        let loadedCount = 0;
+        const total = sampleNotes.length * dynamics.length * roundRobins.length;
+        
+        // 加载单个音色（Steinway格式 - MP3）
+        const loadSample = async (noteName, dyn, rr) => {
             try {
-                const response = await fetch(`./piano-samples/${noteName}.mp3`);
+                // 文件名直接使用音符名称（保持 # 符号）
+                const fileName = `Steinway_${noteName}_Dyn${dyn}_RR${rr}.mp3`;
+                const response = await fetch(`./钢琴/Steinway Grand  (DS)/Samples/${fileName}`);
                 if (!response.ok) {
                     throw new Error(`HTTP ${response.status}`);
                 }
                 const arrayBuffer = await response.arrayBuffer();
                 const audioBuffer = await this.audioContext.decodeAudioData(arrayBuffer);
-                this.samples.set(noteName, audioBuffer);
+                
+                // 存储格式：noteName_dyn_rr
+                const key = `${noteName}_${dyn}_${rr}`;
+                this.samples.set(key, audioBuffer);
                 return true;
             } catch (error) {
-                console.warn(`${noteName} 加载失败:`, error);
+                console.warn(`${noteName} Dyn${dyn} RR${rr} 加载失败:`, error);
                 return false;
             }
         };
         
         // 并行加载所有音色（最快速度）
-        const allPromises = sampleNotes.map(async (noteName) => {
-            const success = await loadSample(noteName);
-            loadedCount++;
-            if (progressCallback) {
-                progressCallback(loadedCount, total);
+        const allPromises = [];
+        for (const noteName of sampleNotes) {
+            for (const dyn of dynamics) {
+                for (const rr of roundRobins) {
+                    allPromises.push(
+                        loadSample(noteName, dyn, rr).then(success => {
+                            loadedCount++;
+                            if (progressCallback) {
+                                progressCallback(loadedCount, total);
+                            }
+                            return success;
+                        })
+                    );
+                }
             }
-            return success;
-        });
+        }
         
         await Promise.all(allPromises);
         
-        console.log(`🎹 Bright Acoustic Piano 加载完成！共 ${this.samples.size}/52 个音符`);
+        console.log(`🎹 Steinway Grand 钢琴音色加载完成！共 ${this.samples.size}/${total} 个采样`);
         
         this.isReady = true;
         
