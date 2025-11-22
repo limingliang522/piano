@@ -340,7 +340,7 @@
             overflow-y: hidden;
             -webkit-overflow-scrolling: touch;
             scrollbar-width: none;
-            padding: 8px 5px;
+            padding: 8px 5px 50px 5px;
             background: rgba(255, 255, 255, 0.03);
             border-radius: 8px;
             min-height: 0;
@@ -525,11 +525,13 @@
         }
         
         .random-button-container {
-            padding: 8px 0 5px 0;
+            position: absolute;
+            bottom: 5px;
+            left: 0;
+            right: 0;
+            padding: 0 6px;
             background: transparent;
-            border-top: 1px solid rgba(255, 255, 255, 0.1);
-            flex-shrink: 0;
-            margin-top: 8px;
+            border-top: none;
         }
 
 
