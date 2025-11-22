@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Steinway Grand 音色测试</title>
+    <title>Bright Acoustic Piano 音色测试</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -73,7 +73,7 @@
     </style>
 </head>
 <body>
-    <h1>🎹 Steinway Grand 音色测试</h1>
+    <h1>🎹 Bright Acoustic Piano 音色测试</h1>
     
     <div class="status">
         <h3>加载状态</h3>
@@ -91,11 +91,11 @@
     
     <div class="info">
         <h3>音色信息</h3>
-        <p>🎼 音色：Steinway Grand Piano</p>
-        <p>📊 采样点：12个音符</p>
-        <p>🎚️ 力度层：4层（Dyn1-4）</p>
-        <p>🔄 轮询：2个（RR1-2）</p>
-        <p>📦 总采样数：96个 WAV 文件</p>
+        <p>🎼 音色：Bright Acoustic Piano</p>
+        <p>📊 采样点：52个音符（A0-C8）</p>
+        <p>🎚️ 力度层：单层采样</p>
+        <p>📦 总采样数：52个 MP3 文件</p>
+        <p>✨ 特点：明亮清晰的原声钢琴音色</p>
     </div>
     
     <script src="audio-engine.js"></script>
@@ -109,7 +109,7 @@
         
         initBtn.addEventListener('click', async () => {
             initBtn.disabled = true;
-            statusText.textContent = '正在加载 Steinway Grand 音色...';
+            statusText.textContent = '正在加载 Bright Acoustic Piano 音色...';
             
             try {
                 await audioEngine.init((loaded, total) => {
@@ -121,7 +121,7 @@
                 
                 await audioEngine.start();
                 
-                statusText.textContent = '✅ Steinway Grand 音色加载完成！';
+                statusText.textContent = '✅ Bright Acoustic Piano 音色加载完成！';
                 testBtn.disabled = false;
                 chordBtn.disabled = false;
                 
