@@ -1534,25 +1534,10 @@ function completeRound() {
 
 // 重新开始一轮（不重置星星和速度）
 async function restartRound() {
-    // 显示加载界面
-    loadingElement.style.display = 'flex';
-    
-    // 初始化轮次加载管理器
-    const roundLoader = {
-        total: 2,
-        current: 0,
-        
-        updateProgress(step) {
-            this.current = step;
-            const percentage = Math.round((this.current / this.total) * 100);
-            loadingPercentage.textContent = `${percentage}%`;
-            loadingProgressBar.style.width = `${percentage}%`;
-        }
-    };
+    // 不显示加载界面，因为音频资源已经在内存中
     
     try {
-        // 步骤1：清理和重置
-        roundLoader.updateProgress(0);
+        // 清理和重置
         await new Promise(resolve => {
             requestAnimationFrame(() => {
                 cleanupObjects(noteObjects);
@@ -1570,22 +1555,9 @@ async function restartRound() {
                 resolve();
             });
         });
-        await new Promise(resolve => setTimeout(resolve, 200));
         
-        // 步骤2：重新创建音符方块
-        roundLoader.updateProgress(1);
-        await createAllNoteBlocksWithProgress((progress) => {
-            const percentage = Math.round(50 + (progress * 50)); // 50%-100%
-            loadingPercentage.textContent = `${percentage}%`;
-            loadingProgressBar.style.width = `${percentage}%`;
-        });
-        
-        // 完成
-        roundLoader.updateProgress(2);
-        await new Promise(resolve => setTimeout(resolve, 300));
-        
-        // 隐藏加载界面
-        loadingElement.style.display = 'none';
+        // 重新创建音符方块（不显示进度）
+        await createAllNoteBlocksWithProgress();
         
         // 确保游戏继续运行
         gameRunning = true;
@@ -1598,7 +1570,6 @@ async function restartRound() {
         
     } catch (error) {
         console.error('重新开始轮次失败:', error);
-        loadingElement.style.display = 'none';
         gameRunning = true;
     }
 }
