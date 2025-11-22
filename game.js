@@ -446,6 +446,9 @@ async function preloadAllResources() {
             })()
         ]);
         
+        // 初始化黑块对象池（预加载500个黑块）
+        initBlockPool();
+        
         // 完成加载（不在这里处理音符数据，延迟到点击开始时）
         loadingManager.complete();
         console.log('✅ 所有资源预加载完成！');
@@ -814,6 +817,15 @@ function createAllNoteBlocks() {
     return createAllNoteBlocksWithProgress(null);
 }
 
+// ========== 黑块对象池系统 ==========
+// 对象池配置
+const BLOCK_POOL_SIZE = 500; // 预加载500个黑块
+let blockPool = {
+    normal: [], // 普通黑块池
+    tall: [],   // 超高黑块池
+    active: []  // 当前激活的黑块
+};
+
 // 共享几何体和边缘材质（避免重复创建，提升性能）
 let sharedEdgeMaterial = null;
 let sharedGeometries = {
@@ -858,54 +870,173 @@ function getSharedGeometry(isTall) {
     }
 }
 
-// 创建音符方块（优化版 - 共享几何体，独立材质）
-function createNoteBlock(noteData) {
-    // 使用预先分配的高度
-    const isTall = noteData.isTall;
+// 初始化对象池（预创建500个黑块）
+function initBlockPool() {
+    console.log('🎱 初始化黑块对象池...');
+    const startTime = performance.now();
+    
+    // 清空现有池
+    blockPool.normal = [];
+    blockPool.tall = [];
+    blockPool.active = [];
+    
+    // 预创建普通黑块（300个）
+    const normalCount = Math.floor(BLOCK_POOL_SIZE * 0.6);
+    for (let i = 0; i < normalCount; i++) {
+        const block = createPooledBlock(false);
+        block.visible = false; // 初始隐藏
+        blockPool.normal.push(block);
+    }
+    
+    // 预创建超高黑块（200个）
+    const tallCount = BLOCK_POOL_SIZE - normalCount;
+    for (let i = 0; i < tallCount; i++) {
+        const block = createPooledBlock(true);
+        block.visible = false; // 初始隐藏
+        blockPool.tall.push(block);
+    }
+    
+    const duration = performance.now() - startTime;
+    console.log(`✅ 对象池初始化完成！预创建 ${BLOCK_POOL_SIZE} 个黑块，耗时 ${duration.toFixed(2)}ms`);
+    console.log(`   - 普通黑块: ${normalCount} 个`);
+    console.log(`   - 超高黑块: ${tallCount} 个`);
+}
+
+// 创建池化的黑块（不添加到场景，只创建对象）
+function createPooledBlock(isTall) {
     const blockHeight = isTall ? 3.0 : 0.4;
     const blockY = isTall ? 1.55 : 0.25;
     
-    // 使用共享几何体（减少内存）
+    // 使用共享几何体
     const geometries = getSharedGeometry(isTall);
     
-    // 为每个方块创建独立的材质副本（避免共享材质导致的颜色问题）
+    // 创建独立材质
     const material = new THREE.MeshStandardMaterial({ 
-        color: 0x1a1a1a, // 深黑色
+        color: 0x1a1a1a,
         metalness: 0.9,
         roughness: 0.2,
-        transparent: true, // 启用透明度，用于触发效果
-        opacity: 1.0, // 初始完全不透明
+        transparent: true,
+        opacity: 1.0,
         emissive: 0x0a0a0a,
         emissiveIntensity: 0.2
     });
     
     const noteBlock = new THREE.Mesh(geometries.block, material);
     
-    // 添加发光边缘（使用共享材质，因为边缘不会改变颜色）
+    // 添加发光边缘
     const edgesMaterial = getSharedEdgeMaterial();
     const edges = new THREE.LineSegments(geometries.edges, edgesMaterial);
     noteBlock.add(edges);
     
-    const x = (noteData.lane - 2) * LANE_WIDTH;
-    // 根据时间计算初始Z位置
-    // 触发线在z=2，黑块从迷雾深处移动过来
-    // 添加缓冲距离，让黑块从远处出现
-    const bufferDistance = 30; // 缓冲距离，让黑块从迷雾中出现
-    const zPosition = 2 - (noteData.time * originalBaseSpeed * 60) - bufferDistance;
-    noteBlock.position.set(x, blockY, zPosition);
-    
     // 启用阴影
     noteBlock.castShadow = true;
     
+    // 初始化用户数据
     noteBlock.userData = {
-        noteData: noteData,
+        noteData: null,
         isNote: true,
         isTall: isTall,
-        blockHeight: blockHeight
+        blockHeight: blockHeight,
+        blockY: blockY,
+        isPooled: true // 标记为池化对象
     };
     
+    // 添加到场景（但初始隐藏）
     scene.add(noteBlock);
-    noteObjects.push(noteBlock);
+    
+    return noteBlock;
+}
+
+// 从对象池获取黑块
+function getBlockFromPool(noteData) {
+    const isTall = noteData.isTall;
+    const pool = isTall ? blockPool.tall : blockPool.normal;
+    
+    let block;
+    if (pool.length > 0) {
+        // 从池中取出
+        block = pool.pop();
+    } else {
+        // 池已空，动态创建新的（不应该发生，但作为后备）
+        console.warn('⚠️ 对象池已空，动态创建新黑块');
+        block = createPooledBlock(isTall);
+    }
+    
+    // 重置黑块状态
+    resetBlock(block, noteData);
+    
+    // 添加到激活列表
+    blockPool.active.push(block);
+    
+    return block;
+}
+
+// 重置黑块状态（复用时调用）
+function resetBlock(block, noteData) {
+    const isTall = noteData.isTall;
+    const blockY = isTall ? 1.55 : 0.25;
+    
+    // 重置位置
+    const x = (noteData.lane - 2) * LANE_WIDTH;
+    const bufferDistance = 30;
+    const zPosition = 2 - (noteData.time * originalBaseSpeed * 60) - bufferDistance;
+    block.position.set(x, blockY, zPosition);
+    
+    // 重置材质
+    block.material.color.setHex(0x1a1a1a);
+    block.material.emissive.setHex(0x0a0a0a);
+    block.material.emissiveIntensity = 0.2;
+    block.material.opacity = 1.0;
+    
+    // 重置缩放
+    block.scale.set(1, 1, 1);
+    
+    // 重置用户数据
+    block.userData.noteData = noteData;
+    
+    // 显示黑块
+    block.visible = true;
+}
+
+// 回收黑块到对象池
+function recycleBlock(block) {
+    if (!block || !block.userData.isPooled) return;
+    
+    // 隐藏黑块
+    block.visible = false;
+    
+    // 从激活列表移除
+    const index = blockPool.active.indexOf(block);
+    if (index > -1) {
+        blockPool.active.splice(index, 1);
+    }
+    
+    // 放回对应的池
+    const isTall = block.userData.isTall;
+    if (isTall) {
+        blockPool.tall.push(block);
+    } else {
+        blockPool.normal.push(block);
+    }
+}
+
+// 清理对象池（游戏结束或切换歌曲时）
+function clearBlockPool() {
+    console.log('🧹 清理对象池...');
+    
+    // 回收所有激活的黑块
+    while (blockPool.active.length > 0) {
+        const block = blockPool.active[0];
+        recycleBlock(block);
+    }
+    
+    console.log(`✅ 对象池清理完成！池中剩余: 普通=${blockPool.normal.length}, 超高=${blockPool.tall.length}`);
+}
+
+// 创建音符方块（使用对象池）
+function createNoteBlock(noteData) {
+    const block = getBlockFromPool(noteData);
+    noteObjects.push(block);
 }
 
 // 创建地面
@@ -1145,20 +1276,31 @@ function disposeObject(obj) {
     }
 }
 
-// 批量清理对象数组
+// 批量清理对象数组（优化版 - 使用对象池）
 function cleanupObjects(objectArray) {
     if (!objectArray || objectArray.length === 0) return;
     
     const count = objectArray.length;
-    for (let i = objectArray.length - 1; i >= 0; i--) {
-        disposeObject(objectArray[i]);
-    }
-    objectArray.length = 0; // 清空数组
     
-    // 如果清理的是音符方块，重置标志
+    // 如果是音符方块，回收到对象池
     if (objectArray === noteObjects) {
+        for (let i = objectArray.length - 1; i >= 0; i--) {
+            const block = objectArray[i];
+            if (block.userData.isPooled) {
+                recycleBlock(block);
+            } else {
+                disposeObject(block);
+            }
+        }
+        objectArray.length = 0;
         blocksCreated = false;
-        console.log(`🧹 清理了 ${count} 个音符方块，重置创建标志`);
+        console.log(`🧹 回收了 ${count} 个音符方块到对象池`);
+    } else {
+        // 其他对象正常清理
+        for (let i = objectArray.length - 1; i >= 0; i--) {
+            disposeObject(objectArray[i]);
+        }
+        objectArray.length = 0;
     }
 }
 
@@ -1315,20 +1457,36 @@ function updateGround() {
     });
 }
 
-// 更新音符方块
+// 更新音符方块（优化版 - 只渲染到迷雾位置）
 function updateNoteBlocks() {
     const triggerZ = triggerLine.position.z;
     const triggerWindow = 0.2; // 触发窗口
     const playerLane = Math.round(currentLane);
+    
+    // 迷雾边界（只渲染到这个位置的黑块）
+    const fogBoundary = -GRAPHICS_CONFIG.fogDistance;
     
     // 基于时间的移动速度（每秒移动的距离）
     const moveSpeed = midiSpeed * 60; // 转换为每秒的速度
     
     for (let i = noteObjects.length - 1; i >= 0; i--) {
         const noteBlock = noteObjects[i];
-        noteBlock.position.z += moveSpeed * deltaTime; // 基于时间移动
-        
         const noteData = noteBlock.userData.noteData;
+        
+        // 只更新和渲染在迷雾范围内的黑块
+        if (noteBlock.position.z < fogBoundary) {
+            // 超出迷雾范围，隐藏但不移除（等待进入范围）
+            noteBlock.visible = false;
+            continue;
+        } else {
+            // 在迷雾范围内，确保可见
+            if (!noteBlock.visible && !noteData.triggered) {
+                noteBlock.visible = true;
+            }
+        }
+        
+        // 移动黑块
+        noteBlock.position.z += moveSpeed * deltaTime;
         
         // 检查是否与玩家碰撞
         if (!noteData.collided && noteData.lane === playerLane) {
@@ -1404,9 +1562,9 @@ function updateNoteBlocks() {
             }, 50);
         }
         
-        // 移除屏幕外的方块（正确释放内存）
+        // 移除屏幕外的方块（回收到对象池）
         if (noteBlock.position.z > 10) {
-            disposeObject(noteBlock);
+            recycleBlock(noteBlock);
             noteObjects.splice(i, 1);
         }
     }
@@ -1517,7 +1675,8 @@ function completeRound() {
 
 // 重新开始一轮（不重置星星和速度）
 function restartRound() {
-    // 正确清理音符方块（释放内存）
+    // 清理音符方块（回收到对象池）
+    clearBlockPool();
     cleanupObjects(noteObjects);
     
     // 重置音符状态
@@ -1621,7 +1780,8 @@ function continueGame() {
 
 // 重新开始
 function restart() {
-    // 正确清理场景（释放内存）
+    // 清理场景（回收黑块到对象池）
+    clearBlockPool();
     cleanupObjects(obstacles);
     cleanupObjects(coins);
     cleanupObjects(noteObjects);
@@ -1983,6 +2143,7 @@ async function loadAndStartNewMidi() {
     
     // === 立即清理所有旧数据 ===
     console.log('🧹 清理旧数据...');
+    clearBlockPool();
     cleanupObjects(obstacles);
     cleanupObjects(coins);
     cleanupObjects(noteObjects);
@@ -2328,6 +2489,7 @@ async function selectMidi(index) {
     
     // === 第一步：立即清理所有旧数据 ===
     console.log('🧹 步骤1: 清理旧场景对象...');
+    clearBlockPool();
     cleanupObjects(obstacles);
     cleanupObjects(coins);
     cleanupObjects(noteObjects);
