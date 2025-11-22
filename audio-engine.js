@@ -127,29 +127,29 @@ class AudioEngine {
             this.highpassFilter.frequency.value = 5000;
             this.highpassFilter.Q.value = 0.707;
             
-            // 1.2 低频压缩器（极轻微压缩，保持原音）
+            // 1.2 低频压缩器（温和压缩，防止破音）
             this.compressorLow = ctx.createDynamicsCompressor();
-            this.compressorLow.threshold.value = -30; // 高阈值，很少触发
-            this.compressorLow.knee.value = 40; // 极柔和拐点
-            this.compressorLow.ratio.value = 3; // 温和压缩比
-            this.compressorLow.attack.value = 0.02; // 慢响应，保留瞬态
-            this.compressorLow.release.value = 0.25; // 慢释放
+            this.compressorLow.threshold.value = -20; // 降低阈值，更早介入
+            this.compressorLow.knee.value = 30; // 柔和拐点
+            this.compressorLow.ratio.value = 4; // 适度压缩比
+            this.compressorLow.attack.value = 0.01; // 快速响应
+            this.compressorLow.release.value = 0.2; // 适中释放
             
-            // 1.3 中频压缩器（几乎不压缩，保持清晰）
+            // 1.3 中频压缩器（适度压缩，保持清晰）
             this.compressorMid = ctx.createDynamicsCompressor();
-            this.compressorMid.threshold.value = -30;
-            this.compressorMid.knee.value = 40;
-            this.compressorMid.ratio.value = 2; // 极温和压缩
-            this.compressorMid.attack.value = 0.01;
-            this.compressorMid.release.value = 0.2;
+            this.compressorMid.threshold.value = -18; // 降低阈值
+            this.compressorMid.knee.value = 30;
+            this.compressorMid.ratio.value = 3; // 适度压缩
+            this.compressorMid.attack.value = 0.008;
+            this.compressorMid.release.value = 0.15;
             
-            // 1.4 高频压缩器（几乎不工作，保持明亮）
+            // 1.4 高频压缩器（轻微压缩，保持明亮）
             this.compressorHigh = ctx.createDynamicsCompressor();
-            this.compressorHigh.threshold.value = -20; // 极高阈值
-            this.compressorHigh.knee.value = 30;
-            this.compressorHigh.ratio.value = 1.5; // 极轻微压缩
-            this.compressorHigh.attack.value = 0.005;
-            this.compressorHigh.release.value = 0.15;
+            this.compressorHigh.threshold.value = -15; // 降低阈值
+            this.compressorHigh.knee.value = 25;
+            this.compressorHigh.ratio.value = 2.5; // 轻微压缩
+            this.compressorHigh.attack.value = 0.003;
+            this.compressorHigh.release.value = 0.1;
             
             // 1.5 各频段 Makeup Gain（移除增益，保持原音）
             this.makeupGainLow = ctx.createGain();
@@ -218,13 +218,13 @@ class AudioEngine {
             this.reverbWet.gain.value = 0.15; // 15% 湿声（轻微混响）
             
             console.log('initAudioChain: 创建限制器...');
-            // 4. 砖墙限制器（绝对防止破音，最大化响度）
+            // 4. 砖墙限制器（绝对防止破音）
             this.limiter = ctx.createDynamicsCompressor();
-            this.limiter.threshold.value = -0.3; // 极高阈值，接近0dB
-            this.limiter.knee.value = 0.5; // 极小拐点，快速响应
-            this.limiter.ratio.value = 20; // 极高压缩比，砖墙限制
-            this.limiter.attack.value = 0.0001; // 极快响应，不放过任何峰值
-            this.limiter.release.value = 0.05; // 快速释放
+            this.limiter.threshold.value = -3.0; // 安全阈值，留出余量
+            this.limiter.knee.value = 2; // 柔和拐点，更自然
+            this.limiter.ratio.value = 20; // 高压缩比，砖墙限制
+            this.limiter.attack.value = 0.001; // 快速响应
+            this.limiter.release.value = 0.1; // 适中释放
             
             console.log('initAudioChain: 创建平滑限幅器...');
             // 4.5. 平滑限幅器（防止破音但保持音质）
@@ -233,9 +233,9 @@ class AudioEngine {
             this.hardClipper.oversample = '4x'; // 高质量过采样，减少失真
             
             console.log('initAudioChain: 创建主音量...');
-            // 5. 主音量（极简版，超大音量）
+            // 5. 主音量（合理音量，防止破音）
             this.masterGain = ctx.createGain();
-            this.masterGain.gain.value = 18.0; // 超大音量
+            this.masterGain.gain.value = 1.2; // 适中音量，防止削波
             
             console.log('initAudioChain: 连接音频节点（简化版）...');
             // 极简音频链：只保留主音量，移除所有可能导致失真的处理
@@ -510,7 +510,7 @@ class AudioEngine {
             const gainNode = ctx.createGain();
             // 使用更精确的velocity映射（MIDI标准：velocity 0-127）
             const velocityFactor = Math.pow(velocity / 127, 1.0); // 线性映射
-            const baseVolume = velocityFactor * 1.0; // 不增益，保持原音
+            const baseVolume = velocityFactor * 0.6; // 降低音符音量，防止多音符叠加破音
             
             // 根据音高调整音量（模拟真实钢琴）
             let pitchFactor = 1.0;
@@ -746,8 +746,8 @@ class AudioEngine {
         // 限制音量范围
         const clampedVolume = Math.max(0, Math.min(1, volume));
         
-        // 使用原始音量值乘以基础增益
-        const baseGain = 18.0;
+        // 使用合理的基础增益，防止破音
+        const baseGain = 1.5; // 降低基础增益，防止削波失真
         this.masterGain.gain.value = clampedVolume * baseGain;
         
         console.log(`🔊 主音量设置为: ${Math.round(clampedVolume * 100)}%`);
