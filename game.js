@@ -331,6 +331,7 @@ async function getMidiFiles() {
         });
     }
     
+    console.log('📁 音乐列表:', musicList);
     return musicList;
 }
 
@@ -421,7 +422,9 @@ async function preloadAllResources() {
         for (let i = 0; i < midiFiles.length; i++) {
             try {
                 const music = midiFiles[i];
+                console.log(`📥 加载MIDI: ${music.midi}`);
                 const notes = await midiParser.loadMIDI(music.midi + '?v=1');
+                console.log(`✅ MIDI加载成功，音符数: ${notes.length}`);
                 
                 // 缓存MIDI数据
                 preloadedMidiData[i] = {
@@ -432,7 +435,7 @@ async function preloadAllResources() {
                 loadingManager.increment('');
                 console.log(`✅ 音乐 ${i + 1}/${midiFiles.length} 加载完成`);
             } catch (error) {
-                console.error(`音乐文件 ${i} 加载失败:`, error);
+                console.error(`❌ 音乐文件 ${i} 加载失败:`, error);
                 loadingManager.increment('');
             }
         }
@@ -484,16 +487,30 @@ async function preloadAllResources() {
                     // 等待一小段时间让用户看到进度
                     await new Promise(resolve => setTimeout(resolve, 200));
                     
-                    // 步骤2：处理音符数据
+                    // 步骤2：加载MP3音乐和处理音符数据
                     gameStartLoader.updateProgress(1, '');
+                    
+                    // 加载MP3音乐
+                    const currentMusic = midiFiles[currentMidiIndex];
+                    console.log('🎵 当前音乐索引:', currentMidiIndex);
+                    console.log('🎵 加载音乐:', currentMusic);
+                    await audioEngine.loadMusic(currentMusic.mp3);
+                    console.log('✅ MP3加载完成');
+                    
                     await new Promise(resolve => {
                         requestAnimationFrame(() => {
                             performanceMonitor.start('处理MIDI音符数据');
                             
+                            console.log('📊 预加载数据:', preloadedMidiData[currentMidiIndex]);
                             if (preloadedMidiData[currentMidiIndex]) {
-                                processMIDINotes(preloadedMidiData[currentMidiIndex].notes);
+                                const notes = preloadedMidiData[currentMidiIndex].notes;
+                                console.log(`🎵 处理 ${notes.length} 个音符`);
+                                processMIDINotes(notes);
                                 currentMidiName = preloadedMidiData[currentMidiIndex].name;
                                 updateIslandTitle(currentMidiName);
+                                console.log('✅ 音符处理完成');
+                            } else {
+                                console.error('❌ 没有找到预加载的MIDI数据');
                             }
                             
                             performanceMonitor.end('处理MIDI音符数据');
@@ -506,12 +523,16 @@ async function preloadAllResources() {
                     // 步骤3：创建游戏场景
                     gameStartLoader.updateProgress(2, '');
                     
+                    console.log(`🎮 准备创建 ${midiNotes.length} 个黑块`);
+                    
                     // 预先创建所有方块（带进度）
                     await createAllNoteBlocksWithProgress((progress) => {
                         const percentage = Math.round(66 + (progress * 34)); // 66%-100%
                         loadingPercentage.textContent = `${percentage}%`;
                         loadingProgressBar.style.width = `${percentage}%`;
                     });
+                    
+                    console.log(`✅ 黑块创建完成，总数: ${noteObjects.length}`);
                     
                     // 完成
                     gameStartLoader.updateProgress(3, '');
@@ -521,6 +542,7 @@ async function preloadAllResources() {
                     loadingElement.style.display = 'none';
                     
                     // 开始游戏
+                    console.log('🎮 启动游戏...');
                     startMIDIGame();
                     
                     // 播放开始音效
@@ -738,35 +760,48 @@ function startMIDIGame() {
     gameRunning = true;
     gameStartTime = Date.now() / 1000;
     
+    console.log('🎮 游戏启动！');
+    console.log(`📊 音符数: ${midiNotes.length}`);
+    console.log(`📊 黑块数: ${noteObjects.length}`);
+    console.log(`📊 游戏速度: ${midiSpeed}`);
+    
     // 计算第一个音符到达触发线需要的时间
     // 第一个音符的初始位置和触发线的距离
     if (midiNotes.length > 0 && noteObjects.length > 0) {
         const firstNote = midiNotes[0];
         const firstBlock = noteObjects[0];
+        
+        console.log(`📍 第一个音符时间: ${firstNote.time.toFixed(3)}s`);
+        console.log(`📍 第一个黑块位置: z=${firstBlock.position.z.toFixed(2)}`);
+        
         const distanceToTrigger = 2 - firstBlock.position.z; // 触发线在z=2
         const timeToTrigger = distanceToTrigger / (midiSpeed * 60); // 到达触发线需要的时间
         
         // 延迟播放MP3，让音频和第一个黑块对齐
         const audioDelay = timeToTrigger - firstNote.time;
         
-        console.log(`🎵 音频延迟: ${audioDelay.toFixed(3)}秒，让音频和黑块对齐`);
+        console.log(`⏱️ 到达触发线距离: ${distanceToTrigger.toFixed(2)}`);
+        console.log(`⏱️ 到达触发线时间: ${timeToTrigger.toFixed(3)}s`);
+        console.log(`🎵 音频延迟: ${audioDelay.toFixed(3)}s`);
         
         if (audioDelay > 0) {
             // 需要延迟播放音频
+            console.log(`⏰ ${audioDelay.toFixed(3)}秒后播放音频`);
             setTimeout(() => {
+                console.log('▶️ 开始播放音频');
                 audioEngine.playMusic();
             }, audioDelay * 1000);
         } else {
             // 音频需要从某个时间点开始播放
+            console.log(`⏩ 从 ${(-audioDelay).toFixed(3)}s 开始播放`);
             audioEngine.setCurrentTime(-audioDelay);
             audioEngine.playMusic();
         }
     } else {
         // 没有音符，直接播放
+        console.log('⚠️ 没有音符或黑块，直接播放');
         audioEngine.playMusic();
     }
-    
-    console.log('🎮 游戏启动！方块数量:', noteObjects.length);
 }
 
 // 开始普通游戏（无MIDI）
@@ -2289,10 +2324,10 @@ function initMidiList(filterText = '') {
     midiList.innerHTML = '';
     
     // 过滤歌曲列表
-    const filteredFiles = midiFiles.filter((file, index) => {
+    const filteredFiles = midiFiles.filter((music, index) => {
         if (!filterText) return true;
-        const fileName = file.split('/').pop().replace('.mid', '').toLowerCase();
-        return fileName.includes(filterText.toLowerCase());
+        const musicName = music.name.toLowerCase();
+        return musicName.includes(filterText.toLowerCase());
     });
     
     // 如果没有匹配结果，显示提示
@@ -2305,8 +2340,8 @@ function initMidiList(filterText = '') {
     }
     
     // 显示匹配的歌曲
-    filteredFiles.forEach((file) => {
-        const index = midiFiles.indexOf(file);
+    filteredFiles.forEach((music) => {
+        const index = midiFiles.indexOf(music);
         
         const item = document.createElement('div');
         item.className = 'midi-item';
@@ -2316,11 +2351,18 @@ function initMidiList(filterText = '') {
         
         const cover = document.createElement('div');
         cover.className = 'midi-cover';
-        cover.textContent = '🎵';
+        // 如果有图片，显示图片，否则显示emoji
+        if (music.image) {
+            cover.style.backgroundImage = `url(${music.image})`;
+            cover.style.backgroundSize = 'cover';
+            cover.style.backgroundPosition = 'center';
+        } else {
+            cover.textContent = '🎵';
+        }
         
         const name = document.createElement('div');
         name.className = 'midi-name';
-        name.textContent = file.split('/').pop().replace('.mid', '');
+        name.textContent = music.name;
         
         item.appendChild(cover);
         item.appendChild(name);

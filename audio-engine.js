@@ -96,9 +96,20 @@ class AudioEngine {
         return null;
     }
     
-    // 初始化音频处理链（纯净原声模式）
+    // 初始化音频处理链（简化版 - 只需要主音量控制）
     initAudioChain() {
         const ctx = this.audioContext;
+        
+        // 只创建主音量控制
+        this.masterGain = ctx.createGain();
+        this.masterGain.gain.value = 0.8;
+        this.masterGain.connect(ctx.destination);
+        
+        console.log('✅ 音频处理链初始化完成（简化版）');
+        return;
+        
+        // 以下是旧代码，暂时保留但不执行
+        /*
         
         try {
             console.log('initAudioChain: 初始化纯净原声输出模式...');
@@ -324,6 +335,7 @@ class AudioEngine {
             console.error('initAudioChain: 初始化失败:', error);
             throw error;
         }
+        */
     }
     
     // 创建卡内基音乐厅混响（施坦威专属）
@@ -420,6 +432,12 @@ class AudioEngine {
             // 停止当前播放的音乐
             this.stopMusic();
             
+            // 断开旧的音频源
+            if (this.audioSource) {
+                this.audioSource.disconnect();
+                this.audioSource = null;
+            }
+            
             // 创建新的Audio元素
             this.audioElement = new Audio(musicPath);
             this.audioElement.crossOrigin = 'anonymous';
@@ -432,11 +450,9 @@ class AudioEngine {
                 this.audioElement.load();
             });
             
-            // 连接到AudioContext
-            if (!this.audioSource) {
-                this.audioSource = this.audioContext.createMediaElementSource(this.audioElement);
-                this.audioSource.connect(this.masterGain);
-            }
+            // 连接到AudioContext（每次都重新创建）
+            this.audioSource = this.audioContext.createMediaElementSource(this.audioElement);
+            this.audioSource.connect(this.masterGain);
             
             this.currentMusicPath = musicPath;
             console.log('✅ 音乐加载完成');
