@@ -785,8 +785,11 @@ function startMIDIGame() {
     
     // 从0秒开始播放背景音乐，使用speedMultiplier倍速
     if (audioEngine && audioEngine.bgmBuffer) {
+        // 重要：在播放音频之前重新设置 gameStartTime，确保同步
+        gameStartTime = Date.now() / 1000;
         audioEngine.playBGM(audioStartTime, speedMultiplier);
         console.log(`🎵 背景音乐开始播放，速度: ${speedMultiplier.toFixed(2)}x`);
+        console.log(`🎮 gameStartTime 已同步: ${gameStartTime.toFixed(2)}`);
     }
     
     console.log('� 游戏启动！方块数量:间', noteObjects.length);
@@ -1615,15 +1618,15 @@ async function restartRound() {
         if (audioEngine && audioEngine.bgmBuffer) {
             audioEngine.stopBGM();
             
+            // 重要：在播放音频之前重新设置 gameStartTime，确保同步
+            gameStartTime = Date.now() / 1000;
+            
             if (midiNotes.length > 0) {
                 const firstNoteTime = midiNotes[0].time;
                 const gameTimeToTrigger = firstNoteTime / speedMultiplier;
-                const currentTime = Date.now() / 1000;
                 
                 console.log(`🎵 新一轮对齐计算：`);
-                console.log(`   当前时间: ${currentTime.toFixed(2)}`);
-                console.log(`   gameStartTime: ${gameStartTime.toFixed(2)}`);
-                console.log(`   时间差: ${(currentTime - gameStartTime).toFixed(2)}秒`);
+                console.log(`   gameStartTime 已重置: ${gameStartTime.toFixed(2)}`);
                 console.log(`   第一个音符时间: ${firstNoteTime.toFixed(2)}秒`);
                 console.log(`   速度倍数: ${speedMultiplier.toFixed(2)}x`);
                 console.log(`   midiSpeed: ${midiSpeed.toFixed(4)}`);
