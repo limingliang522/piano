@@ -364,7 +364,7 @@
 
         /* 音乐页面布局 */
         #musicTab {
-            padding: 5px 6px;
+            padding: 5px 6px 50px 6px;
             overflow: hidden; /* 防止溢出 */
             gap: 8px;
         }
@@ -503,32 +503,34 @@
         /* 随机选择按钮 */
         .random-midi-button {
             padding: 6px 14px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            border: 1px solid rgba(255, 255, 255, 0.3);
+            background: transparent;
+            border: none;
             border-radius: 10px;
             color: #fff;
             font-size: 24px;
             font-weight: 600;
             cursor: pointer;
             transition: all 0.3s;
-            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
             outline: none;
         }
 
         .random-midi-button:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 6px 16px rgba(102, 126, 234, 0.5);
+            transform: scale(1.1);
+            background: rgba(255, 255, 255, 0.1);
         }
 
         .random-midi-button:active {
-            transform: translateY(0);
-            box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+            transform: scale(0.95);
         }
         
         .random-button-container {
-            margin-top: auto;
-            padding-top: 8px;
-            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            padding: 8px 6px;
+            background: transparent;
+            border-top: none;
         }
 
 
