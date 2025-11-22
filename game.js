@@ -753,10 +753,17 @@ function startMIDIGame() {
     gameRunning = true;
     gameStartTime = Date.now() / 1000;
     
-    // 播放背景音乐
+    // 计算第一个黑块的时间（音频开始位置）
+    let firstNoteTime = 0;
+    if (midiNotes.length > 0) {
+        firstNoteTime = midiNotes[0].time;
+        console.log(`🎵 第一个音符时间: ${firstNoteTime.toFixed(2)}秒`);
+    }
+    
+    // 从第一个黑块的时间开始播放背景音乐
     if (audioEngine && audioEngine.bgmBuffer) {
-        audioEngine.playBGM(0);
-        console.log('🎵 背景音乐开始播放');
+        audioEngine.playBGM(firstNoteTime, speedMultiplier);
+        console.log(`🎵 背景音乐从 ${firstNoteTime.toFixed(2)}秒 开始播放，速度: ${speedMultiplier.toFixed(2)}x`);
     }
     
     console.log('🎮 游戏启动！方块数量:', noteObjects.length);
@@ -1573,11 +1580,15 @@ async function restartRound() {
         // 确保游戏继续运行
         gameRunning = true;
         
-        // 重新播放背景音乐
+        // 重新播放背景音乐（从第一个黑块开始，使用当前速度倍数）
         if (audioEngine && audioEngine.bgmBuffer) {
             audioEngine.stopBGM();
-            audioEngine.playBGM(0);
-            console.log('🎵 背景音乐重新开始播放（新一轮）');
+            let firstNoteTime = 0;
+            if (midiNotes.length > 0) {
+                firstNoteTime = midiNotes[0].time;
+            }
+            audioEngine.playBGM(firstNoteTime, speedMultiplier);
+            console.log(`🎵 背景音乐重新开始播放（新一轮），从 ${firstNoteTime.toFixed(2)}秒，速度: ${speedMultiplier.toFixed(2)}x`);
         }
         
         // 更新UI
@@ -1789,10 +1800,14 @@ async function restart() {
         gameRunning = true;
         gameStartTime = Date.now() / 1000;
         
-        // 播放背景音乐
+        // 播放背景音乐（从第一个黑块开始）
         if (audioEngine && audioEngine.bgmBuffer) {
-            audioEngine.playBGM(0);
-            console.log('🎵 背景音乐重新开始播放');
+            let firstNoteTime = 0;
+            if (midiNotes.length > 0) {
+                firstNoteTime = midiNotes[0].time;
+            }
+            audioEngine.playBGM(firstNoteTime, 1.0);
+            console.log(`🎵 背景音乐重新开始播放，从 ${firstNoteTime.toFixed(2)}秒`);
         }
         
     } catch (error) {
@@ -1850,6 +1865,12 @@ function animate(currentTime) {
         // 禁用速度增长，以后才缓慢增加速度
         if (starsEarned > 0) {
             midiSpeed += speedIncreaseRate * speedMultiplier;
+            
+            // 实时更新背景音乐播放速度
+            const currentSpeedRatio = midiSpeed / originalBaseSpeed;
+            if (audioEngine && audioEngine.bgmIsPlaying) {
+                audioEngine.setBGMPlaybackRate(currentSpeedRatio);
+            }
         }
         updateNoteBlocks();
     } else {
