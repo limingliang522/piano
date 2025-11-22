@@ -867,6 +867,8 @@ function activateVisibleBlocks() {
     const triggerZ = 2;
     const visibleStart = triggerZ - VISIBLE_RANGE;
     
+    let activatedCount = 0;
+    
     // 激活所有在可见范围内的音符
     while (nextNoteIndex < midiNotes.length) {
         const noteData = midiNotes[nextNoteIndex];
@@ -881,14 +883,17 @@ function activateVisibleBlocks() {
         // 从对象池获取黑块
         const block = getBlockFromPool();
         if (!block) {
-            console.warn('⚠️ 对象池已满，无法激活更多黑块');
+            console.warn(`⚠️ 对象池已满！已激活: ${activatedCount}, 总音符: ${midiNotes.length}`);
             break;
         }
         
         // 激活黑块
         activateBlock(block, noteData);
         nextNoteIndex++;
+        activatedCount++;
     }
+    
+    console.log(`✅ 初始激活了 ${activatedCount} 个黑块，下一个索引: ${nextNoteIndex}/${midiNotes.length}`);
 }
 
 // ========== 对象池系统 ==========
@@ -937,8 +942,8 @@ function getSharedGeometry(isTall) {
 }
 
 // 对象池配置
-const POOL_SIZE = 60; // 对象池大小（屏幕上最多60个黑块）
-const VISIBLE_RANGE = 80; // 可见范围（从触发线往后80个单位）
+const POOL_SIZE = 100; // 对象池大小（增加到100个，应对密集音符）
+const VISIBLE_RANGE = 100; // 可见范围（增加到100个单位，确保黑块提前出现）
 let blockPool = []; // 黑块对象池
 let activeBlocks = []; // 当前激活的黑块
 let nextNoteIndex = 0; // 下一个要激活的音符索引
@@ -1343,11 +1348,51 @@ function logPerformanceStats() {
         console.log(`║ 几何体: ${info.memory.geometries}`);
         console.log(`║ 纹理: ${info.memory.textures}`);
         console.log(`║ 场景物体: ${scene.children.length}`);
-        console.log(`║ 音符方块: ${noteObjects.length}`);
+        console.log(`║ 对象池大小: ${POOL_SIZE}`);
+        console.log(`║ 激活黑块: ${activeBlocks.length}`);
+        console.log(`║ 下一个音符: ${nextNoteIndex}/${midiNotes.length}`);
         console.log(`║ 拖尾长度: ${GRAPHICS_CONFIG.trailLength}`);
         console.log(`║ 雾效距离: ${GRAPHICS_CONFIG.fogDistance}`);
         console.log('╚═══════════════════════════════════════╝');
     }
+}
+
+// 对象池状态调试（按 O 键查看）
+function logPoolStatus() {
+    console.log('╔═══════════════════════════════════════╗');
+    console.log('║         🎱 对象池状态                 ║');
+    console.log('╠═══════════════════════════════════════╣');
+    console.log(`║ 对象池大小: ${POOL_SIZE}`);
+    console.log(`║ 激活黑块数: ${activeBlocks.length}`);
+    console.log(`║ 空闲黑块数: ${POOL_SIZE - activeBlocks.length}`);
+    console.log(`║ 下一个音符索引: ${nextNoteIndex}/${midiNotes.length}`);
+    console.log(`║ 已触发音符: ${notesTriggered}`);
+    console.log(`║ 游戏时间: ${(Date.now() / 1000 - gameStartTime).toFixed(2)}s`);
+    console.log('╠═══════════════════════════════════════╣');
+    
+    // 显示前5个激活黑块的位置
+    if (activeBlocks.length > 0) {
+        console.log('║ 前5个激活黑块位置:');
+        for (let i = 0; i < Math.min(5, activeBlocks.length); i++) {
+            const block = activeBlocks[i];
+            const noteData = block.userData.noteData;
+            console.log(`║   ${i+1}. Z=${block.position.z.toFixed(2)}, 轨道=${noteData.lane}, 时间=${noteData.time.toFixed(2)}s`);
+        }
+    }
+    
+    // 显示下一个要激活的音符
+    if (nextNoteIndex < midiNotes.length) {
+        const nextNote = midiNotes[nextNoteIndex];
+        const bufferDistance = 30;
+        const triggerZ = 2;
+        const initialZ = triggerZ - (nextNote.time * originalBaseSpeed * 60) - bufferDistance;
+        const elapsedTime = Date.now() / 1000 - gameStartTime;
+        const currentZ = initialZ + (elapsedTime * midiSpeed * 60);
+        console.log('╠═══════════════════════════════════════╣');
+        console.log(`║ 下一个音符: 时间=${nextNote.time.toFixed(2)}s, 当前Z=${currentZ.toFixed(2)}`);
+    }
+    
+    console.log('╚═══════════════════════════════════════╝');
 }
 
 // 每30秒输出一次性能统计（可选）
@@ -1563,17 +1608,21 @@ function updateNoteBlocks() {
     while (nextNoteIndex < midiNotes.length) {
         const noteData = midiNotes[nextNoteIndex];
         const bufferDistance = 30;
-        const zPosition = triggerZ - (noteData.time * originalBaseSpeed * 60) - bufferDistance + 
-                         (Date.now() / 1000 - gameStartTime) * moveSpeed;
         
-        // 如果黑块还在可见范围外，停止
-        if (zPosition < visibleStart) {
+        // 计算这个音符当前应该在的位置
+        const elapsedTime = Date.now() / 1000 - gameStartTime;
+        const initialZ = triggerZ - (noteData.time * originalBaseSpeed * 60) - bufferDistance;
+        const currentZ = initialZ + (elapsedTime * moveSpeed);
+        
+        // 如果黑块还在可见范围外（太远），停止激活
+        if (currentZ < visibleStart) {
             break;
         }
         
         // 从对象池获取黑块
         const block = getBlockFromPool();
         if (!block) {
+            console.warn(`⚠️ 对象池已满！当前激活: ${activeBlocks.length}, 下一个音符: ${nextNoteIndex}`);
             break; // 池子满了
         }
         
@@ -1959,6 +2008,12 @@ document.addEventListener('keydown', (e) => {
     // P 键：查看性能统计（无论游戏是否运行）
     if (e.key === 'p' || e.key === 'P') {
         logPerformanceStats();
+        return;
+    }
+    
+    // O 键：查看对象池状态（无论游戏是否运行）
+    if (e.key === 'o' || e.key === 'O') {
+        logPoolStatus();
         return;
     }
     
