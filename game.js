@@ -934,11 +934,12 @@ function createNoteBlock(noteData) {
     const x = (noteData.lane - 2) * LANE_WIDTH;
     // 根据MIDI时间计算初始Z位置
     // 触发线在z=2
-    // 黑块应该在 noteData.time 秒后到达触发线
-    // 黑块移动速度：midiSpeed * 60 (每秒移动的距离)
-    // 初始位置：z = 2 - (noteData.time * midiSpeed * 60)
-    // 注意：这里使用 midiSpeed 而不是 originalBaseSpeed，因为速度会变化
-    // 但是为了保持一致性，我们使用 originalBaseSpeed，然后在游戏中调整速度
+    // 黑块应该在 noteData.time / speedMultiplier 秒后到达触发线
+    // 黑块移动速度：midiSpeed * 60 = originalBaseSpeed * speedMultiplier * 60 (每秒移动的距离)
+    // 移动距离：distance = speed * time = (originalBaseSpeed * speedMultiplier * 60) * (noteData.time / speedMultiplier)
+    //                                    = originalBaseSpeed * 60 * noteData.time
+    // 所以初始位置：z = 2 - distance = 2 - (noteData.time * originalBaseSpeed * 60)
+    // 这个公式与 speedMultiplier 无关，因为速度和时间的变化相互抵消了
     const zPosition = 2 - (noteData.time * originalBaseSpeed * 60);
     noteBlock.position.set(x, blockY, zPosition);
     
@@ -1627,7 +1628,13 @@ async function restartRound() {
                 // 计算音频开始时间
                 audioStartTime = firstNoteTime - gameTimeToTrigger;
                 
-                console.log(`🎵 新一轮：音频从 ${audioStartTime.toFixed(2)}秒 开始，速度: ${speedMultiplier.toFixed(2)}x`);
+                console.log(`🎵 新一轮对齐计算：`);
+                console.log(`   第一个音符时间: ${firstNoteTime.toFixed(2)}秒`);
+                console.log(`   速度倍数: ${speedMultiplier.toFixed(2)}x`);
+                console.log(`   黑块到达触发线需要: ${gameTimeToTrigger.toFixed(2)}秒`);
+                console.log(`   音频开始时间: ${audioStartTime.toFixed(2)}秒`);
+                console.log(`   音频播放速度: ${speedMultiplier.toFixed(2)}x`);
+                console.log(`   预期：${gameTimeToTrigger.toFixed(2)}秒后，黑块到达触发线，音频播放到 ${firstNoteTime.toFixed(2)}秒`);
             }
             
             audioEngine.playBGM(audioStartTime, speedMultiplier);
