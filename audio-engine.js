@@ -190,21 +190,22 @@ class AudioEngine {
             
             console.log('initAudioChain: 创建均衡器...');
             // 2. 三段均衡器（精细调音）
+            // 优化 FluidR3 GM 音色的均衡器设置
             this.eqLow = ctx.createBiquadFilter();
             this.eqLow.type = 'lowshelf';
-            this.eqLow.frequency.value = 200;
-            this.eqLow.gain.value = 0.5; // 轻微增强，避免过度
+            this.eqLow.frequency.value = 250;
+            this.eqLow.gain.value = 3.0; // 增强低频，增加温暖度和厚度
             
             this.eqMid = ctx.createBiquadFilter();
             this.eqMid.type = 'peaking';
-            this.eqMid.frequency.value = 2500;
-            this.eqMid.Q.value = 0.8;
-            this.eqMid.gain.value = 0.5; // 轻微提升，避免过度
+            this.eqMid.frequency.value = 2000;
+            this.eqMid.Q.value = 1.2;
+            this.eqMid.gain.value = 2.0; // 提升中频，增加清晰度和存在感
             
             this.eqHigh = ctx.createBiquadFilter();
             this.eqHigh.type = 'highshelf';
-            this.eqHigh.frequency.value = 8000;
-            this.eqHigh.gain.value = 1.0; // 降低增益，避免破音
+            this.eqHigh.frequency.value = 6000;
+            this.eqHigh.gain.value = 4.0; // 增强高频，增加明亮度和空气感
             
             console.log('initAudioChain: 创建混响...');
             // 3. 卷积混响（音乐厅效果 - 轻量化）
@@ -233,18 +234,38 @@ class AudioEngine {
             this.hardClipper.oversample = '4x'; // 高质量过采样，减少失真
             
             console.log('initAudioChain: 创建主音量...');
-            // 5. 主音量（纯净原声，15.0 = 超强音量）
-            this.masterGain = ctx.createGain();
-            this.masterGain.gain.value = 15.0; // 超强音量 15 倍
+            // 5. 轻微混响（增加空间感和温暖度）
+            this.reverbGain = ctx.createGain();
+            this.reverbGain.gain.value = 0.25; // 25% 混响，让音色更有深度
             
-            console.log('initAudioChain: 连接音频节点（纯净原声）...');
-            // 纯净原声模式：直接输出，不经过任何处理
-            // 音频源 → 主音量 → 输出（无压缩、无混响、无均衡）
+            // 6. 主音量（优化后的音量）
+            this.masterGain = ctx.createGain();
+            this.masterGain.gain.value = 8.0; // 适中音量，避免过度失真
+            
+            console.log('initAudioChain: 连接音频节点（优化音色）...');
+            // 优化音色链路：
+            // 音频源 → 均衡器（增强音色） → 混响（空间感） → 主音量 → 输出
+            
+            // 连接均衡器链
+            this.eqLow.connect(this.eqMid);
+            this.eqMid.connect(this.eqHigh);
+            
+            // 干声路径（75%）
+            const dryGain = ctx.createGain();
+            dryGain.gain.value = 0.75;
+            this.eqHigh.connect(dryGain);
+            dryGain.connect(this.masterGain);
+            
+            // 湿声路径（25% 混响）
+            this.eqHigh.connect(this.convolver);
+            this.convolver.connect(this.reverbGain);
+            this.reverbGain.connect(this.masterGain);
+            
+            // 输出
             this.masterGain.connect(ctx.destination);
             
-            // multibandSplitter 作为输入节点（但不连接处理链）
-            this.compressor = ctx.createGain(); // 兼容性：用 gain 替代 compressor
-            this.compressor.gain.value = 1.0;
+            // 兼容性：compressor 指向均衡器输入
+            this.compressor = this.eqLow;
             
             console.log('initAudioChain: 设置 3D 音频监听器...');
             // 设置 3D 音频监听器位置
@@ -261,8 +282,9 @@ class AudioEngine {
                 this.listener.upZ.value = 0;
             }
             
-            console.log('🎹 纯净原声输出模式已初始化');
-            console.log('✨ 无压缩 | 无混响 | 无均衡 | 完美还原采样原音');
+            console.log('🎹 优化音色处理链已初始化');
+            console.log('✨ 增强低频温暖度 | 提升中频清晰度 | 增加高频明亮度');
+            console.log('🎵 25% 音乐厅混响 | 75% 干声 | 完美平衡');
             console.log('🎚️ 功能: 音频分析器 | 提前释放 | 性能模式切换');
         } catch (error) {
             console.error('initAudioChain: 初始化失败:', error);
@@ -270,32 +292,32 @@ class AudioEngine {
         }
     }
     
-    // 创建自然混响脉冲响应（钢琴房效果）
+    // 创建音乐厅混响脉冲响应（优化 FluidR3 GM 音色）
     createReverbImpulse() {
         const ctx = this.audioContext;
         const sampleRate = ctx.sampleRate;
-        const length = sampleRate * 0.8; // 0.8秒混响（更短，更自然）
+        const length = sampleRate * 1.5; // 1.5秒混响（中等音乐厅效果）
         const impulse = ctx.createBuffer(2, length, sampleRate);
         const impulseL = impulse.getChannelData(0);
         const impulseR = impulse.getChannelData(1);
         
-        // 生成自然混响（钢琴房效果）
+        // 生成温暖的音乐厅混响
         for (let i = 0; i < length; i++) {
-            // 更快的指数衰减（模拟小房间）
-            const decay = Math.exp(-i / (sampleRate * 0.3));
+            // 温和的指数衰减（模拟中型音乐厅）
+            const decay = Math.exp(-i / (sampleRate * 0.5));
             
-            // 早期反射（前 20ms）- 更清晰
+            // 早期反射（前 50ms）- 增加空间感
             let earlyReflections = 0;
-            if (i < sampleRate * 0.02) {
-                earlyReflections = (Math.random() * 2 - 1) * 0.3 * decay;
+            if (i < sampleRate * 0.05) {
+                earlyReflections = (Math.random() * 2 - 1) * 0.5 * decay;
             }
             
-            // 后期混响（更轻微）
-            const lateReverb = (Math.random() * 2 - 1) * decay * 0.15;
+            // 后期混响（温暖、丰富）
+            const lateReverb = (Math.random() * 2 - 1) * decay * 0.3;
             
-            // 左右声道略有不同
+            // 左右声道差异（增加立体感）
             impulseL[i] = earlyReflections + lateReverb;
-            impulseR[i] = earlyReflections + lateReverb * 0.92;
+            impulseR[i] = earlyReflections * 0.95 + lateReverb * 0.88;
         }
         
         this.convolver.buffer = impulse;
@@ -560,8 +582,8 @@ class AudioEngine {
                 // 超低性能：直连
                 source.connect(gainNode);
             }
-            // 纯净原声：直连主音量，不经过任何处理
-            gainNode.connect(this.masterGain);
+            // 优化音色：经过均衡器和混响处理
+            gainNode.connect(this.compressor); // compressor 现在指向 eqLow
             
             // 播放
             source.start(now);
