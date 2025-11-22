@@ -1533,32 +1533,74 @@ function completeRound() {
 }
 
 // 重新开始一轮（不重置星星和速度）
-function restartRound() {
-    // 正确清理音符方块（释放内存）
-    cleanupObjects(noteObjects);
+async function restartRound() {
+    // 显示加载界面
+    loadingElement.style.display = 'flex';
     
-    // 重置音符状态
-    notesTriggered = 0;
-    midiNotes.forEach(note => {
-        note.triggered = false;
-        note.collided = false;
-    });
+    // 初始化轮次加载管理器
+    const roundLoader = {
+        total: 2,
+        current: 0,
+        
+        updateProgress(step) {
+            this.current = step;
+            const percentage = Math.round((this.current / this.total) * 100);
+            loadingPercentage.textContent = `${percentage}%`;
+            loadingProgressBar.style.width = `${percentage}%`;
+        }
+    };
     
-    // 重新创建音符方块
-    gameStartTime = Date.now() / 1000;
-    createAllNoteBlocks();
-    
-    // 重置完成标志
-    isCompletingRound = false;
-    
-    // 确保游戏继续运行
-    gameRunning = true;
-    
-    // 更新UI
-    scoreElement.textContent = `⭐ ${starsEarned} | 音符: 0/${totalNotes}`;
-    distanceElement.textContent = `速度: ${speedMultiplier.toFixed(2)}x`;
-    
-    console.log(`第 ${starsEarned} 轮开始！创建了 ${noteObjects.length} 个音符方块`);
+    try {
+        // 步骤1：清理和重置
+        roundLoader.updateProgress(0);
+        await new Promise(resolve => {
+            requestAnimationFrame(() => {
+                cleanupObjects(noteObjects);
+                
+                // 重置音符状态
+                notesTriggered = 0;
+                midiNotes.forEach(note => {
+                    note.triggered = false;
+                    note.collided = false;
+                });
+                
+                gameStartTime = Date.now() / 1000;
+                isCompletingRound = false;
+                
+                resolve();
+            });
+        });
+        await new Promise(resolve => setTimeout(resolve, 200));
+        
+        // 步骤2：重新创建音符方块
+        roundLoader.updateProgress(1);
+        await createAllNoteBlocksWithProgress((progress) => {
+            const percentage = Math.round(50 + (progress * 50)); // 50%-100%
+            loadingPercentage.textContent = `${percentage}%`;
+            loadingProgressBar.style.width = `${percentage}%`;
+        });
+        
+        // 完成
+        roundLoader.updateProgress(2);
+        await new Promise(resolve => setTimeout(resolve, 300));
+        
+        // 隐藏加载界面
+        loadingElement.style.display = 'none';
+        
+        // 确保游戏继续运行
+        gameRunning = true;
+        
+        // 更新UI
+        scoreElement.textContent = `⭐ ${starsEarned} | 音符: 0/${totalNotes}`;
+        distanceElement.textContent = `速度: ${speedMultiplier.toFixed(2)}x`;
+        
+        console.log(`第 ${starsEarned} 轮开始！创建了 ${noteObjects.length} 个音符方块`);
+        
+    } catch (error) {
+        console.error('重新开始轮次失败:', error);
+        loadingElement.style.display = 'none';
+        gameRunning = true;
+    }
 }
 
 // 游戏结束（碰撞死亡）
@@ -1637,63 +1679,116 @@ function continueGame() {
 }
 
 // 重新开始
-function restart() {
-    // 正确清理场景（释放内存）
-    cleanupObjects(obstacles);
-    cleanupObjects(coins);
-    cleanupObjects(noteObjects);
-    blocksCreated = false; // 重置创建标志
+async function restart() {
+    // 显示加载界面
+    loadingElement.style.display = 'flex';
     
-    // 重置游戏状态
-    score = 0;
-    distance = 0;
-    speed = 0.3;
-    currentLane = 2;
-    targetLane = 2;
-    lastObstacleTime = 0;
-    lastCoinTime = 0;
+    // 初始化重启加载管理器
+    const restartLoader = {
+        total: 3,
+        current: 0,
+        
+        updateProgress(step) {
+            this.current = step;
+            const percentage = Math.round((this.current / this.total) * 100);
+            loadingPercentage.textContent = `${percentage}%`;
+            loadingProgressBar.style.width = `${percentage}%`;
+        }
+    };
     
-    // 重置MIDI状态
-    notesTriggered = 0;
-    collisions = 0;
-    starsEarned = 0;
-    speedMultiplier = 1.0;
-    isCompletingRound = false;
-    // 重置速度到原始状态
-    midiSpeed = originalBaseSpeed;
-    
-    // 重置音符状态
-    midiNotes.forEach(note => {
-        note.triggered = false;
-        note.collided = false;
-    });
-    
-    // 重置 UI
-    if (midiNotes.length > 0) {
-        scoreElement.textContent = `⭐ 0 | 音符: 0/${totalNotes}`;
-        distanceElement.textContent = `速度: 1.00x`;
-        accuracyElement.textContent = `剩余: ${totalNotes}`;
-    } else {
-        scoreElement.textContent = `分数: 0`;
-        distanceElement.textContent = `距离: 0m`;
+    try {
+        // 步骤1：清理场景
+        restartLoader.updateProgress(0);
+        await new Promise(resolve => {
+            requestAnimationFrame(() => {
+                cleanupObjects(obstacles);
+                cleanupObjects(coins);
+                cleanupObjects(noteObjects);
+                blocksCreated = false;
+                resolve();
+            });
+        });
+        await new Promise(resolve => setTimeout(resolve, 200));
+        
+        // 步骤2：重置游戏状态
+        restartLoader.updateProgress(1);
+        await new Promise(resolve => {
+            requestAnimationFrame(() => {
+                // 重置游戏状态
+                score = 0;
+                distance = 0;
+                speed = 0.3;
+                currentLane = 2;
+                targetLane = 2;
+                lastObstacleTime = 0;
+                lastCoinTime = 0;
+                
+                // 重置MIDI状态
+                notesTriggered = 0;
+                collisions = 0;
+                starsEarned = 0;
+                speedMultiplier = 1.0;
+                isCompletingRound = false;
+                midiSpeed = originalBaseSpeed;
+                
+                // 重置音符状态
+                midiNotes.forEach(note => {
+                    note.triggered = false;
+                    note.collided = false;
+                });
+                
+                // 重置 UI
+                if (midiNotes.length > 0) {
+                    scoreElement.textContent = `⭐ 0 | 音符: 0/${totalNotes}`;
+                    distanceElement.textContent = `速度: 1.00x`;
+                    accuracyElement.textContent = `剩余: ${totalNotes}`;
+                } else {
+                    scoreElement.textContent = `分数: 0`;
+                    distanceElement.textContent = `距离: 0m`;
+                }
+                comboElement.style.display = 'none';
+                gameOverElement.style.display = 'none';
+                instructionsElement.style.display = 'block';
+                
+                // 重置玩家位置和状态
+                player.position.set(0, 0.6, 0);
+                player.scale.set(1, 1, 1);
+                isJumping = false;
+                verticalVelocity = 0;
+                
+                resolve();
+            });
+        });
+        await new Promise(resolve => setTimeout(resolve, 200));
+        
+        // 步骤3：重新创建音符方块
+        restartLoader.updateProgress(2);
+        if (midiNotes.length > 0) {
+            gameStartTime = Date.now() / 1000;
+            
+            // 重新创建所有方块（带进度）
+            await createAllNoteBlocksWithProgress((progress) => {
+                const percentage = Math.round(66 + (progress * 34)); // 66%-100%
+                loadingPercentage.textContent = `${percentage}%`;
+                loadingProgressBar.style.width = `${percentage}%`;
+            });
+        }
+        
+        // 完成
+        restartLoader.updateProgress(3);
+        await new Promise(resolve => setTimeout(resolve, 300));
+        
+        // 隐藏加载界面
+        loadingElement.style.display = 'none';
+        
+        // 开始游戏
+        gameRunning = true;
+        
+    } catch (error) {
+        console.error('重新开始失败:', error);
+        loadingElement.style.display = 'none';
+        gameRunning = true;
     }
-    comboElement.style.display = 'none';
-    gameOverElement.style.display = 'none';
-    instructionsElement.style.display = 'block';
-    
-    // 重置玩家位置和状态
-    player.position.set(0, 0.6, 0);
-    player.scale.set(1, 1, 1);
-    isJumping = false;
-    verticalVelocity = 0;
-    
-    // 如果是MIDI模式，重新创建音符方块
-    if (midiNotes.length > 0) {
-        gameStartTime = Date.now() / 1000;
-        createAllNoteBlocks();
-    }
-    
-    gameRunning = true;
 }
 
 // 窗口大小调整
