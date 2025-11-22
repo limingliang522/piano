@@ -6,9 +6,6 @@ class AudioEngine {
         this.samples = new Map();
         this.isReady = false;
         
-        // 音色选择：'fluidr3' 或 'steinway'
-        this.currentSoundFont = 'steinway'; // 默认使用 Steinway
-        
         // 专业音频处理链
         this.convolver = null; // 卷积混响
         this.compressor = null; // 动态压缩（保留用于兼容）
@@ -35,10 +32,6 @@ class AudioEngine {
         this.performanceMode = 'high'; // 性能模式：high/medium/low
         this.reverbEnabled = true; // 混响开关
         this.spatialAudioEnabled = true; // 3D音频开关
-        
-        // Steinway 音色支持
-        this.steinwayLoader = null;
-        this.roundRobinIndex = 0;
         
         // 音频分析器（可视化支持）
         this.analyser = null;
@@ -403,89 +396,6 @@ class AudioEngine {
         // 确保AudioContext已创建
         this.ensureAudioContext();
         
-        if (this.currentSoundFont === 'steinway') {
-            // 加载 Steinway 音色
-            return await this.initSteinway(progressCallback);
-        } else {
-            // 加载 FluidR3 GM 音色
-            return await this.initFluidR3(progressCallback);
-        }
-    }
-    
-    // 加载 Steinway 音色
-    async initSteinway(progressCallback) {
-        console.log('🎹 开始加载 Steinway Grand Piano 音色...');
-        
-        // 采样点定义
-        const samplePoints = {
-            'C0': 24, 'G0': 31, 'D1': 38, 'A1': 45,
-            'E2': 52, 'B2': 59, 'F#3': 66, 'C#4': 73,
-            'G#4': 80, 'D#5': 87, 'A#5': 94, 'F6': 101
-        };
-        
-        // 力度层
-        const velocityLayers = ['Dyn1', 'Dyn2', 'Dyn3', 'Dyn4'];
-        const roundRobins = ['RR1', 'RR2'];
-        
-        // 生成所有文件名
-        const files = [];
-        for (const noteName of Object.keys(samplePoints)) {
-            for (const layer of velocityLayers) {
-                for (const rr of roundRobins) {
-                    files.push({
-                        filename: `Steinway_${noteName}_${layer}_${rr}.ogg`,
-                        key: `${noteName}_${layer}_${rr}`
-                    });
-                }
-            }
-            // Release 样本
-            files.push({
-                filename: `Steinway_Release_${noteName}.ogg`,
-                key: `Release_${noteName}`
-            });
-        }
-        
-        let loadedCount = 0;
-        const total = files.length;
-        
-        // 并行加载
-        const promises = files.map(async ({ filename, key }) => {
-            try {
-                const response = await fetch(`./piano-samples-steinway-optimized/${filename}`);
-                if (!response.ok) throw new Error(`HTTP ${response.status}`);
-                
-                const arrayBuffer = await response.arrayBuffer();
-                const audioBuffer = await this.audioContext.decodeAudioData(arrayBuffer);
-                
-                this.samples.set(key, audioBuffer);
-                loadedCount++;
-                
-                if (progressCallback) {
-                    progressCallback(loadedCount, total);
-                }
-                
-                return true;
-            } catch (error) {
-                console.warn(`加载失败: ${filename}`, error);
-                return false;
-            }
-        });
-        
-        await Promise.all(promises);
-        
-        console.log(`🎹 Steinway 音色加载完成: ${this.samples.size}/${total} 个文件`);
-        
-        // 存储采样点信息
-        this.steinwaySamplePoints = samplePoints;
-        
-        this.isReady = true;
-        await this.warmupWithSample();
-        
-        return true;
-    }
-    
-    // 加载 FluidR3 GM 音色
-    async initFluidR3(progressCallback) {
         // 定义实际存在的采样点 - FluidR3 GM 音色库（52个音符）
         const sampleNotes = [
             'A0', 'B0',
@@ -571,45 +481,6 @@ class AudioEngine {
         }
     }
 
-    // 获取 Steinway 采样（支持多力度层和 Round Robin）
-    getSteinwaySample(midiNote, velocity) {
-        // 找到最接近的采样点
-        let closestNote = null;
-        let minDistance = Infinity;
-        
-        for (const [noteName, sampleMidi] of Object.entries(this.steinwaySamplePoints)) {
-            const distance = Math.abs(midiNote - sampleMidi);
-            if (distance < minDistance) {
-                minDistance = distance;
-                closestNote = noteName;
-            }
-        }
-        
-        const semitoneOffset = midiNote - this.steinwaySamplePoints[closestNote];
-        
-        // 根据 velocity 选择力度层
-        let velocityLayer;
-        if (velocity <= 60) {
-            velocityLayer = 'Dyn1';
-        } else if (velocity <= 98) {
-            velocityLayer = 'Dyn2';
-        } else if (velocity <= 117) {
-            velocityLayer = 'Dyn3';
-        } else {
-            velocityLayer = 'Dyn4';
-        }
-        
-        // Round Robin
-        this.roundRobinIndex = (this.roundRobinIndex % 2) + 1;
-        const roundRobin = `RR${this.roundRobinIndex}`;
-        
-        // 获取采样
-        const key = `${closestNote}_${velocityLayer}_${roundRobin}`;
-        const buffer = this.samples.get(key);
-        
-        return { buffer, semitoneOffset, noteName: closestNote };
-    }
-    
     // 找到最接近的采样音符
     findClosestSample(targetNote) {
         const noteToMidi = (noteName) => {
@@ -646,23 +517,17 @@ class AudioEngine {
             return null;
         }
 
-        let buffer, semitoneOffset;
+        const targetNote = this.midiToNoteName(midiNote);
+        const { noteName, semitoneOffset } = this.findClosestSample(targetNote);
         
-        if (this.currentSoundFont === 'steinway') {
-            // Steinway 音色
-            const result = this.getSteinwaySample(midiNote, velocity);
-            buffer = result.buffer;
-            semitoneOffset = result.semitoneOffset;
-        } else {
-            // FluidR3 音色
-            const targetNote = this.midiToNoteName(midiNote);
-            const result = this.findClosestSample(targetNote);
-            buffer = this.samples.get(result.noteName);
-            semitoneOffset = result.semitoneOffset;
+        if (!noteName) {
+            console.warn('找不到合适的采样');
+            return null;
         }
         
+        const buffer = this.samples.get(noteName);
         if (!buffer) {
-            console.warn(`采样不存在`);
+            console.warn(`采样 ${noteName} 不存在`);
             return null;
         }
 
