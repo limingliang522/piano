@@ -3,7 +3,8 @@ class AudioEngine {
     constructor() {
         this.audioContext = null;
         this.masterGain = null;
-        this.samples = new Map();
+        this.samples = new Map(); // 存储格式: Map<noteName, Map<dynLevel, [RR1_buffer, RR2_buffer]>>
+        this.roundRobinIndex = new Map(); // 跟踪每个音符的 RR 索引
         this.isReady = false;
         
         // 专业音频处理链
@@ -391,61 +392,70 @@ class AudioEngine {
         return noteName + octave;
     }
 
-    // 初始化钢琴采样器（分批加载，避免手机卡顿）
+    // 初始化钢琴采样器（Steinway 多力度层 + Round Robin）
     async init(progressCallback) {
         // 确保AudioContext已创建
         this.ensureAudioContext();
         
-        // 定义实际存在的采样点 - FluidR3 GM 音色库（52个音符）
+        // Steinway 采样库的 12 个基础音符
         const sampleNotes = [
-            'A0', 'B0',
-            'C1', 'D1', 'E1', 'F1', 'G1', 'A1', 'B1',
-            'C2', 'D2', 'E2', 'F2', 'G2', 'A2', 'B2',
-            'C3', 'D3', 'E3', 'F3', 'G3', 'A3', 'B3',
-            'C4', 'D4', 'E4', 'F4', 'G4', 'A4', 'B4',
-            'C5', 'D5', 'E5', 'F5', 'G5', 'A5', 'B5',
-            'C6', 'D6', 'E6', 'F6', 'G6', 'A6', 'B6',
-            'C7', 'D7', 'E7', 'F7', 'G7', 'A7', 'B7',
-            'C8'
+            'C0', 'G0', 'D1', 'A1', 'E2', 'B2',
+            'Fs3', 'Cs4', 'Gs4', 'Ds5', 'As5', 'F6'
         ];
         
-        let loadedCount = 0;
-        const total = sampleNotes.length;
+        const dynLevels = [1, 2, 3, 4]; // 4 个力度层
+        const rrVariations = [1, 2]; // 2 个 Round Robin 变化
         
-        // 加载单个音色（简化版，快速加载）
-        const loadSample = async (noteName) => {
+        let loadedCount = 0;
+        const total = sampleNotes.length * dynLevels.length * rrVariations.length;
+        
+        // 加载单个采样文件
+        const loadSample = async (noteName, dyn, rr) => {
             try {
-                const response = await fetch(`./piano-samples/${noteName}.mp3`);
+                const fileName = `Steinway_${noteName}_Dyn${dyn}_RR${rr}.mp3`;
+                const response = await fetch(`./钢琴/${fileName}`);
                 if (!response.ok) {
                     throw new Error(`HTTP ${response.status}`);
                 }
                 const arrayBuffer = await response.arrayBuffer();
                 const audioBuffer = await this.audioContext.decodeAudioData(arrayBuffer);
-                this.samples.set(noteName, audioBuffer);
-                return true;
+                return audioBuffer;
             } catch (error) {
-                console.warn(`${noteName} 加载失败:`, error);
-                return false;
+                console.warn(`${noteName} Dyn${dyn} RR${rr} 加载失败:`, error);
+                return null;
             }
         };
         
-        // 并行加载所有音色（最快速度）
+        // 并行加载所有采样
         const allPromises = sampleNotes.map(async (noteName) => {
-            const success = await loadSample(noteName);
-            loadedCount++;
-            if (progressCallback) {
-                progressCallback(loadedCount, total);
+            const noteMap = new Map();
+            
+            for (const dyn of dynLevels) {
+                const rrBuffers = [];
+                for (const rr of rrVariations) {
+                    const buffer = await loadSample(noteName, dyn, rr);
+                    rrBuffers.push(buffer);
+                    loadedCount++;
+                    if (progressCallback) {
+                        progressCallback(loadedCount, total);
+                    }
+                }
+                noteMap.set(dyn, rrBuffers);
             }
-            return success;
+            
+            this.samples.set(noteName, noteMap);
+            this.roundRobinIndex.set(noteName, 0); // 初始化 RR 索引
+            return true;
         });
         
         await Promise.all(allPromises);
         
-        console.log(`🎹 FluidR3 GM 钢琴音色加载完成！共 ${this.samples.size}/52 个音符`);
+        console.log(`🎹 Steinway 钢琴音色加载完成！`);
+        console.log(`   📊 ${this.samples.size} 个音符 × 4 力度层 × 2 RR = ${loadedCount} 个采样`);
         
         this.isReady = true;
         
-        // 播放一个静音测试音符，预热音频管道
+        // 预热音频管道
         console.log('🔊 预热音频管道...');
         await this.warmupWithSample();
         
@@ -455,16 +465,20 @@ class AudioEngine {
     // 使用真实采样预热（轻量版 - 不阻塞）
     async warmupWithSample() {
         try {
-            // 找到中音区的采样（C4）
-            const warmupNote = this.samples.get('C4') || this.samples.values().next().value;
-            if (!warmupNote) return;
+            // 找到中音区的采样（Cs4）
+            const noteMap = this.samples.get('Cs4') || this.samples.values().next().value;
+            if (!noteMap) return;
+            
+            // 获取中等力度的第一个 RR
+            const rrBuffers = noteMap.get(2);
+            if (!rrBuffers || !rrBuffers[0]) return;
             
             const ctx = this.audioContext;
             const now = ctx.currentTime;
             
             // 创建一个极短、极小音量的音符（不等待完成）
             const source = ctx.createBufferSource();
-            source.buffer = warmupNote;
+            source.buffer = rrBuffers[0];
             
             const gainNode = ctx.createGain();
             gainNode.gain.value = 0.0001; // 几乎听不见
@@ -510,7 +524,7 @@ class AudioEngine {
         return { noteName: closestNote, semitoneOffset: targetMidi - noteToMidi(closestNote) };
     }
 
-    // 播放钢琴音符（极致音质版 - 3D空间音频 + 提前释放）
+    // 播放钢琴音符（Steinway 多力度层 + Round Robin）
     playNote(midiNote, duration = 0.5, velocity = 100, lane = 2) {
         if (!this.isReady || this.samples.size === 0) {
             console.warn('钢琴采样尚未加载完成');
@@ -525,11 +539,37 @@ class AudioEngine {
             return null;
         }
         
-        const buffer = this.samples.get(noteName);
-        if (!buffer) {
+        const noteMap = this.samples.get(noteName);
+        if (!noteMap) {
             console.warn(`采样 ${noteName} 不存在`);
             return null;
         }
+        
+        // 根据 velocity (0-127) 选择力度层 (1-4)
+        // velocity 0-31 → Dyn1 (最轻)
+        // velocity 32-63 → Dyn2
+        // velocity 64-95 → Dyn3
+        // velocity 96-127 → Dyn4 (最重)
+        const dynLevel = Math.min(4, Math.floor(velocity / 32) + 1);
+        
+        // 获取对应力度层的 RR 缓冲区
+        const rrBuffers = noteMap.get(dynLevel);
+        if (!rrBuffers || rrBuffers.length === 0) {
+            console.warn(`采样 ${noteName} Dyn${dynLevel} 不存在`);
+            return null;
+        }
+        
+        // Round Robin: 循环使用 RR1 和 RR2
+        const rrIndex = this.roundRobinIndex.get(noteName) || 0;
+        const buffer = rrBuffers[rrIndex];
+        
+        if (!buffer) {
+            console.warn(`采样 ${noteName} Dyn${dynLevel} RR${rrIndex + 1} 不存在`);
+            return null;
+        }
+        
+        // 更新 Round Robin 索引
+        this.roundRobinIndex.set(noteName, (rrIndex + 1) % rrBuffers.length);
 
         try {
             const ctx = this.audioContext;
@@ -854,9 +894,18 @@ class AudioEngine {
     
     // 获取音频系统状态
     getStatus() {
+        // 计算总采样数
+        let totalSamples = 0;
+        for (const noteMap of this.samples.values()) {
+            for (const rrBuffers of noteMap.values()) {
+                totalSamples += rrBuffers.filter(b => b !== null).length;
+            }
+        }
+        
         return {
             isReady: this.isReady,
-            samplesLoaded: this.samples.size,
+            samplesLoaded: totalSamples,
+            baseNotes: this.samples.size,
             activeNotes: this.activeNotes.size,
             performanceMode: this.performanceMode,
             reverbEnabled: this.reverbEnabled,
