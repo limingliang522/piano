@@ -319,7 +319,7 @@ async function getMidiFiles() {
     // 这里手动列出midi文件夹中的文件
     // 因为浏览器无法直接读取文件夹内容
     return [
-        'midi/2025-11-19 17.06.11.mp3.mid'
+        'midi/1.mid'
         // 在这里添加更多MIDI文件
     ];
 }
