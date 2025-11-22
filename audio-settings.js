@@ -1,3 +1,4 @@
+// 音频设置管理器
 class AudioSettings {
     constructor(audioEngine) {
         this.audioEngine = audioEngine;
@@ -22,6 +23,7 @@ class AudioSettings {
                 this.applySettings();
             }
         } catch (error) {
+            console.warn('加载音频设置失败:', error);
         }
     }
     
@@ -30,6 +32,7 @@ class AudioSettings {
         try {
             localStorage.setItem('audioSettings', JSON.stringify(this.settings));
         } catch (error) {
+            console.warn('保存音频设置失败:', error);
         }
     }
     
