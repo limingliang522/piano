@@ -1597,22 +1597,22 @@ async function restartRound() {
                     note.collided = false;
                 });
                 
-                gameStartTime = Date.now() / 1000;
+                // 不在这里设置 gameStartTime，等到播放音频前再设置
                 isCompletingRound = false;
                 
                 resolve();
             });
         });
         
+        // 更新 midiSpeed 以匹配 speedMultiplier（在创建黑块之前）
+        midiSpeed = originalBaseSpeed * speedMultiplier;
+        console.log(`🎮 更新速度：midiSpeed = ${midiSpeed.toFixed(4)}, speedMultiplier = ${speedMultiplier.toFixed(2)}x`);
+        
         // 重新创建音符方块（不显示进度）
         await createAllNoteBlocksWithProgress();
         
         // 确保游戏继续运行
         gameRunning = true;
-        
-        // 更新 midiSpeed 以匹配 speedMultiplier
-        midiSpeed = originalBaseSpeed * speedMultiplier;
-        console.log(`🎮 更新速度：midiSpeed = ${midiSpeed.toFixed(4)}, speedMultiplier = ${speedMultiplier.toFixed(2)}x`);
         
         // 重新播放背景音乐（从0秒开始，使用新的速度倍数）
         if (audioEngine && audioEngine.bgmBuffer) {
@@ -1907,7 +1907,7 @@ function animate(currentTime) {
     
     // 如果有MIDI音符，更新音符方块；否则更新普通障碍物
     if (midiNotes.length > 0) {
-        // 使用 speedMultiplier 来控制速度，不再逐帧增长
+        // 黑块移动速度始终使ultiplier 来控制速度，不再逐帧增长
         // midiSpeed 应该始终等于 originalBaseSpeed * speedMultiplier
         midiSpeed = originalBaseSpeed * speedMultiplier;
         
