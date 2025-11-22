@@ -789,8 +789,10 @@ async function createAllNoteBlocksWithProgress(progressCallback) {
     
     // 先清理已存在的方块
     if (noteObjects.length > 0) {
-        console.warn(`清理 ${noteObjects.length} 个旧方块`);
+        console.warn(`🧹 清理 ${noteObjects.length} 个旧方块`);
         cleanupObjects(noteObjects);
+        // 等待一帧确保清理完成
+        await new Promise(resolve => requestAnimationFrame(resolve));
     }
     
     console.log(`✅ 开始创建 ${midiNotes.length} 个音符方块（带进度）`);
@@ -823,6 +825,14 @@ async function createAllNoteBlocksWithProgress(progressCallback) {
                 blocksCreated = true;
                 const totalTime = performance.now() - startTime;
                 console.log(`✅ 创建完成！实际创建了 ${noteObjects.length} 个方块，耗时 ${totalTime.toFixed(2)}ms`);
+                
+                // 验证所有方块都可见
+                let visibleCount = 0;
+                noteObjects.forEach(block => {
+                    if (block.visible) visibleCount++;
+                });
+                console.log(`📊 可见方块: ${visibleCount}/${noteObjects.length}`);
+                
                 resolve();
             }
         }
@@ -925,6 +935,9 @@ function createNoteBlock(noteData) {
     
     // 启用阴影
     noteBlock.castShadow = true;
+    
+    // 确保方块初始可见
+    noteBlock.visible = true;
     
     noteBlock.userData = {
         noteData: noteData,
@@ -1535,7 +1548,9 @@ function checkCollision() {
 }
 
 // 完成一轮
-function completeRound() {
+async function completeRound() {
+    console.log('🎉 完成一轮！');
+    
     // 获得一颗星
     starsEarned++;
     
@@ -1546,13 +1561,22 @@ function completeRound() {
     midiSpeed = originalBaseSpeed * speedMultiplier;
     
     // 直接继续下一轮，不显示提示
-    restartRound();
+    await restartRound();
 }
 
 // 重新开始一轮（不重置星星和速度）
-function restartRound() {
+async function restartRound() {
+    console.log('🔄 开始新一轮...');
+    
+    // 暂停游戏
+    gameRunning = false;
+    
     // 正确清理音符方块（释放内存）
+    console.log(`🧹 清理 ${noteObjects.length} 个旧方块`);
     cleanupObjects(noteObjects);
+    
+    // 等待一帧确保清理完成
+    await new Promise(resolve => requestAnimationFrame(resolve));
     
     // 重置音符状态
     notesTriggered = 0;
@@ -1563,7 +1587,8 @@ function restartRound() {
     
     // 重新创建音符方块
     gameStartTime = Date.now() / 1000;
-    createAllNoteBlocks();
+    console.log('🎵 重新创建音符方块...');
+    await createAllNoteBlocks();
     
     // 重置完成标志
     isCompletingRound = false;
@@ -1575,7 +1600,7 @@ function restartRound() {
     scoreElement.textContent = `⭐ ${starsEarned} | 音符: 0/${totalNotes}`;
     distanceElement.textContent = `速度: ${speedMultiplier.toFixed(2)}x`;
     
-    console.log(`第 ${starsEarned} 轮开始！创建了 ${noteObjects.length} 个音符方块`);
+    console.log(`✅ 第 ${starsEarned} 轮开始！创建了 ${noteObjects.length} 个音符方块`);
 }
 
 // 游戏结束（碰撞死亡）
@@ -1772,20 +1797,13 @@ function animate(currentTime) {
         
         // 性能优化：视锥剔除（每5帧执行一次）
         if (frameCount % 5 === 0) {
-            camera.updateMatrixWorld();
-            const frustum = new THREE.Frustum();
-            frustum.setFromProjectionMatrix(
-                new THREE.Matrix4().multiplyMatrices(
-                    camera.projectionMatrix,
-                    camera.matrixWorldInverse
-                )
-            );
-            
             // 隐藏视锥外的方块（减少渲染负担）
             noteObjects.forEach(block => {
-                if (block.position.z < -60 || block.position.z > 15) {
+                // 只隐藏非常远的方块，避免过早隐藏
+                if (block.position.z < -80 || block.position.z > 20) {
                     block.visible = false;
                 } else {
+                    // 确保在可见范围内的方块都显示
                     block.visible = true;
                 }
             });
