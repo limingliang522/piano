@@ -1,10 +1,14 @@
-// 极致音质钢琴音频引擎 - 专业级空间音频处理 v3.0
+// 极致音质钢琴音频引擎 - 专业级空间音频处理 v4.0
 class AudioEngine {
     constructor() {
         this.audioContext = null;
         this.masterGain = null;
         this.samples = new Map();
         this.isReady = false;
+        
+        // 音色配置系统
+        this.timbreConfig = new TimbreConfig();
+        this.currentTimbreId = 'steinway'; // 默认使用 Steinway Grand
         
         // 专业音频处理链
         this.convolver = null; // 卷积混响
@@ -366,77 +370,96 @@ class AudioEngine {
         return curve;
     }
 
-    // 将 MIDI 音符号转换为音符名称
-    midiToNoteName(midiNote) {
-        const noteNames = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
-        const octave = Math.floor(midiNote / 12) - 1;
-        const noteName = noteNames[midiNote % 12];
-        return noteName + octave;
+    // 切换音色
+    async switchTimbre(timbreId, progressCallback) {
+        if (!this.timbreConfig.getTimbre(timbreId)) {
+            console.error(`音色 ${timbreId} 不存在`);
+            return false;
+        }
+        
+        console.log(`🎹 切换音色到: ${timbreId}`);
+        
+        // 清空当前采样
+        this.samples.clear();
+        this.isReady = false;
+        
+        // 设置新音色
+        this.currentTimbreId = timbreId;
+        this.timbreConfig.setCurrentTimbre(timbreId);
+        
+        // 加载新音色
+        return await this.init(progressCallback);
+    }
+    
+    // 获取当前音色信息
+    getCurrentTimbreInfo() {
+        return this.timbreConfig.getCurrentTimbre();
+    }
+    
+    // 获取所有可用音色
+    getAvailableTimbres() {
+        return this.timbreConfig.getAllTimbres();
     }
 
-    // 初始化钢琴采样器（标准单层采样）
+    // 初始化钢琴采样器（使用音色配置系统）
     async init(progressCallback) {
         // 确保AudioContext已创建
         this.ensureAudioContext();
         
-        // 定义实际存在的采样点 - Steinway Grand（12个音符 × 4力度 × 2轮询）
-        // 按音高从低到高排序：C0(12) < G0(19) < D1(26) < A1(33) < E2(40) < B2(47) < F#3(54) < C#4(61) < G#4(68) < D#5(75) < A#5(82) < F6(89)
-        const sampleNotes = [
-            'C0', 'G0', 'D1', 'A1', 'E2', 'B2', 
-            'F#3', 'C#4', 'G#4', 'D#5', 'A#5', 'F6'
-        ];
-        const dynamics = [1, 2, 3, 4]; // 4个力度层
-        const roundRobins = [1, 2]; // 2个轮询
+        // 获取当前音色配置
+        const timbreConfig = this.timbreConfig.getCurrentTimbre();
+        if (!timbreConfig) {
+            console.error('未找到音色配置');
+            return false;
+        }
         
+        console.log(`🎹 开始加载音色: ${timbreConfig.name}`);
+        console.log(`📦 总文件数: ${timbreConfig.totalFiles}`);
+        console.log(`💾 预计大小: ${timbreConfig.estimatedSize}`);
+        
+        // 获取加载列表
+        const loadList = this.timbreConfig.getLoadList(this.currentTimbreId);
+        const total = loadList.length;
         let loadedCount = 0;
-        const total = sampleNotes.length * dynamics.length * roundRobins.length;
+        let successCount = 0;
         
-        // 加载单个音色（Steinway格式）
-        const loadSample = async (noteName, dyn, rr) => {
+        // 加载单个采样
+        const loadSample = async (item) => {
             try {
-                const fileName = `Steinway_${noteName}_Dyn${dyn}_RR${rr}.mp3`;
-                // URL 编码文件名，处理 # 等特殊字符
-                const encodedFileName = encodeURIComponent(fileName);
-                const response = await fetch(`./钢琴/Steinway Grand  (DS)/${encodedFileName}`);
+                const response = await fetch(item.fileName);
                 if (!response.ok) {
                     throw new Error(`HTTP ${response.status}`);
                 }
                 const arrayBuffer = await response.arrayBuffer();
                 const audioBuffer = await this.audioContext.decodeAudioData(arrayBuffer);
-                const sampleKey = `${noteName}_${dyn}_${rr}`;
-                this.samples.set(sampleKey, audioBuffer);
+                this.samples.set(item.sampleKey, audioBuffer);
+                successCount++;
                 return true;
             } catch (error) {
-                console.warn(`${noteName}_${dyn}_${rr} 加载失败:`, error);
+                console.warn(`${item.sampleKey} 加载失败:`, error);
                 return false;
             }
         };
         
-        // 并行加载所有音色（最快速度）
-        const allPromises = [];
-        for (const noteName of sampleNotes) {
-            for (const dyn of dynamics) {
-                for (const rr of roundRobins) {
-                    allPromises.push(
-                        loadSample(noteName, dyn, rr).then(success => {
-                            loadedCount++;
-                            if (progressCallback) {
-                                progressCallback(loadedCount, total);
-                            }
-                            return success;
-                        })
-                    );
+        // 并行加载所有采样
+        const allPromises = loadList.map(item => 
+            loadSample(item).then(success => {
+                loadedCount++;
+                if (progressCallback) {
+                    progressCallback(loadedCount, total);
                 }
-            }
-        }
+                return success;
+            })
+        );
         
         await Promise.all(allPromises);
         
-        console.log(`🎹 Steinway Grand 加载完成！共 ${this.samples.size}/96 个采样`);
+        console.log(`🎹 ${timbreConfig.name} 加载完成！`);
+        console.log(`✅ 成功: ${successCount}/${total} 个采样`);
         
         this.isReady = true;
         
-        // 播放一个静音测试音符，预热音频管道
+        // 预热音频管道
         console.log('🔊 预热音频管道...');
         await this.warmupWithSample();
         
@@ -446,8 +469,8 @@ class AudioEngine {
     // 使用真实采样预热（轻量版 - 不阻塞）
     async warmupWithSample() {
         try {
-            // 找到中音区的采样（C#4 Dyn2 RR1）
-            const warmupNote = this.samples.get('C#4_2_1') || this.samples.values().next().value;
+            // 获取任意一个采样用于预热
+            const warmupNote = this.samples.values().next().value;
             if (!warmupNote) return;
             
             const ctx = this.audioContext;
@@ -472,53 +495,36 @@ class AudioEngine {
         }
     }
 
-    // 找到最接近的采样音符（Steinway Grand 版本）
-    findClosestSample(targetNote, velocity) {
-        const noteToMidi = (noteName) => {
-            const noteNames = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
-            const match = noteName.match(/^([A-G]#?)(\d+)$/);
-            if (!match) return 60;
-            const note = match[1];
-            const octave = parseInt(match[2]);
-            const noteIndex = noteNames.indexOf(note);
-            if (noteIndex === -1) return 60;
-            return (octave + 1) * 12 + noteIndex;
-        };
+    // 找到最接近的采样音符（使用音色配置系统）
+    findClosestSample(targetMidi, velocity) {
+        // 使用音色配置系统查找最接近的采样
+        const result = this.timbreConfig.findClosestSample(this.currentTimbreId, targetMidi);
+        if (!result) return null;
         
-        const targetMidi = noteToMidi(targetNote);
+        const timbreConfig = this.timbreConfig.getCurrentTimbre();
         
-        // Steinway Grand 采样点（12个音符）
-        // 按音高从低到高排序：C0(12) < G0(19) < D1(26) < A1(33) < E2(40) < B2(47) < F#3(54) < C#4(61) < G#4(68) < D#5(75) < A#5(82) < F6(89)
-        const sampleNotes = [
-            'C0', 'G0', 'D1', 'A1', 'E2', 'B2', 
-            'F#3', 'C#4', 'G#4', 'D#5', 'A#5', 'F6'
-        ];
-        
-        let closestNote = null;
-        let minDistance = Infinity;
-        
-        for (const noteName of sampleNotes) {
-            const sampleMidi = noteToMidi(noteName);
-            const distance = Math.abs(sampleMidi - targetMidi);
-            if (distance < minDistance) {
-                minDistance = distance;
-                closestNote = noteName;
-            }
+        // 如果是多层采样，选择力度层和轮询
+        if (timbreConfig.type === 'multilayer') {
+            const dyn = this.timbreConfig.selectDynamicLayer(this.currentTimbreId, velocity);
+            const rr = this.timbreConfig.selectRoundRobin(this.currentTimbreId);
+            
+            return {
+                noteName: result.noteName,
+                semitoneOffset: result.semitoneOffset,
+                dyn: dyn,
+                rr: rr,
+                sampleKey: this.timbreConfig.generateSampleKey(result.noteName, dyn, rr)
+            };
+        } else {
+            // 单层采样
+            return {
+                noteName: result.noteName,
+                semitoneOffset: result.semitoneOffset,
+                dyn: null,
+                rr: null,
+                sampleKey: this.timbreConfig.generateSampleKey(result.noteName)
+            };
         }
-        
-        // 根据 velocity 选择力度层（1-4）
-        // 修正：确保 velocity 0 也能映射到 Dyn1，velocity 127 映射到 Dyn4
-        const dyn = Math.min(4, Math.max(1, Math.ceil((velocity + 1) / 32)));
-        
-        // 轮询选择（简单随机）
-        const rr = Math.random() < 0.5 ? 1 : 2;
-        
-        return { 
-            noteName: closestNote, 
-            semitoneOffset: targetMidi - noteToMidi(closestNote),
-            dyn: dyn,
-            rr: rr
-        };
     }
 
     // 播放钢琴音符（极致音质版 - 3D空间音频 + 提前释放）
@@ -528,16 +534,16 @@ class AudioEngine {
             return null;
         }
 
-        const targetNote = this.midiToNoteName(midiNote);
-        const { noteName, semitoneOffset, dyn, rr } = this.findClosestSample(targetNote, velocity);
-        
-        if (!noteName) {
+        // 使用音色配置系统查找采样
+        const sampleInfo = this.findClosestSample(midiNote, velocity);
+        if (!sampleInfo) {
             console.warn('找不到合适的采样');
             return null;
         }
         
-        // 获取采样（多层采样，使用力度和轮询）
-        const sampleKey = `${noteName}_${dyn}_${rr}`;
+        const { noteName, semitoneOffset, sampleKey } = sampleInfo;
+        
+        // 获取采样
         const buffer = this.samples.get(sampleKey);
         if (!buffer) {
             console.warn(`采样 ${sampleKey} 不存在`);
