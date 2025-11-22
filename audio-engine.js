@@ -395,7 +395,9 @@ class AudioEngine {
         const loadSample = async (noteName, dyn, rr) => {
             try {
                 const fileName = `Steinway_${noteName}_Dyn${dyn}_RR${rr}.mp3`;
-                const response = await fetch(`./钢琴/Steinway Grand  (DS)/${fileName}`);
+                // URL 编码文件名，处理 # 等特殊字符
+                const encodedFileName = encodeURIComponent(fileName);
+                const response = await fetch(`./钢琴/Steinway Grand  (DS)/${encodedFileName}`);
                 if (!response.ok) {
                     throw new Error(`HTTP ${response.status}`);
                 }
@@ -880,6 +882,7 @@ class AudioEngine {
     playClickSound() {
         if (!this.isReady || this.samples.size === 0) {
             console.warn('钢琴采样尚未加载，无法播放点击音效');
+            console.log('isReady:', this.isReady, 'samples.size:', this.samples.size);
             return;
         }
         
@@ -888,8 +891,14 @@ class AudioEngine {
             const highNotes = [72, 74, 76, 77, 79, 81, 83, 84]; // C5, D5, E5, F5, G5, A5, B5, C6
             const randomNote = highNotes[Math.floor(Math.random() * highNotes.length)];
             
+            console.log('🔊 播放点击音效，MIDI:', randomNote);
+            
             // 播放短促的钢琴音
-            this.playNote(randomNote, 0.3, 80, 2);
+            const result = this.playNote(randomNote, 0.3, 80, 2);
+            
+            if (!result) {
+                console.warn('playNote 返回 null');
+            }
             
         } catch (error) {
             console.warn('播放点击音效失败:', error);
