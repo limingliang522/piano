@@ -1,8 +1,7 @@
 // Three.js 场景设置
 let scene, camera, renderer;
 let player, ground = [];
-let obstacles = [];
-let coins = [];
+
 let gameRunning = false;
 let score = 0;
 let distance = 0;
@@ -182,45 +181,7 @@ let fpsCheckTime = 0;
 let fpsHistory = [];
 let currentFPS = 0;
 
-console.log('🎨 使用固定高画质配置');
-console.log('📊 帧率由浏览器自动适配屏幕刷新率');
 
-// 性能监控工具
-const performanceMonitor = {
-    marks: {},
-    
-    start(label) {
-        this.marks[label] = performance.now();
-    },
-    
-    end(label) {
-        if (this.marks[label]) {
-            const duration = performance.now() - this.marks[label];
-            if (duration > 16) { // 超过一帧的时间（60fps = 16.67ms）
-                console.warn(`⚠️ 性能警告: ${label} 耗时 ${duration.toFixed(2)}ms`);
-            } else {
-                console.log(`✅ ${label} 耗时 ${duration.toFixed(2)}ms`);
-            }
-            delete this.marks[label];
-            return duration;
-        }
-        return 0;
-    },
-    
-    measure(label, fn) {
-        this.start(label);
-        const result = fn();
-        this.end(label);
-        return result;
-    },
-    
-    async measureAsync(label, fn) {
-        this.start(label);
-        const result = await fn();
-        this.end(label);
-        return result;
-    }
-};
 
 function updateFPS(currentTime) {
     const fps = Math.round(1000 / (currentTime - lastFrameTime));
@@ -331,25 +292,17 @@ async function getMidiFiles() {
 // 加载指定的MIDI文件（从缓存或网络）
 async function loadMidiFile(index) {
     try {
-        console.log(`📥 开始加载 MIDI 文件: ${midiFiles[index]}`);
-        
-        // 清理旧的音符方块（如果存在）
         if (noteObjects.length > 0) {
-            console.log(`🧹 loadMidiFile: 清理 ${noteObjects.length} 个旧方块`);
             cleanupObjects(noteObjects);
             blocksCreated = false;
         }
         
         let notes;
         
-        // 优先从缓存加载
         if (preloadedMidiData[index]) {
-            console.log('✅ 从缓存加载MIDI');
             notes = preloadedMidiData[index].notes;
             currentMidiName = preloadedMidiData[index].name;
         } else {
-            // 缓存未命中，从网络加载
-            console.log('⚠️ 缓存未命中，从网络加载');
             loadingElement.style.display = 'flex';
             
             const fileName = midiFiles[index];
@@ -360,17 +313,14 @@ async function loadMidiFile(index) {
         }
         
         if (notes.length === 0) {
-            console.error('MIDI文件中没有音符');
             return false;
         }
         
-        // 处理音符数据
         processMIDINotes(notes);
         updateIslandTitle(currentMidiName);
         
         return true;
     } catch (error) {
-        console.error('加载MIDI文件失败:', error);
         loadingElement.style.display = 'none';
         return false;
     }
@@ -379,18 +329,14 @@ async function loadMidiFile(index) {
 // 预加载所有资源（进入网站时立即执行）
 async function preloadAllResources() {
     try {
-        console.log('🚀 开始预加载所有资源...');
         loadingElement.style.display = 'flex';
         
-        // 初始化MIDI解析器和音频引擎
         midiParser = new MIDIParser();
         audioEngine = new AudioEngine();
         
-        // 获取MIDI文件列表
         midiFiles = await getMidiFiles();
         
         if (midiFiles.length === 0) {
-            console.error('没有找到MIDI文件');
             loadingManager.complete();
             startNormalGame();
             return;
@@ -421,9 +367,7 @@ async function preloadAllResources() {
                         };
                         
                         loadingManager.increment('');
-                        console.log(`✅ MIDI ${i + 1}/${midiFiles.length} 加载完成`);
                     } catch (error) {
-                        console.error(`MIDI文件 ${i} 加载失败:`, error);
                         loadingManager.increment('');
                     }
                 }
@@ -438,26 +382,18 @@ async function preloadAllResources() {
                     await audioEngine.init((loaded, total) => {
                         loadingManager.increment('');
                     });
-                    
-                    console.log('✅ 钢琴音色加载完成');
-                } catch (error) {
-                    console.error('钢琴音色加载失败:', error);
-                }
+                } catch (error) {}
             })()
         ]);
         
-        // 完成加载（不在这里处理音符数据，延迟到点击开始时）
         loadingManager.complete();
-        console.log('✅ 所有资源预加载完成！');
         
         // 显示播放按钮
         const startButton = document.getElementById('startButton');
         if (startButton) {
             startButton.style.display = 'block';
             
-            // 等待用户点击开始按钮
             const startGame = async (e) => {
-                console.log('🎮 播放按钮被点击');
                 if (e) e.preventDefault();
                 startButton.removeEventListener('click', startGame);
                 startButton.removeEventListener('touchstart', startGame);
@@ -480,12 +416,10 @@ async function preloadAllResources() {
                 };
                 
                 try {
-                    // 步骤1：启动音频引擎
                     gameStartLoader.updateProgress(0, '');
                     await audioEngine.start();
-                    console.log('✅ 音频上下文已启动');
                     
-                    // 播放点击音效（音频上下文启动后）
+                    // 播放点击音效
                     if (audioEngine && audioEngine.playClickSound) {
                         audioEngine.playClickSound();
                     }
@@ -493,19 +427,14 @@ async function preloadAllResources() {
                     // 等待一小段时间让用户看到进度
                     await new Promise(resolve => setTimeout(resolve, 200));
                     
-                    // 步骤2：处理音符数据
                     gameStartLoader.updateProgress(1, '');
                     await new Promise(resolve => {
                         requestAnimationFrame(() => {
-                            performanceMonitor.start('处理MIDI音符数据');
-                            
                             if (preloadedMidiData[currentMidiIndex]) {
                                 processMIDINotes(preloadedMidiData[currentMidiIndex].notes);
                                 currentMidiName = preloadedMidiData[currentMidiIndex].name;
                                 updateIslandTitle(currentMidiName);
                             }
-                            
-                            performanceMonitor.end('处理MIDI音符数据');
                             resolve();
                         });
                     });
@@ -536,7 +465,6 @@ async function preloadAllResources() {
                     audioEngine.playStartSound();
                     
                 } catch (error) {
-                    console.error('游戏启动失败:', error);
                     setTimeout(() => {
                         loadingElement.style.display = 'none';
                         startButton.style.display = 'block';
@@ -552,7 +480,6 @@ async function preloadAllResources() {
         onResourcesLoaded();
         
     } catch (error) {
-        console.error('预加载失败:', error);
         setTimeout(() => {
             loadingManager.complete();
             startNormalGame();
@@ -605,8 +532,6 @@ function assignTallBlocks(notes) {
         const randomValue = seededRandom(seed);
         notes[i].isTall = randomValue < tallProbability;
     }
-    
-    console.log(`超高黑块分配完成：${notes.filter(n => n.isTall).length}/${notes.length}`);
 }
 
 // 确保每个时间窗口最多3条轨道有黑块（使用种子随机算法）
@@ -658,17 +583,10 @@ function ensureMaxThreeLanes(notes) {
             }
         }
     }
-    
-    console.log(`轨道调整完成：调整了 ${adjustCount} 个黑块`);
 }
 
-// 处理MIDI音符
 function processMIDINotes(notes) {
-    console.log(`🎵 处理 ${notes.length} 个 MIDI 音符...`);
-    
-    // 清理旧的音符数据（如果存在）
     if (midiNotes.length > 0) {
-        console.log(`🧹 清理旧的 ${midiNotes.length} 个音符数据`);
         midiNotes = [];
     }
     
@@ -698,10 +616,7 @@ function processMIDINotes(notes) {
     
     totalNotes = midiNotes.length;
     
-    // 计算合适的游戏速度
-    // 获取实际的 BPM
     const bpm = Math.round(60000000 / midiParser.tempo);
-    console.log(`MIDI Tempo: ${bpm} BPM`);
     
     // 找出最小音符间隔
     const intervals = [];
@@ -725,14 +640,9 @@ function processMIDINotes(notes) {
         // 限制速度范围
         const finalSpeed = Math.max(0.08, Math.min(0.6, calculatedSpeed));
         
-        // 设置原始基础速度（永远不变，用于计算音符位置）
         originalBaseSpeed = finalSpeed;
         midiSpeed = finalSpeed;
-        
-        console.log(`MIDI速度分析: BPM=${bpm}, 中位间隔=${medianInterval.toFixed(3)}s, 游戏速度=${midiSpeed.toFixed(3)}`);
     }
-    
-
 }
 
 // 开始MIDI游戏（优化版 - 方块已创建，直接启动）
@@ -743,11 +653,8 @@ function startMIDIGame() {
     dynamicIsland.classList.remove('expanded');
     isIslandExpanded = false;
     
-    // 立即启动游戏（方块已经创建完成）
     gameRunning = true;
     gameStartTime = Date.now() / 1000;
-    
-    console.log('🎮 游戏启动！方块数量:', noteObjects.length);
 }
 
 // 开始普通游戏（无MIDI）
@@ -758,19 +665,13 @@ function startNormalGame() {
 
 // 创建所有音符方块（带进度回调的版本）
 async function createAllNoteBlocksWithProgress(progressCallback) {
-    // 防止重复创建
     if (blocksCreated && noteObjects.length > 0) {
-        console.warn(`⚠️ 阻止重复创建！当前已有 ${noteObjects.length} 个方块`);
         return;
     }
     
-    // 先清理已存在的方块
     if (noteObjects.length > 0) {
-        console.warn(`清理 ${noteObjects.length} 个旧方块`);
         cleanupObjects(noteObjects);
     }
-    
-    console.log(`✅ 开始创建 ${midiNotes.length} 个音符方块（带进度）`);
     
     const batchSize = 50;
     let currentIndex = 0;
@@ -798,8 +699,6 @@ async function createAllNoteBlocksWithProgress(progressCallback) {
                 requestAnimationFrame(createBatch);
             } else {
                 blocksCreated = true;
-                const totalTime = performance.now() - startTime;
-                console.log(`✅ 创建完成！实际创建了 ${noteObjects.length} 个方块，耗时 ${totalTime.toFixed(2)}ms`);
                 resolve();
             }
         }
@@ -1047,62 +946,9 @@ function updateTrail() {
     }
 }
 
-// 创建障碍物
-function createObstacle() {
-    const lane = Math.floor(Math.random() * LANES);
-    const obstacleType = Math.random();
-    let geometry, height, yPos;
-    
-    // 随机生成高障碍物或低障碍物
-    if (obstacleType < 0.5) {
-        // 高障碍物 - 需要下滑躲避
-        geometry = new THREE.BoxGeometry(1.2, 1.0, 1.2);
-        height = 1.0;
-        yPos = 1.5;
-    } else {
-        // 低障碍物 - 需要跳跃躲避
-        geometry = new THREE.BoxGeometry(1.2, 1.5, 1.2);
-        height = 1.5;
-        yPos = 0.75;
-    }
-    
-    const material = new THREE.MeshStandardMaterial({ color: 0xe74c3c });
-    const obstacle = new THREE.Mesh(geometry, material);
-    
-    const x = (lane - 2) * LANE_WIDTH;
-    obstacle.position.set(x, yPos, -50);
-    obstacle.castShadow = true;
-    obstacle.userData.lane = lane;
-    obstacle.userData.height = height;
-    obstacle.userData.yPos = yPos;
-    
-    scene.add(obstacle);
-    obstacles.push(obstacle);
-}
 
-// 创建金币
-function createCoin() {
-    const lane = Math.floor(Math.random() * LANES);
-    const geometry = new THREE.CylinderGeometry(0.3, 0.3, 0.1, 32);
-    const material = new THREE.MeshStandardMaterial({ 
-        color: 0xffd700,
-        metalness: 0.8,
-        roughness: 0.2
-    });
-    const coin = new THREE.Mesh(geometry, material);
-    
-    const x = (lane - 2) * LANE_WIDTH;
-    // 随机高度的金币
-    const coinHeight = Math.random() < 0.3 ? 2.0 : 0.8;
-    coin.position.set(x, coinHeight, -50);
-    coin.rotation.x = Math.PI / 2;
-    coin.userData.lane = lane;
-    coin.userData.isCoin = true;
-    coin.userData.height = coinHeight;
-    
-    scene.add(coin);
-    coins.push(coin);
-}
+
+
 
 // 正确清理 Three.js 对象（防止内存泄漏）
 function disposeObject(obj) {
@@ -1157,46 +1003,14 @@ function cleanupObjects(objectArray) {
     for (let i = objectArray.length - 1; i >= 0; i--) {
         disposeObject(objectArray[i]);
     }
-    objectArray.length = 0; // 清空数组
+    objectArray.length = 0;
     
-    // 如果清理的是音符方块，重置标志
     if (objectArray === noteObjects) {
         blocksCreated = false;
-        console.log(`🧹 清理了 ${count} 个音符方块，重置创建标志`);
     }
 }
 
-// 性能统计（调试用）
-function logPerformanceStats() {
-    if (renderer && renderer.info) {
-        const info = renderer.info;
-        console.log('╔═══════════════════════════════════════╗');
-        console.log('║         🎮 性能统计面板               ║');
-        console.log('╠═══════════════════════════════════════╣');
-        console.log(`║ 画质模式: 固定高画质`);
-        console.log(`║ 当前FPS: ${currentFPS}`);
-        console.log(`║ 像素比: ${renderer.getPixelRatio().toFixed(2)}x`);
-        console.log(`║ 阴影: ✅ PCF柔和阴影`);
-        console.log(`║ 材质: MeshPhysicalMaterial (玻璃质感)`);
-        console.log('╠═══════════════════════════════════════╣');
-        console.log(`║ 渲染调用: ${info.render.calls}`);
-        console.log(`║ 三角形数: ${info.render.triangles.toLocaleString()}`);
-        console.log(`║ 几何体: ${info.memory.geometries}`);
-        console.log(`║ 纹理: ${info.memory.textures}`);
-        console.log(`║ 场景物体: ${scene.children.length}`);
-        console.log(`║ 音符方块: ${noteObjects.length}`);
-        console.log(`║ 拖尾长度: ${GRAPHICS_CONFIG.trailLength}`);
-        console.log(`║ 雾效距离: ${GRAPHICS_CONFIG.fogDistance}`);
-        console.log('╚═══════════════════════════════════════╝');
-    }
-}
 
-// 每30秒输出一次性能统计（可选）
-setInterval(() => {
-    if (gameRunning) {
-        logPerformanceStats();
-    }
-}, 30000);
 
 // 更新玩家位置
 function updatePlayer() {
@@ -1302,11 +1116,7 @@ function jump() {
     }
 }
 
-// 下滑函数（已禁用）
-function roll() {
-    // 下滑功能已取消，只能通过跳跃躲避
-    return;
-}
+
 
 // 更新地面
 function updateGround() {
@@ -1342,7 +1152,6 @@ function updateNoteBlocks() {
             noteBlock.userData.isRendered = true;
             noteBlock.visible = true;
             scene.add(noteBlock);
-            console.log(`🎨 黑块进入视野: z=${noteBlock.position.z.toFixed(2)}`);
         }
         
         const noteData = noteBlock.userData.noteData;
@@ -1436,83 +1245,13 @@ function updateNoteBlocks() {
     }
 }
 
-// 更新障碍物
-function updateObstacles() {
-    const moveSpeed = speed * 60;
-    for (let i = obstacles.length - 1; i >= 0; i--) {
-        const obstacle = obstacles[i];
-        obstacle.position.z += moveSpeed * deltaTime;
-        obstacle.rotation.y += 0.02 * (deltaTime * 60);
-        
-        if (obstacle.position.z > 5) {
-            disposeObject(obstacle);
-            obstacles.splice(i, 1);
-        }
-    }
-}
 
-// 更新金币
-function updateCoins() {
-    const moveSpeed = speed * 60;
-    for (let i = coins.length - 1; i >= 0; i--) {
-        const coin = coins[i];
-        coin.position.z += moveSpeed * deltaTime;
-        coin.rotation.z += 0.1 * (deltaTime * 60);
-        
-        if (coin.position.z > 5) {
-            disposeObject(coin);
-            coins.splice(i, 1);
-        }
-    }
-}
+
+
 
 // 碰撞检测
 function checkCollision() {
     const playerLane = Math.round(currentLane);
-    
-    // 检测障碍物碰撞
-    for (let obstacle of obstacles) {
-        if (obstacle.userData.lane === playerLane &&
-            Math.abs(obstacle.position.z - player.position.z) < 1) {
-            
-            // 检查垂直碰撞
-            const obstacleY = obstacle.userData.yPos;
-            const playerTop = player.position.y + (player.scale.y * 0.6);
-            const playerBottom = player.position.y - (player.scale.y * 0.6);
-            
-            // 高障碍物（需要下滑）
-            if (obstacleY > 1.0) {
-                if (playerTop > 1.0 && !isRolling) {
-                    return true;
-                }
-            } 
-            // 低障碍物（需要跳跃）
-            else {
-                if (playerBottom < 1.5 && !isJumping) {
-                    return true;
-                }
-            }
-        }
-    }
-    
-    // 检测金币收集
-    for (let i = coins.length - 1; i >= 0; i--) {
-        const coin = coins[i];
-        if (coin.userData.lane === playerLane &&
-            Math.abs(coin.position.z - player.position.z) < 0.8) {
-            
-            // 检查垂直位置
-            const coinY = coin.userData.height;
-            const playerY = player.position.y;
-            
-            if (Math.abs(playerY - coinY) < 1.5) {
-                disposeObject(coin);
-                coins.splice(i, 1);
-                score += 10;
-                scoreElement.textContent = `分数: ${score}`;
-            }
-        }
-    }
     
     return false;
 }
@@ -1562,11 +1301,8 @@ async function restartRound() {
         // 确保游戏继续运行
         gameRunning = true;
         
-        // 更新UI
         scoreElement.textContent = `⭐ ${starsEarned} | 音符: 0/${totalNotes}`;
         distanceElement.textContent = `速度: ${speedMultiplier.toFixed(2)}x`;
-        
-        console.log(`第 ${starsEarned} 轮开始！创建了 ${noteObjects.length} 个音符方块`);
         
     } catch (error) {
         console.error('重新开始轮次失败:', error);
@@ -1600,7 +1336,6 @@ function continueGame() {
     const untriggeredBlocks = noteObjects.filter(block => !block.userData.noteData.triggered);
     
     if (untriggeredBlocks.length === 0) {
-        console.log('没有未触发的黑块');
         lastCollisionBlock = null;
         return;
     }
@@ -1644,8 +1379,6 @@ function continueGame() {
     isJumping = false;
     verticalVelocity = 0;
     
-    console.log(`继续游戏：整体移动 ${untriggeredBlocks.length} 个黑块到迷雾边缘，移动距离 ${moveDistance.toFixed(2)}`);
-    
     lastCollisionBlock = null;
 }
 
@@ -1672,8 +1405,6 @@ async function restart() {
         restartLoader.updateProgress(0);
         await new Promise(resolve => {
             requestAnimationFrame(() => {
-                cleanupObjects(obstacles);
-                cleanupObjects(coins);
                 cleanupObjects(noteObjects);
                 blocksCreated = false;
                 resolve();
@@ -1702,13 +1433,11 @@ async function restart() {
                 isCompletingRound = false;
                 midiSpeed = originalBaseSpeed;
                 
-                // 重置音符状态
                 midiNotes.forEach(note => {
                     note.triggered = false;
                     note.collided = false;
                 });
                 
-                // 重置 UI
                 if (midiNotes.length > 0) {
                     scoreElement.textContent = `⭐ 0 | 音符: 0/${totalNotes}`;
                     distanceElement.textContent = `速度: 1.00x`;
@@ -1721,7 +1450,6 @@ async function restart() {
                 gameOverElement.style.display = 'none';
                 instructionsElement.style.display = 'block';
                 
-                // 重置玩家位置和状态
                 player.position.set(0, 0.6, 0);
                 player.scale.set(1, 1, 1);
                 isJumping = false;
@@ -1732,12 +1460,10 @@ async function restart() {
         });
         await new Promise(resolve => setTimeout(resolve, 200));
         
-        // 步骤3：重新创建音符方块
         restartLoader.updateProgress(2);
         if (midiNotes.length > 0) {
             gameStartTime = Date.now() / 1000;
             
-            // 重新创建所有方块（带进度）
             await createAllNoteBlocksWithProgress((progress) => {
                 const percentage = Math.round(66 + (progress * 34)); // 66%-100%
                 loadingPercentage.textContent = `${percentage}%`;
@@ -1745,14 +1471,11 @@ async function restart() {
             });
         }
         
-        // 完成
         restartLoader.updateProgress(3);
         await new Promise(resolve => setTimeout(resolve, 300));
         
-        // 隐藏加载界面
         loadingElement.style.display = 'none';
         
-        // 开始游戏
         gameRunning = true;
         
     } catch (error) {
@@ -1773,9 +1496,6 @@ function onWindowResize() {
     renderer.setSize(window.innerWidth, window.innerHeight);
 }
 
-// 游戏主循环
-let lastObstacleTime = 0;
-let lastCoinTime = 0;
 let lastUpdateTime = 0;
 let deltaTime = 0;
 
@@ -1805,30 +1525,11 @@ function animate(currentTime) {
     updatePlayer();
     updateGround();
     
-    // 如果有MIDI音符，更新音符方块；否则更新普通障碍物
     if (midiNotes.length > 0) {
-        // 禁用速度增长，以后才缓慢增加速度
         if (starsEarned > 0) {
             midiSpeed += speedIncreaseRate * speedMultiplier;
         }
         updateNoteBlocks();
-    } else {
-        updateObstacles();
-        updateCoins();
-    }
-    
-    // 只在非MIDI模式下生成障碍物和金币
-    if (midiNotes.length === 0) {
-        const now = Date.now();
-        if (now - lastObstacleTime > 2000) {
-            createObstacle();
-            lastObstacleTime = now;
-        }
-        
-        if (now - lastCoinTime > 1500) {
-            createCoin();
-            lastCoinTime = now;
-        }
     }
     
     // 增加难度
@@ -1844,10 +1545,6 @@ function animate(currentTime) {
         distanceElement.textContent = `速度: ${currentSpeedRatio}x`;
         accuracyElement.textContent = `方块: ${noteObjects.length}`;
         
-        // 异常检测：如果方块数量超过预期，警告
-        if (noteObjects.length > totalNotes * 1.5) {
-            console.error(`❌ 方块数量异常！预期: ${totalNotes}, 实际: ${noteObjects.length}`);
-        }
     } else {
         // 普通模式
         distance += speed * 2;
@@ -1870,12 +1567,6 @@ function animate(currentTime) {
 
 // 键盘控制
 document.addEventListener('keydown', (e) => {
-    // P 键：查看性能统计（无论游戏是否运行）
-    if (e.key === 'p' || e.key === 'P') {
-        logPerformanceStats();
-        return;
-    }
-    
     if (!gameRunning) return;
     
     if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') {
@@ -1978,13 +1669,10 @@ let isSwitchingMidi = false;
 let lastSwitchTime = 0;
 const SWITCH_COOLDOWN = 1000; // 1秒冷却时间
 
-// 切换到下一个MIDI文件
 async function switchToNextMidi() {
     if (midiFiles.length <= 1) return;
     
-    // 允许在切换过程中再次点击（取消锁定）
     if (isSwitchingMidi) {
-        console.log('正在切换中，请稍候...');
         return;
     }
     
@@ -2002,13 +1690,10 @@ async function switchToNextMidi() {
     isSwitchingMidi = false;
 }
 
-// 切换到上一个MIDI文件
 async function switchToPrevMidi() {
     if (midiFiles.length <= 1) return;
     
-    // 允许在切换过程中再次点击（取消锁定）
     if (isSwitchingMidi) {
-        console.log('正在切换中，请稍候...');
         return;
     }
     
@@ -2060,14 +1745,7 @@ function playSlideAnimation(direction) {
     });
 }
 
-// 加载并开始新的MIDI
 async function loadAndStartNewMidi() {
-    console.log('🔄 加载并开始新 MIDI...');
-    
-    // === 立即清理所有旧数据 ===
-    console.log('🧹 清理旧数据...');
-    cleanupObjects(obstacles);
-    cleanupObjects(coins);
     cleanupObjects(noteObjects);
     blocksCreated = false;
     
@@ -2097,20 +1775,8 @@ async function loadAndStartNewMidi() {
     currentLane = 2;
     targetLane = 2;
     
-    // 输出清理后的内存状态
-    console.log('✅ 清理完成！内存状态:', {
-        几何体: renderer.info.memory.geometries,
-        纹理: renderer.info.memory.textures,
-        场景物体: scene.children.length,
-        音符方块: noteObjects.length,
-        MIDI数据: midiNotes.length
-    });
-    
-    // 等待一帧
     await new Promise(resolve => requestAnimationFrame(resolve));
     
-    // 从缓存加载新的MIDI文件（几乎瞬间完成）
-    console.log('📥 从缓存加载 MIDI 文件...');
     const success = await loadMidiFile(currentMidiIndex);
     
     if (success) {
@@ -2354,9 +2020,7 @@ function initRandomMidiButton() {
     randomBtn.addEventListener('click', (e) => {
         e.stopPropagation(); // 防止关闭灵动岛
         
-        // 随机选择一个不同于当前的音乐
         if (midiFiles.length <= 1) {
-            console.log('只有一首歌曲，无法随机选择');
             return;
         }
         
@@ -2365,7 +2029,6 @@ function initRandomMidiButton() {
             randomIndex = Math.floor(Math.random() * midiFiles.length);
         } while (randomIndex === currentMidiIndex);
         
-        console.log(`🎲 随机选择: ${midiFiles[randomIndex]}`);
         selectMidi(randomIndex);
     });
 }
@@ -2392,15 +2055,11 @@ function initCloseButtons() {
 
 // 选择 MIDI 文件 - 随时可点击
 async function selectMidi(index) {
-    // 检查冷却时间
     const now = Date.now();
     if (now - lastSwitchTime < SWITCH_COOLDOWN) {
-        console.log('切换太快，请稍候...');
         return;
     }
     lastSwitchTime = now;
-    
-    console.log('🔄 开始切换 MIDI 文件...');
     
     // 先收起动画
     dynamicIsland.classList.remove('expanded');
@@ -2409,15 +2068,9 @@ async function selectMidi(index) {
     // 立即停止游戏
     gameRunning = false;
     
-    // === 第一步：立即清理所有旧数据 ===
-    console.log('🧹 步骤1: 清理旧场景对象...');
-    cleanupObjects(obstacles);
-    cleanupObjects(coins);
     cleanupObjects(noteObjects);
     blocksCreated = false;
     
-    // 清理旧的 MIDI 数据
-    console.log('🧹 步骤2: 清理旧 MIDI 数据...');
     midiNotes = [];
     totalNotes = 0;
     notesTriggered = 0;
@@ -2444,23 +2097,10 @@ async function selectMidi(index) {
     currentLane = 2;
     targetLane = 2;
     
-    // 隐藏游戏结束界面
     gameOverElement.style.display = 'none';
     
-    // 输出清理后的内存状态
-    console.log('✅ 清理完成！内存状态:', {
-        几何体: renderer.info.memory.geometries,
-        纹理: renderer.info.memory.textures,
-        场景物体: scene.children.length,
-        音符方块: noteObjects.length,
-        MIDI数据: midiNotes.length
-    });
-    
-    // 等待一帧，确保清理完成
     await new Promise(resolve => requestAnimationFrame(resolve));
     
-    // === 第二步：加载新的 MIDI 文件 ===
-    console.log('📥 步骤3: 加载新 MIDI 文件...');
     currentMidiIndex = index;
     const success = await loadMidiFile(currentMidiIndex);
     
@@ -2502,9 +2142,8 @@ async function selectMidi(index) {
                 // 步骤1：启动音频引擎
                 gameStartLoader.updateProgress(0, '');
                 await audioEngine.start();
-                console.log('✅ 音频上下文已启动');
                 
-                // 播放点击音效（音频上下文启动后）
+                // 播放点击音效
                 if (audioEngine && audioEngine.playClickSound) {
                     audioEngine.playClickSound();
                 }
@@ -2644,38 +2283,7 @@ function createTriggerWave(x, z) {
     }, 30);
 }
 
-// 全局清理函数（调试用）
-window.forceCleanup = function() {
-    console.log('🧹 强制清理所有数据...');
-    
-    // 停止游戏
-    gameRunning = false;
-    
-    // 清理所有对象
-    cleanupObjects(obstacles);
-    cleanupObjects(coins);
-    cleanupObjects(noteObjects);
-    
-    // 清理数据
-    midiNotes = [];
-    totalNotes = 0;
-    notesTriggered = 0;
-    blocksCreated = false;
-    
-    // 清理拖尾
-    trailPositions = [];
-    trailSpheres.forEach(sphere => {
-        sphere.material.opacity = 0;
-    });
-    
-    console.log('✅ 强制清理完成！', {
-        几何体: renderer.info.memory.geometries,
-        纹理: renderer.info.memory.textures,
-        场景物体: scene.children.length,
-        音符方块: noteObjects.length,
-        MIDI数据: midiNotes.length
-    });
-};
+
 
 // 启动游戏（先初始化场景，再预加载资源）
 init();

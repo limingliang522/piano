@@ -16,7 +16,6 @@ class MIDIParser {
     parse(data) {
         let pos = 0;
         
-        // 读取头部
         const header = this.readString(data, pos, 4);
         pos += 4;
         
@@ -24,10 +23,7 @@ class MIDIParser {
             throw new Error('Invalid MIDI file');
         }
         
-        const headerLength = this.readInt32(data, pos);
         pos += 4;
-        
-        const format = this.readInt16(data, pos);
         pos += 2;
         
         const trackCount = this.readInt16(data, pos);
@@ -36,9 +32,6 @@ class MIDIParser {
         this.ticksPerBeat = this.readInt16(data, pos);
         pos += 2;
         
-        console.log(`MIDI格式: ${format}, 轨道数: ${trackCount}, Ticks/Beat: ${this.ticksPerBeat}`);
-        
-        // 读取所有轨道
         const allNotes = [];
         
         for (let i = 0; i < trackCount; i++) {
@@ -59,9 +52,6 @@ class MIDIParser {
             pos = trackEnd;
         }
         
-        console.log(`最终 Tempo: ${this.tempo} 微秒/拍 (${Math.round(60000000 / this.tempo)} BPM)`);
-        
-        // 按时间排序
         allNotes.sort((a, b) => a.time - b.time);
         
         return allNotes;
@@ -75,16 +65,13 @@ class MIDIParser {
         const noteOnMap = new Map();
         
         while (pos < end) {
-            // 读取 delta time
             const deltaTime = this.readVarLen(data, pos);
             currentTime += deltaTime.value;
             pos = deltaTime.pos;
             
-            // 读取事件
             let status = data[pos];
             
             if (status < 0x80) {
-                // Running status
                 status = lastStatus;
             } else {
                 pos++;
@@ -92,10 +79,8 @@ class MIDIParser {
             }
             
             const eventType = status & 0xF0;
-            const channel = status & 0x0F;
             
             if (eventType === 0x90) {
-                // Note On
                 const note = data[pos++];
                 const velocity = data[pos++];
                 
@@ -106,7 +91,6 @@ class MIDIParser {
                         velocity: velocity
                     });
                 } else {
-                    // Velocity 0 = Note Off
                     if (noteOnMap.has(note)) {
                         const noteOn = noteOnMap.get(note);
                         notes.push({
@@ -119,9 +103,8 @@ class MIDIParser {
                     }
                 }
             } else if (eventType === 0x80) {
-                // Note Off
                 const note = data[pos++];
-                const velocity = data[pos++];
+                pos++;
                 
                 if (noteOnMap.has(note)) {
                     const noteOn = noteOnMap.get(note);
@@ -134,28 +117,22 @@ class MIDIParser {
                     noteOnMap.delete(note);
                 }
             } else if (eventType === 0xB0 || eventType === 0xE0) {
-                // Control Change or Pitch Bend
                 pos += 2;
             } else if (eventType === 0xC0 || eventType === 0xD0) {
-                // Program Change or Channel Pressure
                 pos += 1;
             } else if (status === 0xFF) {
-                // Meta event
                 const metaType = data[pos++];
                 const length = this.readVarLen(data, pos);
                 
-                // 检查是否是 Set Tempo 事件 (0x51)
                 if (metaType === 0x51 && length.value === 3) {
                     const tempo = (data[length.pos] << 16) | 
                                  (data[length.pos + 1] << 8) | 
                                  data[length.pos + 2];
                     this.tempo = tempo;
-                    console.log(`检测到 Tempo: ${tempo} 微秒/拍 (${Math.round(60000000 / tempo)} BPM)`);
                 }
                 
                 pos = length.pos + length.value;
             } else if (status === 0xF0 || status === 0xF7) {
-                // SysEx
                 const length = this.readVarLen(data, pos);
                 pos = length.pos + length.value;
             }

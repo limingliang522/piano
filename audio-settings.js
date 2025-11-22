@@ -1,4 +1,3 @@
-// 音频设置管理器
 class AudioSettings {
     constructor(audioEngine) {
         this.audioEngine = audioEngine;

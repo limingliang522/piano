@@ -1,4 +1,3 @@
-// 音频可视化器 - 实时频谱显示
 class AudioVisualizer {
     constructor(audioEngine, canvasId = 'audioVisualizer') {
         this.audioEngine = audioEngine;

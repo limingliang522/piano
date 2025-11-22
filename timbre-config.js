@@ -1,4 +1,3 @@
-// 音色配置系统 - 统一管理所有钢琴音色
 class TimbreConfig {
     constructor() {
         this.timbres = new Map();
