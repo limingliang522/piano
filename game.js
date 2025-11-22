@@ -958,7 +958,8 @@ function getBlockFromPool(noteData) {
         block = pool.pop();
     } else {
         // 池已空，动态创建新的（不应该发生，但作为后备）
-        console.warn('⚠️ 对象池已空，动态创建新黑块');
+        console.warn(`⚠️ ${isTall ? '超高' : '普通'}黑块池已空，动态创建新黑块`);
+        console.warn(`   当前激活: ${blockPool.active.length}, 普通池: ${blockPool.normal.length}, 超高池: ${blockPool.tall.length}`);
         block = createPooledBlock(isTall);
     }
     
@@ -1023,6 +1024,7 @@ function recycleBlock(block) {
 // 清理对象池（游戏结束或切换歌曲时）
 function clearBlockPool() {
     console.log('🧹 清理对象池...');
+    console.log(`   清理前 - 激活: ${blockPool.active.length}, 普通池: ${blockPool.normal.length}, 超高池: ${blockPool.tall.length}`);
     
     // 回收所有激活的黑块
     while (blockPool.active.length > 0) {
@@ -1473,20 +1475,19 @@ function updateNoteBlocks() {
         const noteBlock = noteObjects[i];
         const noteData = noteBlock.userData.noteData;
         
-        // 只更新和渲染在迷雾范围内的黑块
+        // 移动黑块（始终移动，不管是否可见）
+        noteBlock.position.z += moveSpeed * deltaTime;
+        
+        // 根据位置决定是否渲染（优化性能）
         if (noteBlock.position.z < fogBoundary) {
-            // 超出迷雾范围，隐藏但不移除（等待进入范围）
+            // 超出迷雾范围，隐藏但继续移动
             noteBlock.visible = false;
-            continue;
-        } else {
-            // 在迷雾范围内，确保可见
+        } else if (noteBlock.position.z <= 10) {
+            // 在可见范围内，确保显示
             if (!noteBlock.visible && !noteData.triggered) {
                 noteBlock.visible = true;
             }
         }
-        
-        // 移动黑块
-        noteBlock.position.z += moveSpeed * deltaTime;
         
         // 检查是否与玩家碰撞
         if (!noteData.collided && noteData.lane === playerLane) {
