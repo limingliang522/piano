@@ -14,7 +14,7 @@ class TimbreConfig {
             type: 'multilayer',
             basePath: './钢琴/',
             filePattern: 'Steinway_{note}_Dyn{dyn}_RR{rr}.mp3',
-            samplePoints: ['C0', 'G0', 'D1', 'A1', 'E2', 'B2', 'F#3', 'C#4', 'G#4', 'D#5', 'A#5', 'F6'],
+            samplePoints: ['C0', 'G0', 'D1', 'A1', 'E2', 'B2', 'Fs3', 'Cs4', 'Gs4', 'Ds5', 'As5', 'F6'],
             dynamics: [1, 2, 3, 4],
             roundRobins: [1, 2],
             velocityMapping: {
@@ -157,7 +157,7 @@ class TimbreConfig {
     
     // 将 MIDI 音符号转换为音符名称
     midiToNoteName(midiNote) {
-        const noteNames = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+        const noteNames = ['C', 'Cs', 'D', 'Ds', 'E', 'F', 'Fs', 'G', 'Gs', 'A', 'As', 'B'];
         const octave = Math.floor(midiNote / 12) - 1;
         const noteName = noteNames[midiNote % 12];
         return noteName + octave;
@@ -165,8 +165,8 @@ class TimbreConfig {
     
     // 将音符名称转换为 MIDI 音符号
     noteNameToMidi(noteName) {
-        const noteNames = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
-        const match = noteName.match(/^([A-G]#?)(\d+)$/);
+        const noteNames = ['C', 'Cs', 'D', 'Ds', 'E', 'F', 'Fs', 'G', 'Gs', 'A', 'As', 'B'];
+        const match = noteName.match(/^([A-G]s?)(\d+)$/);
         if (!match) return 60; // 默认 C4
         
         const note = match[1];
