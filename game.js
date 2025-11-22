@@ -1007,9 +1007,12 @@ function createNoteBlock(noteData, noteIndex) {
     // 启用阴影
     noteBlock.castShadow = true;
     
+    // 视锥体剔除优化
+    noteBlock.frustumCulled = true;
+    
     noteBlock.userData = {
         noteData: noteData,
-        noteIndex: noteIndex, // 添加索引，用于流式管理
+        noteIndex: noteIndex,
         isNote: true,
         isTall: isTall,
         blockHeight: blockHeight
@@ -1017,7 +1020,7 @@ function createNoteBlock(noteData, noteIndex) {
     
     scene.add(noteBlock);
     
-    return noteBlock; // 返回方块对象
+    return noteBlock;
 }
 
 // 创建地面
@@ -1430,17 +1433,23 @@ function updateGround() {
 // 更新音符方块
 function updateNoteBlocks() {
     const triggerZ = triggerLine.position.z;
-    const triggerWindow = 0.2; // 触发窗口
+    const triggerWindow = 0.2;
     const playerLane = Math.round(currentLane);
+    const moveSpeed = midiSpeed * 60;
     
-    // 基于时间的移动速度（每秒移动的距离）
-    const moveSpeed = midiSpeed * 60; // 转换为每秒的速度
-    
-    // 流式系统已禁用，所有方块一次性创建
+    // 性能优化：只更新可见范围内的方块（前后100单位）
+    const visibleRangeStart = triggerZ - 100;
+    const visibleRangeEnd = triggerZ + 20;
     
     for (let i = noteObjects.length - 1; i >= 0; i--) {
         const noteBlock = noteObjects[i];
-        noteBlock.position.z += moveSpeed * deltaTime; // 基于时间移动
+        
+        // 只更新可见范围内的方块
+        if (noteBlock.position.z < visibleRangeStart) {
+            continue; // 还在远处，跳过
+        }
+        
+        noteBlock.position.z += moveSpeed * deltaTime;
         
         const noteData = noteBlock.userData.noteData;
         
