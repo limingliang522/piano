@@ -121,14 +121,6 @@
             box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.4), 0 8px 32px rgba(0, 0, 0, 0.6);
             border: 2px solid rgba(255, 255, 255, 0.3);
         }
-        
-        /* 电脑端：展开页面往下移动到开始按钮上方 */
-        @media (min-width: 601px) {
-            #dynamicIsland.expanded {
-                top: 50%;
-                transform: translate(-50%, -50%) translateY(-60px);
-            }
-        }
 
         .island-content {
             display: flex;
@@ -475,10 +467,11 @@
             -webkit-line-clamp: 2;
             -webkit-box-orient: vertical;
             white-space: normal;
-            line-height: 1.2;
+            line-height: 1.3;
             word-break: break-all;
             text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
-            height: 24px;
+            min-height: 26px;
+            max-height: 34px;
         }
 
         .close-hint {
