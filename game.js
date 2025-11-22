@@ -1769,6 +1769,27 @@ function animate(currentTime) {
             midiSpeed += speedIncreaseRate * speedMultiplier;
         }
         updateNoteBlocks();
+        
+        // 性能优化：视锥剔除（每5帧执行一次）
+        if (frameCount % 5 === 0) {
+            camera.updateMatrixWorld();
+            const frustum = new THREE.Frustum();
+            frustum.setFromProjectionMatrix(
+                new THREE.Matrix4().multiplyMatrices(
+                    camera.projectionMatrix,
+                    camera.matrixWorldInverse
+                )
+            );
+            
+            // 隐藏视锥外的方块（减少渲染负担）
+            noteObjects.forEach(block => {
+                if (block.position.z < -60 || block.position.z > 15) {
+                    block.visible = false;
+                } else {
+                    block.visible = true;
+                }
+            });
+        }
     } else {
         updateObstacles();
         updateCoins();
