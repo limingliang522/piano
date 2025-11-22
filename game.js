@@ -1621,23 +1621,24 @@ async function restartRound() {
             // 重要：在播放音频之前重新设置 gameStartTime，确保同步
             gameStartTime = Date.now() / 1000;
             
-            if (midiNotes.length > 0) {
-                const firstNoteTime = midiNotes[0].time;
-                const gameTimeToTrigger = firstNoteTime / speedMultiplier;
-                
-                console.log(`🎵 新一轮对齐计算：`);
-                console.log(`   gameStartTime 已重置: ${gameStartTime.toFixed(2)}`);
-                console.log(`   第一个音符时间: ${firstNoteTime.toFixed(2)}秒`);
-                console.log(`   速度倍数: ${speedMultiplier.toFixed(2)}x`);
-                console.log(`   midiSpeed: ${midiSpeed.toFixed(4)}`);
-                console.log(`   黑块到达触发线需要: ${gameTimeToTrigger.toFixed(2)}秒`);
-                console.log(`   音频开始时间: 0 秒`);
-                console.log(`   音频播放速度: ${speedMultiplier.toFixed(2)}x`);
-                console.log(`   预期：${gameTimeToTrigger.toFixed(2)}秒后，黑块到达触发线，音频播放到 ${firstNoteTime.toFixed(2)}秒`);
-            }
+            // 计算需要的延迟时间（根据速度倍数动态调整）
+            const firstNoteTime = midiNotes[0].time;
+            const gameTimeToTrigger = firstNoteTime / speedMultiplier;
+            const baseDelay = 12.0; // 基础延迟（1.0x速度时）
+            const adjustedDelay = baseDelay / speedMultiplier; // 根据速度调整延迟
             
-            // 延迟12.0秒后播放音频，确保黑块和音频完美对齐
-            await new Promise(resolve => setTimeout(resolve, 12000));
+            console.log(`🎵 新一轮对齐计算：`);
+            console.log(`   gameStartTime 已重置: ${gameStartTime.toFixed(2)}`);
+            console.log(`   第一个音符时间: ${firstNoteTime.toFixed(2)}秒`);
+            console.log(`   速度倍数: ${speedMultiplier.toFixed(2)}x`);
+            console.log(`   midiSpeed: ${midiSpeed.toFixed(4)}`);
+            console.log(`   黑块到达触发线需要: ${gameTimeToTrigger.toFixed(2)}秒`);
+            console.log(`   音频开始时间: 0 秒`);
+            console.log(`   音频播放速度: ${speedMultiplier.toFixed(2)}x`);
+            console.log(`   预期：${gameTimeToTrigger.toFixed(2)}秒后，黑块到达触发线，音频播放到 ${firstNoteTime.toFixed(2)}秒`);
+            console.log(`⏱️ 延迟计算：基础延迟 ${baseDelay}秒 / 速度倍数 ${speedMultiplier.toFixed(2)}x = ${adjustedDelay.toFixed(2)}秒`);
+            
+            await new Promise(resolve => setTimeout(resolve, adjustedDelay * 1000));
             
             // 始终从0秒开始播放，使用当前速度倍数
             audioEngine.playBGM(0, speedMultiplier);
