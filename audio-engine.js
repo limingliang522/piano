@@ -1,14 +1,10 @@
-// 音频引擎 - MP3播放 + MIDI同步
+// 极致音质钢琴音频引擎 - 专业级空间音频处理 v3.0
 class AudioEngine {
     constructor() {
         this.audioContext = null;
         this.masterGain = null;
+        this.samples = new Map();
         this.isReady = false;
-        
-        // MP3音频播放
-        this.audioElement = null; // HTML5 Audio元素
-        this.audioSource = null; // AudioContext音频源
-        this.currentMusicPath = null; // 当前音乐路径
         
         // 专业音频处理链
         this.convolver = null; // 卷积混响
@@ -96,20 +92,9 @@ class AudioEngine {
         return null;
     }
     
-    // 初始化音频处理链（简化版 - 只需要主音量控制）
+    // 初始化音频处理链（纯净原声模式）
     initAudioChain() {
         const ctx = this.audioContext;
-        
-        // 只创建主音量控制
-        this.masterGain = ctx.createGain();
-        this.masterGain.gain.value = 0.8;
-        this.masterGain.connect(ctx.destination);
-        
-        console.log('✅ 音频处理链初始化完成（简化版）');
-        return;
-        
-        // 以下是旧代码，暂时保留但不执行
-        /*
         
         try {
             console.log('initAudioChain: 初始化纯净原声输出模式...');
@@ -335,7 +320,6 @@ class AudioEngine {
             console.error('initAudioChain: 初始化失败:', error);
             throw error;
         }
-        */
     }
     
     // 创建卡内基音乐厅混响（施坦威专属）
@@ -407,113 +391,65 @@ class AudioEngine {
         return noteName + octave;
     }
 
-    // 初始化音频引擎（简化版，不需要加载钢琴音色）
+    // 初始化钢琴采样器（分批加载，避免手机卡顿）
     async init(progressCallback) {
         // 确保AudioContext已创建
         this.ensureAudioContext();
         
-        console.log('🎵 音频引擎初始化完成');
+        // 定义实际存在的采样点 - FluidR3 GM 音色库（52个音符）
+        const sampleNotes = [
+            'A0', 'B0',
+            'C1', 'D1', 'E1', 'F1', 'G1', 'A1', 'B1',
+            'C2', 'D2', 'E2', 'F2', 'G2', 'A2', 'B2',
+            'C3', 'D3', 'E3', 'F3', 'G3', 'A3', 'B3',
+            'C4', 'D4', 'E4', 'F4', 'G4', 'A4', 'B4',
+            'C5', 'D5', 'E5', 'F5', 'G5', 'A5', 'B5',
+            'C6', 'D6', 'E6', 'F6', 'G6', 'A6', 'B6',
+            'C7', 'D7', 'E7', 'F7', 'G7', 'A7', 'B7',
+            'C8'
+        ];
+        
+        let loadedCount = 0;
+        const total = sampleNotes.length;
+        
+        // 加载单个音色（简化版，快速加载）
+        const loadSample = async (noteName) => {
+            try {
+                const response = await fetch(`./piano-samples/${noteName}.mp3`);
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+                const arrayBuffer = await response.arrayBuffer();
+                const audioBuffer = await this.audioContext.decodeAudioData(arrayBuffer);
+                this.samples.set(noteName, audioBuffer);
+                return true;
+            } catch (error) {
+                console.warn(`${noteName} 加载失败:`, error);
+                return false;
+            }
+        };
+        
+        // 并行加载所有音色（最快速度）
+        const allPromises = sampleNotes.map(async (noteName) => {
+            const success = await loadSample(noteName);
+            loadedCount++;
+            if (progressCallback) {
+                progressCallback(loadedCount, total);
+            }
+            return success;
+        });
+        
+        await Promise.all(allPromises);
+        
+        console.log(`🎹 FluidR3 GM 钢琴音色加载完成！共 ${this.samples.size}/52 个音符`);
         
         this.isReady = true;
         
-        // 模拟进度回调
-        if (progressCallback) {
-            progressCallback(1, 1);
-        }
+        // 播放一个静音测试音符，预热音频管道
+        console.log('🔊 预热音频管道...');
+        await this.warmupWithSample();
         
         return true;
-    }
-    
-    // 加载MP3音乐文件
-    async loadMusic(musicPath) {
-        try {
-            console.log(`🎵 加载音乐: ${musicPath}`);
-            
-            // 停止当前播放的音乐
-            this.stopMusic();
-            
-            // 断开旧的音频源
-            if (this.audioSource) {
-                this.audioSource.disconnect();
-                this.audioSource = null;
-            }
-            
-            // 创建新的Audio元素
-            this.audioElement = new Audio(musicPath);
-            this.audioElement.crossOrigin = 'anonymous';
-            this.audioElement.preload = 'auto';
-            
-            // 等待音频加载完成
-            await new Promise((resolve, reject) => {
-                this.audioElement.addEventListener('canplaythrough', resolve, { once: true });
-                this.audioElement.addEventListener('error', reject, { once: true });
-                this.audioElement.load();
-            });
-            
-            // 连接到AudioContext（每次都重新创建）
-            this.audioSource = this.audioContext.createMediaElementSource(this.audioElement);
-            this.audioSource.connect(this.masterGain);
-            
-            this.currentMusicPath = musicPath;
-            console.log('✅ 音乐加载完成');
-            
-            return true;
-        } catch (error) {
-            console.error('加载音乐失败:', error);
-            return false;
-        }
-    }
-    
-    // 播放音乐
-    playMusic() {
-        if (this.audioElement) {
-            this.audioElement.currentTime = 0;
-            this.audioElement.play().catch(error => {
-                console.error('播放音乐失败:', error);
-            });
-            console.log('▶️ 音乐开始播放');
-        }
-    }
-    
-    // 停止音乐
-    stopMusic() {
-        if (this.audioElement) {
-            this.audioElement.pause();
-            this.audioElement.currentTime = 0;
-        }
-    }
-    
-    // 暂停音乐
-    pauseMusic() {
-        if (this.audioElement) {
-            this.audioElement.pause();
-        }
-    }
-    
-    // 恢复音乐
-    resumeMusic() {
-        if (this.audioElement) {
-            this.audioElement.play().catch(error => {
-                console.error('恢复音乐失败:', error);
-            });
-        }
-    }
-    
-    // 获取当前播放时间
-    getCurrentTime() {
-        return this.audioElement ? this.audioElement.currentTime : 0;
-    }
-    
-    // 设置播放时间
-    setCurrentTime(time) {
-        if (this.audioElement) {
-            this.audioElement.currentTime = time;
-        }
-    }
-    
-    // 获取音乐总时长
-    getDuration() {
-        return this.audioElement ? this.audioElement.duration : 0;
     }
     
     // 使用真实采样预热（轻量版 - 不阻塞）
@@ -574,16 +510,189 @@ class AudioEngine {
         return { noteName: closestNote, semitoneOffset: targetMidi - noteToMidi(closestNote) };
     }
 
-    // 播放音符（不再需要，因为使用MP3）
+    // 播放钢琴音符（极致音质版 - 3D空间音频 + 提前释放）
     playNote(midiNote, duration = 0.5, velocity = 100, lane = 2) {
-        // 不再播放单独的音符，音乐由MP3提供
-        return null;
+        if (!this.isReady || this.samples.size === 0) {
+            console.warn('钢琴采样尚未加载完成');
+            return null;
+        }
+
+        const targetNote = this.midiToNoteName(midiNote);
+        const { noteName, semitoneOffset } = this.findClosestSample(targetNote);
+        
+        if (!noteName) {
+            console.warn('找不到合适的采样');
+            return null;
+        }
+        
+        const buffer = this.samples.get(noteName);
+        if (!buffer) {
+            console.warn(`采样 ${noteName} 不存在`);
+            return null;
+        }
+
+        try {
+            const ctx = this.audioContext;
+            const now = ctx.currentTime;
+            const noteDuration = Math.min(duration, 5);
+            
+            // 创建音频源
+            const source = ctx.createBufferSource();
+            source.buffer = buffer;
+            
+            // 根据音高偏移调整播放速率
+            const playbackRate = Math.pow(2, semitoneOffset / 12);
+            source.playbackRate.value = playbackRate;
+            
+            // === 3D 空间音频定位（根据性能模式和设置调整）===
+            let panner = null;
+            let stereoPanner = null;
+            
+            if (this.spatialAudioEnabled && (this.performanceMode === 'high' || this.performanceMode === 'medium')) {
+                // 高/中性能：使用 3D 空间音频
+                panner = ctx.createPanner();
+                panner.panningModel = this.performanceMode === 'high' ? 'HRTF' : 'equalpower';
+                panner.distanceModel = 'inverse';
+                panner.refDistance = 1;
+                panner.maxDistance = 10000;
+                panner.rolloffFactor = 1;
+                panner.coneInnerAngle = 360;
+                panner.coneOuterAngle = 360;
+                panner.coneOuterGain = 0;
+                
+                // 根据轨道位置设置 3D 空间位置
+                const laneWidth = 3;
+                const xPosition = (lane - 2) * laneWidth;
+                const yPosition = 0;
+                const zPosition = -5;
+                
+                if (panner.positionX) {
+                    panner.positionX.value = xPosition;
+                    panner.positionY.value = yPosition;
+                    panner.positionZ.value = zPosition;
+                } else {
+                    panner.setPosition(xPosition, yPosition, zPosition);
+                }
+            } else {
+                // 低性能或禁用3D音频：使用简单立体声
+                stereoPanner = ctx.createStereoPanner();
+                const panValue = (lane - 2) / 3;
+                stereoPanner.pan.value = Math.max(-0.8, Math.min(0.8, panValue));
+            }
+            
+            // === 音量包络（ADSR - 完美还原MIDI力度）===
+            const gainNode = ctx.createGain();
+            // 使用更精确的velocity映射（MIDI标准：velocity 0-127）
+            const velocityFactor = Math.pow(velocity / 127, 1.0); // 线性映射
+            const baseVolume = velocityFactor * 0.6; // 降低音符音量，防止多音符叠加破音
+            
+            // 根据音高调整音量（模拟真实钢琴）
+            let pitchFactor = 1.0;
+            if (midiNote < 48) {
+                // 低音区：稍微增强
+                pitchFactor = 1.1;
+            } else if (midiNote > 84) {
+                // 高音区：稍微减弱
+                pitchFactor = 0.9;
+            }
+            const volume = baseVolume * pitchFactor;
+            
+            // Attack（快速起音，5ms - 保留钢琴的瞬态特性）
+            gainNode.gain.setValueAtTime(0, now);
+            gainNode.gain.linearRampToValueAtTime(volume, now + 0.005);
+            
+            // Decay + Sustain（自然衰减）
+            const sustainTime = Math.max(noteDuration - 0.06, 0.02);
+            gainNode.gain.setValueAtTime(volume, now + 0.005);
+            // 钢琴的自然衰减（指数衰减更自然）
+            gainNode.gain.exponentialRampToValueAtTime(volume * 0.6, now + 0.005 + sustainTime);
+            
+            // Release（快速释放，50ms）
+            gainNode.gain.exponentialRampToValueAtTime(0.001, now + noteDuration);
+            
+            // === 完美还原MIDI，不添加随机音高偏移 ===
+            // 已移除随机 detune，保持音高精确
+            
+            // === 连接音频处理链（根据性能模式）===
+            if (panner) {
+                // 高/中性能：3D 音频链
+                source.connect(panner);
+                panner.connect(gainNode);
+            } else if (stereoPanner) {
+                // 低性能：简单立体声
+                source.connect(stereoPanner);
+                stereoPanner.connect(gainNode);
+            } else {
+                // 超低性能：直连
+                source.connect(gainNode);
+            }
+            // 纯净输出：直连主音量
+            gainNode.connect(this.compressor); // compressor 现在指向 masterGain
+            
+            // 播放
+            source.start(now);
+            source.stop(now + noteDuration);
+            
+            // 清理（防止内存泄漏）
+            source.onended = () => {
+                try {
+                    source.disconnect();
+                    if (panner) panner.disconnect();
+                    if (stereoPanner) stereoPanner.disconnect();
+                    gainNode.disconnect();
+                    // 从活跃音符列表中移除
+                    this.activeNotes.delete(noteId);
+                } catch (e) {
+                    // 已经断开连接
+                }
+            };
+            
+            // 生成唯一音符ID并存储引用（支持提前释放）
+            const noteId = `${midiNote}_${now}_${Math.random()}`;
+            this.activeNotes.set(noteId, {
+                source,
+                gainNode,
+                startTime: now,
+                endTime: now + noteDuration,
+                midiNote
+            });
+            
+            return noteId; // 返回音符ID，允许外部提前停止
+
+        } catch (error) {
+            console.error('播放音符失败:', error);
+            return null;
+        }
+    }
+    
+    // 提前停止音符（用于快速音符序列）
+    stopNote(noteId, fadeOutTime = 0.05) {
+        const noteData = this.activeNotes.get(noteId);
+        if (!noteData) return;
+        
+        try {
+            const ctx = this.audioContext;
+            const now = ctx.currentTime;
+            const { gainNode, source, endTime } = noteData;
+            
+            // 如果音符还在播放，快速淡出
+            if (now < endTime) {
+                gainNode.gain.cancelScheduledValues(now);
+                gainNode.gain.setValueAtTime(gainNode.gain.value, now);
+                gainNode.gain.exponentialRampToValueAtTime(0.001, now + fadeOutTime);
+                source.stop(now + fadeOutTime);
+            }
+            
+            this.activeNotes.delete(noteId);
+        } catch (error) {
+            console.warn('停止音符失败:', error);
+        }
     }
     
     // 停止所有音符（用于暂停/停止游戏）
     stopAllNotes(fadeOutTime = 0.1) {
-        // 停止MP3音乐
-        this.stopMusic();
+        const noteIds = Array.from(this.activeNotes.keys());
+        noteIds.forEach(noteId => this.stopNote(noteId, fadeOutTime));
     }
 
     // 播放碰撞音效（增强版 - 更有冲击力）
@@ -756,47 +865,37 @@ class AudioEngine {
         };
     }
     
-    // 播放UI点击音效（简单音效）
+    // 播放UI点击音效（使用钢琴音色）
     playClickSound() {
+        if (!this.isReady || this.samples.size === 0) {
+            console.warn('钢琴采样尚未加载，无法播放点击音效');
+            return;
+        }
+        
         try {
-            const ctx = this.audioContext;
-            const now = ctx.currentTime;
+            // 随机选择一个高音区音符（C5-C6）
+            const highNotes = [72, 74, 76, 77, 79, 81, 83, 84]; // C5, D5, E5, F5, G5, A5, B5, C6
+            const randomNote = highNotes[Math.floor(Math.random() * highNotes.length)];
             
-            const osc = ctx.createOscillator();
-            const gain = ctx.createGain();
+            // 播放短促的钢琴音
+            this.playNote(randomNote, 0.3, 80, 2);
             
-            osc.frequency.value = 800;
-            gain.gain.setValueAtTime(0.1, now);
-            gain.gain.exponentialRampToValueAtTime(0.01, now + 0.1);
-            
-            osc.connect(gain);
-            gain.connect(this.masterGain);
-            
-            osc.start(now);
-            osc.stop(now + 0.1);
         } catch (error) {
             console.warn('播放点击音效失败:', error);
         }
     }
     
-    // 播放开始游戏音效
+    // 播放开始游戏音效（单个音符）
     playStartSound() {
+        if (!this.isReady || this.samples.size === 0) {
+            console.warn('钢琴采样尚未加载，无法播放开始音效');
+            return;
+        }
+        
         try {
-            const ctx = this.audioContext;
-            const now = ctx.currentTime;
+            // 播放单个清脆的高音（C6）
+            this.playNote(72, 0.5, 100, 2); // C5，中等时长，最大力度
             
-            const osc = ctx.createOscillator();
-            const gain = ctx.createGain();
-            
-            osc.frequency.value = 1000;
-            gain.gain.setValueAtTime(0.2, now);
-            gain.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
-            
-            osc.connect(gain);
-            gain.connect(this.masterGain);
-            
-            osc.start(now);
-            osc.stop(now + 0.3);
         } catch (error) {
             console.warn('播放开始音效失败:', error);
         }
