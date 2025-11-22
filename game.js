@@ -165,15 +165,17 @@ const GROUND_LENGTH = 100;
 // 统一的移动速度（调整这个值可以改变所有移动速度）
 const moveSpeed = 0.50;
 
-// 固定最高画质配置（无限制）
+// 极致画质配置（追求最佳视觉效果）
 const GRAPHICS_CONFIG = {
     shadowsEnabled: true,
     shadowType: THREE.PCFSoftShadowMap,
-    pixelRatio: window.devicePixelRatio, // 使用设备原生像素比，无限制
-    fogDistance: 120,
-    trailLength: 12,
-    playerSegments: 64, // 提高球体细节
-    trailSegments: 32   // 提高拖尾细节
+    pixelRatio: Math.min(window.devicePixelRatio * 1.5, 3), // 提升像素比，最高3倍
+    fogDistance: 150, // 更远的雾效距离
+    trailLength: 15, // 更长的拖尾
+    playerSegments: 128, // 极高球体细节
+    trailSegments: 64,   // 极高拖尾细节
+    antialias: true,
+    shadowMapSize: 4096 // 4K阴影贴图
 };
 
 // FPS 监控（仅用于显示，不影响画质）
@@ -242,7 +244,7 @@ function init() {
     // 创建场景
     scene = new THREE.Scene();
     // 不设置背景色，让背景透明，显示body的背景图
-    scene.fog = new THREE.Fog(0x000000, 30, 120); // 黑色雾效，更远更平滑的过渡
+    scene.fog = new THREE.Fog(0x000000, 40, GRAPHICS_CONFIG.fogDistance); // 黑色雾效，更远更平滑的过渡
     
     // 创建相机 - 更宽的视角以显示完整的5条轨道
     const aspect = window.innerWidth / window.innerHeight;
@@ -252,11 +254,11 @@ function init() {
     camera.position.set(0, 5.5, 8);
     camera.lookAt(0, 0, -8);
     
-    // 创建渲染器 - 最高画质设置（透明背景）
+    // 创建渲染器 - 极致画质设置（透明背景）
     const canvas = document.getElementById('gameCanvas');
     renderer = new THREE.WebGLRenderer({ 
         canvas: canvas,
-        antialias: true,
+        antialias: GRAPHICS_CONFIG.antialias,
         alpha: true, // 启用透明背景
         powerPreference: "high-performance",
         precision: "highp",
@@ -269,7 +271,8 @@ function init() {
     // 启用高质量渲染
     renderer.sortObjects = true; // 正确排序透明物体
     renderer.toneMapping = THREE.ACESFilmicToneMapping; // 电影级色调映射
-    renderer.toneMappingExposure = 1.0;
+    renderer.toneMappingExposure = 1.2; // 提高曝光度，画面更明亮
+    renderer.outputEncoding = THREE.sRGBEncoding; // 正确的颜色空间
     
     // 设置像素比以提高画质（最高3倍，支持高分辨率屏幕）
     renderer.setPixelRatio(GRAPHICS_CONFIG.pixelRatio);
@@ -278,26 +281,40 @@ function init() {
     // 设置透明背景
     renderer.setClearColor(0x000000, 0); // 完全透明
     
-    // 固定高画质阴影设置
+    // 极致阴影设置
     renderer.shadowMap.enabled = GRAPHICS_CONFIG.shadowsEnabled;
     renderer.shadowMap.type = GRAPHICS_CONFIG.shadowType;
+    renderer.shadowMap.autoUpdate = true; // 自动更新阴影
     
-    // 添加光源 - 极简风格
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.3); // 降低环境光
+    // 添加光源 - 增强氛围
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.4); // 提高环境光
     scene.add(ambientLight);
     
-    // 主光源（从上方照射）
-    const directionalLight = new THREE.DirectionalLight(0xffffff, 0.5);
-    directionalLight.position.set(0, 15, 0);
+    // 主光源（从上方照射）- 增强亮度
+    const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+    directionalLight.position.set(0, 20, 5);
     directionalLight.castShadow = true;
-    directionalLight.shadow.camera.left = -20;
-    directionalLight.shadow.camera.right = 20;
-    directionalLight.shadow.camera.top = 20;
-    directionalLight.shadow.camera.bottom = -20;
-    directionalLight.shadow.mapSize.width = 4096; // 提高到4K阴影
-    directionalLight.shadow.mapSize.height = 4096;
-    directionalLight.shadow.bias = -0.0001; // 减少阴影瑕疵
+    directionalLight.shadow.camera.left = -25;
+    directionalLight.shadow.camera.right = 25;
+    directionalLight.shadow.camera.top = 25;
+    directionalLight.shadow.camera.bottom = -25;
+    directionalLight.shadow.camera.near = 0.5;
+    directionalLight.shadow.camera.far = 50;
+    directionalLight.shadow.mapSize.width = GRAPHICS_CONFIG.shadowMapSize;
+    directionalLight.shadow.mapSize.height = GRAPHICS_CONFIG.shadowMapSize;
+    directionalLight.shadow.bias = -0.0001;
+    directionalLight.shadow.radius = 2; // 柔和阴影边缘
     scene.add(directionalLight);
+    
+    // 添加补光（从前方，减少阴影过暗）
+    const fillLight = new THREE.DirectionalLight(0xaaccff, 0.3);
+    fillLight.position.set(0, 5, 10);
+    scene.add(fillLight);
+    
+    // 添加背光（从后方，增加轮廓光）
+    const backLight = new THREE.DirectionalLight(0xffccaa, 0.2);
+    backLight.position.set(0, 5, -10);
+    scene.add(backLight);
     
     // 取消点光源，避免白色光柱
     window.playerLight = null;
@@ -887,8 +904,8 @@ function getSharedEdgeMaterial() {
         sharedEdgeMaterial = new THREE.LineBasicMaterial({ 
             color: 0xffffff,
             transparent: true,
-            opacity: 0.9,
-            linewidth: 2
+            opacity: 1.0, // 完全不透明
+            linewidth: 3 // 更粗的边缘
         });
     }
     return sharedEdgeMaterial;
@@ -917,7 +934,7 @@ function getSharedGeometry(isTall) {
     }
 }
 
-// 创建音符方块（优化版 - 共享几何体，独立材质）
+// 创建音符方块（优化版 - 共享几何体，增强材质）
 function createNoteBlock(noteData) {
     // 使用预先分配的高度
     const isTall = noteData.isTall;
@@ -927,15 +944,16 @@ function createNoteBlock(noteData) {
     // 使用共享几何体（减少内存）
     const geometries = getSharedGeometry(isTall);
     
-    // 为每个方块创建独立的材质副本（避免共享材质导致的颜色问题）
+    // 为每个方块创建独立的材质副本（增强视觉效果）
     const material = new THREE.MeshStandardMaterial({ 
-        color: 0x1a1a1a, // 深黑色
-        metalness: 0.9,
-        roughness: 0.2,
-        transparent: true, // 启用透明度，用于触发效果
-        opacity: 1.0, // 初始完全不透明
-        emissive: 0x0a0a0a,
-        emissiveIntensity: 0.2
+        color: 0x0a0a0a, // 更深的黑色
+        metalness: 0.95, // 更高金属度
+        roughness: 0.15, // 更光滑
+        transparent: true,
+        opacity: 1.0,
+        emissive: 0x1a1a2e, // 深蓝色发光
+        emissiveIntensity: 0.3,
+        envMapIntensity: 1.5 // 增强环境反射
     });
     
     const noteBlock = new THREE.Mesh(geometries.block, material);
@@ -969,14 +987,16 @@ function createNoteBlock(noteData) {
 
 // 创建地面
 function createGround() {
-    // 极简风格：深蓝灰色地面
+    // 增强地面视觉效果
     const groundGeometry = new THREE.PlaneGeometry(LANES * LANE_WIDTH, GROUND_LENGTH);
     const groundMaterial = new THREE.MeshStandardMaterial({ 
         color: 0x1a1a2e, // 深蓝灰色
-        roughness: 0.3,
-        metalness: 0.8,
+        roughness: 0.2, // 更光滑
+        metalness: 0.9, // 更高金属度
         transparent: true,
-        opacity: 0.9
+        opacity: 0.95,
+        emissive: 0x0a0a1a, // 微弱发光
+        emissiveIntensity: 0.1
     });
     
     for (let i = 0; i < 3; i++) {
@@ -988,11 +1008,11 @@ function createGround() {
         ground.push(groundMesh);
     }
     
-    // 添加轨道线（深灰色，低调）
+    // 添加轨道线（增强视觉效果）
     const lineMaterial = new THREE.MeshBasicMaterial({ 
-        color: 0x444444, // 深灰色
+        color: 0x555555, // 稍亮的灰色
         transparent: true,
-        opacity: 0.5,
+        opacity: 0.6, // 更明显
         fog: true
     });
     
@@ -1007,9 +1027,9 @@ function createGround() {
     
     // 添加两侧边界线（让5条轨道更明显）
     const edgeMaterial = new THREE.MeshBasicMaterial({
-        color: 0x444444, // 深灰色
+        color: 0x666666, // 更亮的灰色
         transparent: true,
-        opacity: 0.4,
+        opacity: 0.5, // 更明显
         fog: true
     });
     
@@ -1029,13 +1049,13 @@ function createGround() {
     createTriggerLine();
 }
 
-// 创建触发线（纯白色）
+// 创建触发线（增强发光效果）
 function createTriggerLine() {
     const geometry = new THREE.PlaneGeometry(LANES * LANE_WIDTH, 0.3);
     const material = new THREE.MeshBasicMaterial({ 
-        color: 0xffffff, // 纯白色
+        color: 0xffffff,
         transparent: true,
-        opacity: 0.8,
+        opacity: 0.9, // 更明显
         side: THREE.DoubleSide
     });
     triggerLine = new THREE.Mesh(geometry, material);
@@ -1043,8 +1063,20 @@ function createTriggerLine() {
     triggerLine.position.set(0, 0.02, 2);
     scene.add(triggerLine);
     
-    // 取消发光效果和脉动动画
-    window.triggerLineGlow = null;
+    // 添加发光边缘
+    const glowGeometry = new THREE.PlaneGeometry(LANES * LANE_WIDTH, 0.5);
+    const glowMaterial = new THREE.MeshBasicMaterial({
+        color: 0xffffff,
+        transparent: true,
+        opacity: 0.3,
+        side: THREE.DoubleSide
+    });
+    const glow = new THREE.Mesh(glowGeometry, glowMaterial);
+    glow.rotation.x = -Math.PI / 2;
+    glow.position.set(0, 0.01, 2);
+    scene.add(glow);
+    
+    window.triggerLineGlow = glow;
     window.triggerLineMaterial = material;
 }
 
@@ -1053,32 +1085,38 @@ let trailPositions = [];
 const trailLength = 10;
 let trailSpheres = [];
 
-// 创建玩家（半透明白色小球 + 微光边缘）
+// 创建玩家（增强视觉效果的白色小球）
 function createPlayer() {
-    // 固定高画质球体细节
+    // 极致球体细节
     const geometry = new THREE.SphereGeometry(0.25, GRAPHICS_CONFIG.playerSegments, GRAPHICS_CONFIG.playerSegments);
     
     const material = new THREE.MeshStandardMaterial({ 
         color: 0xffffff,
         emissive: 0xffffff,
-        emissiveIntensity: 0.4,
-        metalness: 0.3,
-        roughness: 0.4,
+        emissiveIntensity: 0.6, // 更强发光
+        metalness: 0.5,
+        roughness: 0.2, // 更光滑
         transparent: true,
-        opacity: 0.95
+        opacity: 0.98,
+        envMapIntensity: 1.5 // 增强环境反射
     });
     player = new THREE.Mesh(geometry, material);
     player.position.set(0, 0.25, 0);
     player.castShadow = true;
+    player.receiveShadow = true; // 接收阴影
     scene.add(player);
     
-    // 创建拖尾球体
+    // 创建拖尾球体（增强效果）
     for (let i = 0; i < GRAPHICS_CONFIG.trailLength; i++) {
         const trailGeometry = new THREE.SphereGeometry(0.2, GRAPHICS_CONFIG.trailSegments, GRAPHICS_CONFIG.trailSegments);
-        const trailMaterial = new THREE.MeshBasicMaterial({
-            color: 0xcccccc,
+        const trailMaterial = new THREE.MeshStandardMaterial({
+            color: 0xffffff,
+            emissive: 0xffffff,
+            emissiveIntensity: 0.4,
             transparent: true,
-            opacity: 0
+            opacity: 0,
+            metalness: 0.5,
+            roughness: 0.3
         });
         const trailSphere = new THREE.Mesh(trailGeometry, trailMaterial);
         scene.add(trailSphere);
@@ -1086,16 +1124,18 @@ function createPlayer() {
     }
 }
 
-// 更新拖尾效果
+// 更新拖尾效果（增强视觉）
 function updateTrail() {
     for (let i = 0; i < trailSpheres.length; i++) {
         if (i < trailPositions.length) {
             const pos = trailPositions[trailPositions.length - 1 - i];
             trailSpheres[i].position.set(pos.x, pos.y, pos.z);
-            const opacity = (1 - i / GRAPHICS_CONFIG.trailLength) * 0.8;
+            const opacity = (1 - i / GRAPHICS_CONFIG.trailLength) * 0.9; // 更明显的拖尾
             trailSpheres[i].material.opacity = opacity;
-            const scale = (1 - i / GRAPHICS_CONFIG.trailLength) * 0.8;
+            const scale = (1 - i / GRAPHICS_CONFIG.trailLength) * 0.85;
             trailSpheres[i].scale.setScalar(scale);
+            // 动态调整发光强度
+            trailSpheres[i].material.emissiveIntensity = opacity * 0.5;
         } else {
             trailSpheres[i].material.opacity = 0;
         }
@@ -1754,6 +1794,7 @@ let lastObstacleTime = 0;
 let lastCoinTime = 0;
 let lastUpdateTime = 0;
 let deltaTime = 0;
+let frameCount = 0;
 
 function animate(currentTime) {
     requestAnimationFrame(animate);
@@ -1768,7 +1809,12 @@ function animate(currentTime) {
     // 更新FPS统计
     updateFPS(currentTime);
     
-    // 无需帧率检测和画质调整，浏览器自动适配
+    // 每60帧优化一次渲染器（减少性能开销）
+    frameCount++;
+    if (frameCount % 60 === 0) {
+        // 自动清理未使用的资源
+        renderer.info.reset();
+    }
     
     lastFrameTime = currentTime;
     
@@ -2629,13 +2675,13 @@ dynamicIsland.addEventListener('click', (e) => {
     }
 });
 
-// 创建触发时的光波扩散效果
+// 创建触发时的光波扩散效果（增强版）
 function createTriggerWave(x, z) {
-    const waveGeometry = new THREE.RingGeometry(0.5, 0.8, 32);
+    const waveGeometry = new THREE.RingGeometry(0.5, 0.8, 64); // 更多细节
     const waveMaterial = new THREE.MeshBasicMaterial({
         color: 0xffffff,
         transparent: true,
-        opacity: 0.8,
+        opacity: 1.0, // 更明显
         side: THREE.DoubleSide
     });
     const wave = new THREE.Mesh(waveGeometry, waveMaterial);
@@ -2643,20 +2689,43 @@ function createTriggerWave(x, z) {
     wave.position.set(x, 0.05, z);
     scene.add(wave);
     
-    // 扩散动画
+    // 添加第二层光波（更大范围）
+    const wave2Geometry = new THREE.RingGeometry(0.3, 0.5, 64);
+    const wave2Material = new THREE.MeshBasicMaterial({
+        color: 0xaaccff,
+        transparent: true,
+        opacity: 0.6,
+        side: THREE.DoubleSide
+    });
+    const wave2 = new THREE.Mesh(wave2Geometry, wave2Material);
+    wave2.rotation.x = -Math.PI / 2;
+    wave2.position.set(x, 0.06, z);
+    scene.add(wave2);
+    
+    // 扩散动画（更流畅）
     let scale = 1;
-    let opacity = 0.8;
+    let opacity = 1.0;
+    let scale2 = 1;
+    let opacity2 = 0.6;
     const expandInterval = setInterval(() => {
-        scale += 0.3;
-        opacity -= 0.08;
+        scale += 0.4;
+        opacity -= 0.1;
+        scale2 += 0.5;
+        opacity2 -= 0.06;
+        
         wave.scale.set(scale, scale, 1);
         waveMaterial.opacity = Math.max(0, opacity);
+        wave2.scale.set(scale2, scale2, 1);
+        wave2Material.opacity = Math.max(0, opacity2);
         
-        if (opacity <= 0) {
+        if (opacity <= 0 && opacity2 <= 0) {
             clearInterval(expandInterval);
             scene.remove(wave);
+            scene.remove(wave2);
             waveGeometry.dispose();
             waveMaterial.dispose();
+            wave2Geometry.dispose();
+            wave2Material.dispose();
         }
     }, 30);
     
