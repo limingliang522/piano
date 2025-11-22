@@ -28,6 +28,7 @@ let speedIncreaseRate = 0.000005; // 每帧速度增长率（更缓慢）
 let isCompletingRound = false; // 防止重复触发完成
 let lastCollisionBlock = null; // 记录最后碰撞的黑块
 let blocksCreated = false; // 防止重复创建方块
+let accumulatedDistance = 0; // 累积移动距离（用于精确计算黑块位置）
 
 // MIDI文件列表
 let midiFiles = [];
@@ -871,7 +872,9 @@ function activateVisibleBlocks() {
     while (nextNoteIndex < midiNotes.length) {
         const noteData = midiNotes[nextNoteIndex];
         const bufferDistance = 30;
-        const zPosition = triggerZ - (noteData.time * originalBaseSpeed * 60) - bufferDistance;
+        // 使用累积移动距离（考虑速度变化）
+        const zPosition = triggerZ - (noteData.time * originalBaseSpeed * 60) - bufferDistance + 
+                         accumulatedDistance;
         
         // 如果黑块还在可见范围外，停止激活
         if (zPosition < visibleStart) {
@@ -1042,7 +1045,9 @@ function activateBlock(block, noteData) {
     // 设置位置
     const x = (noteData.lane - 2) * LANE_WIDTH;
     const bufferDistance = 30;
-    const zPosition = 2 - (noteData.time * originalBaseSpeed * 60) - bufferDistance;
+    // 使用累积移动距离（考虑速度变化）
+    const zPosition = 2 - (noteData.time * originalBaseSpeed * 60) - bufferDistance + 
+                     accumulatedDistance;
     block.position.set(x, blockY, zPosition);
     
     // 绑定数据
@@ -1483,8 +1488,12 @@ function updateNoteBlocks() {
     const triggerZ = triggerLine.position.z;
     const triggerWindow = 0.2;
     const playerLane = Math.round(currentLane);
+    // 使用当前的midiSpeed（会渐进式增长）
     const moveSpeed = midiSpeed * 60;
     const visibleStart = triggerZ - VISIBLE_RANGE;
+    
+    // 累积移动距离（用于精确计算新黑块位置）
+    accumulatedDistance += moveSpeed * deltaTime;
     
     // 1. 更新所有激活的黑块
     for (let i = activeBlocks.length - 1; i >= 0; i--) {
@@ -1563,8 +1572,9 @@ function updateNoteBlocks() {
     while (nextNoteIndex < midiNotes.length) {
         const noteData = midiNotes[nextNoteIndex];
         const bufferDistance = 30;
+        // 使用累积移动距离（考虑速度变化）
         const zPosition = triggerZ - (noteData.time * originalBaseSpeed * 60) - bufferDistance + 
-                         (Date.now() / 1000 - gameStartTime) * moveSpeed;
+                         accumulatedDistance;
         
         // 如果黑块还在可见范围外，停止
         if (zPosition < visibleStart) {
@@ -1699,6 +1709,9 @@ function restartRound() {
         note.collided = false;
     });
     
+    // 重置累积距离
+    accumulatedDistance = 0;
+    
     // 重新激活黑块
     gameStartTime = Date.now() / 1000;
     activateVisibleBlocks();
@@ -1818,6 +1831,7 @@ function restart() {
     speedMultiplier = 1.0;
     isCompletingRound = false;
     midiSpeed = originalBaseSpeed;
+    accumulatedDistance = 0;
     
     // 重置音符状态
     midiNotes.forEach(note => {
@@ -1898,7 +1912,8 @@ function animate(currentTime) {
     
     // 如果有MIDI音符，更新音符方块；否则更新普通障碍物
     if (midiNotes.length > 0) {
-        // 禁用速度增长，以后才缓慢增加速度
+        // 第一轮：speedMultiplier = 1.0，完美还原MIDI，不增长速度
+        // 第二轮开始：speedMultiplier > 1.0，渐进式增长速度
         if (starsEarned > 0) {
             midiSpeed += speedIncreaseRate * speedMultiplier;
         }
@@ -2175,6 +2190,7 @@ async function loadAndStartNewMidi() {
     speedMultiplier = 1.0;
     isCompletingRound = false;
     midiSpeed = originalBaseSpeed;
+    accumulatedDistance = 0;
     
     player.position.set(0, groundY, 0);
     player.scale.set(1, 1, 1);
@@ -2521,6 +2537,7 @@ async function selectMidi(index) {
     starsEarned = 0;
     speedMultiplier = 1.0;
     isCompletingRound = false;
+    accumulatedDistance = 0;
     
     // 重置玩家位置
     player.position.set(0, groundY, 0);
