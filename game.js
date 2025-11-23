@@ -20,9 +20,9 @@ let gameStartTime = 0;
 let notesTriggered = 0;
 let totalNotes = 0;
 let collisions = 0;
-let midiSpeed = 0.15; // MIDI模式的当前速度
-let originalBaseSpeed = 0.15; // 原始基础速度（永远不变）
-let speedMultiplier = 1.0; // 速度倍数
+let midiSpeed = 0.15; // MIDI模式的当前速度（仅用于显示，实际计算使用 originalBaseSpeed * speedMultiplier）
+let originalBaseSpeed = 0.15; // 原始基础速度（永远不变，作为速度计算的基准）
+let speedMultiplier = 1.0; // 速度倍数（音频和黑块共用的唯一加速度源）
 let starsEarned = 0; // 获得的星星数
 let speedIncreaseRate = 0.000005; // 每帧速度增长率（更缓慢）
 let isCompletingRound = false; // 防止重复触发完成
@@ -753,22 +753,26 @@ function startMIDIGame() {
     gameRunning = true;
     gameStartTime = Date.now() / 1000;
     
-    // 简化的音频对齐逻辑：
-    // 黑块初始位置：z = 2 - (noteTime * originalBaseSpeed * 60)
-    // 黑块移动速度：midiSpeed * 60 = originalBaseSpeed * speedMultiplier * 60
+    // === 音频和黑块同步系统 ===
+    // 核心原则：音频和黑块共用同一个时间源和加速度（speedMultiplier）
+    //
+    // 1. 黑块初始位置：z = 2 - (noteTime * originalBaseSpeed * 60)
+    // 2. 黑块移动速度：originalBaseSpeed * speedMultiplier * 60（每秒移动的距离）
+    // 3. 音频播放速度：speedMultiplier（通过 playbackRate 控制）
+    //
     // 黑块到达触发线需要的游戏时间：
     //   distance = noteTime * originalBaseSpeed * 60
     //   time = distance / (originalBaseSpeed * speedMultiplier * 60)
     //        = noteTime / speedMultiplier
     //
-    // 我们希望：游戏开始后 noteTime 秒，黑块到达触发线，音频播放到 noteTime
-    // 所以：audioStartTime + gameTime = noteTime
-    // 其中 gameTime = noteTime / speedMultiplier
-    // 所以：audioStartTime = noteTime - noteTime / speedMultiplier
-    //                      = noteTime * (1 - 1/speedMultiplier)
+    // 音频对齐计算：
+    //   audioStartTime + gameTime = noteTime
+    //   其中 gameTime = noteTime / speedMultiplier
+    //   所以 audioStartTime = noteTime * (1 - 1/speedMultiplier)
     //
-    // 当 speedMultiplier = 1.0 时，audioStartTime = 0（从头播放）
-    // 当 speedMultiplier = 2.0 时，audioStartTime = noteTime * 0.5（从中间播放）
+    // 示例：
+    //   speedMultiplier = 1.0x → audioStartTime = 0（从头播放）
+    //   speedMultiplier = 2.0x → audioStartTime = noteTime * 0.5（从中间播放）
     
     let audioStartTime = 0;
     if (midiNotes.length > 0) {
@@ -932,14 +936,17 @@ function createNoteBlock(noteData) {
     noteBlock.add(edges);
     
     const x = (noteData.lane - 2) * LANE_WIDTH;
-    // 根据MIDI时间计算初始Z位置
-    // 触发线在z=2
-    // 黑块应该在 noteData.time / speedMultiplier 秒后到达触发线
-    // 黑块移动速度：midiSpeed * 60 = originalBaseSpeed * speedMultiplier * 60 (每秒移动的距离)
-    // 移动距离：distance = speed * time = (originalBaseSpeed * speedMultiplier * 60) * (noteData.time / speedMultiplier)
-    //                                    = originalBaseSpeed * 60 * noteData.time
-    // 所以初始位置：z = 2 - distance = 2 - (noteData.time * originalBaseSpeed * 60)
-    // 这个公式与 speedMultiplier 无关，因为速度和时间的变化相互抵消了
+    // === 黑块初始位置计算（基于统一时间控制系统）===
+    // 触发线位置：z = 2
+    // 黑块到达触发线需要的游戏时间：noteData.time / speedMultiplier
+    // 黑块移动速度：originalBaseSpeed * speedMultiplier * 60（每秒移动的距离）
+    // 移动距离：distance = speed × time
+    //                    = (originalBaseSpeed * speedMultiplier * 60) × (noteData.time / speedMultiplier)
+    //                    = originalBaseSpeed * 60 * noteData.time
+    // 初始位置：z = 2 - distance = 2 - (noteData.time * originalBaseSpeed * 60)
+    // 
+    // 注意：初始位置与 speedMultiplier 无关，因为速度和时间的变化相互抵消
+    //      这确保了无论速度如何变化，黑块都能在正确的时间到达触发线
     const zPosition = 2 - (noteData.time * originalBaseSpeed * 60);
     noteBlock.position.set(x, blockY, zPosition);
     
@@ -1374,8 +1381,11 @@ function updateNoteBlocks() {
     const triggerWindow = 0.2; // 触发窗口
     const playerLane = Math.round(currentLane);
     
-    // 基于时间的移动速度（每秒移动的距离）
-    const moveSpeed = midiSpeed * 60; // 转换为每秒的速度
+    // === 统一时间控制系统 ===
+    // 黑块移动速度直接使用 originalBaseSpeed * speedMultiplier
+    // 这与音频播放速度（playbackRate = speedMultiplier）完全一致
+    // 确保音频和黑块使用相同的加速度，实现完美同步
+    const moveSpeed = originalBaseSpeed * speedMultiplier * 60; // 每秒移动的距离
     
     // 定义迷雾边缘（视野范围）
     const fogEdgeZ = -50; // 迷雾边缘的Z坐标
@@ -1570,10 +1580,10 @@ function completeRound() {
     // 获得一颗星
     starsEarned++;
     
-    // 提升速度倍数
+    // 提升速度倍数（音频和黑块共用此加速度）
     speedMultiplier *= 1.25;
     
-    // 更新当前速度为：原始速度 × 倍数
+    // 更新显示用的速度值（实际计算直接使用 originalBaseSpeed * speedMultiplier）
     midiSpeed = originalBaseSpeed * speedMultiplier;
     
     // 直接继续下一轮，不显示提示
@@ -1610,9 +1620,9 @@ async function restartRound() {
         // 确保游戏继续运行
         gameRunning = true;
         
-        // 更新 midiSpeed 以匹配 speedMultiplier
+        // 更新显示用的速度值（音频和黑块都使用 speedMultiplier 作为唯一加速度源）
         midiSpeed = originalBaseSpeed * speedMultiplier;
-        console.log(`🎮 更新速度：midiSpeed = ${midiSpeed.toFixed(4)}, speedMultiplier = ${speedMultiplier.toFixed(2)}x`);
+        console.log(`🎮 统一速度控制：originalBaseSpeed = ${originalBaseSpeed.toFixed(4)}, speedMultiplier = ${speedMultiplier.toFixed(2)}x`);
         
         // 重新播放背景音乐（计算提前播放时间）
         if (audioEngine && audioEngine.bgmBuffer) {
@@ -1919,10 +1929,8 @@ function animate(currentTime) {
     
     // 如果有MIDI音符，更新音符方块；否则更新普通障碍物
     if (midiNotes.length > 0) {
-        // 使用 speedMultiplier 来控制速度，不再逐帧增长
-        // midiSpeed 应该始终等于 originalBaseSpeed * speedMultiplier
-        midiSpeed = originalBaseSpeed * speedMultiplier;
-        
+        // 音频和黑块共用同一个时间源和加速度
+        // 不需要在这里更新 midiSpeed，因为 updateNoteBlocks 直接使用 originalBaseSpeed * speedMultiplier
         updateNoteBlocks();
     } else {
         updateObstacles();
