@@ -749,47 +749,47 @@ function startMIDIGame() {
     dynamicIsland.classList.remove('expanded');
     isIslandExpanded = false;
     
-    // 方块已经创建完成，准备启动游戏
-    // 注意：先不设置 gameRunning = true，等音频播放后再启动
+    // 立即启动游戏（方块已经创建完成）
+    gameRunning = true;
+    gameStartTime = Date.now() / 1000;
     
-    // 音频对齐逻辑：
+    // 简化的音频对齐逻辑：
     // 黑块初始位置：z = 2 - (noteTime * originalBaseSpeed * 60)
-    // 黑块移动速度：originalBaseSpeed * speedMultiplier * 60
+    // 黑块移动速度：midiSpeed * 60 = originalBaseSpeed * speedMultiplier * 60
     // 黑块到达触发线需要的游戏时间：
     //   distance = noteTime * originalBaseSpeed * 60
     //   time = distance / (originalBaseSpeed * speedMultiplier * 60)
     //        = noteTime / speedMultiplier
     //
-    // 音频以 speedMultiplier 倍速播放
-    // 游戏开始后 gameTime 秒，音频播放到：audioStartTime + gameTime * speedMultiplier
-    // 我们希望：当黑块到达触发线时，音频播放到 noteTime
-    // 所以：audioStartTime + (noteTime / speedMultiplier) * speedMultiplier = noteTime
-    //      audioStartTime + noteTime = noteTime
-    //      audioStartTime = 0
+    // 我们希望：游戏开始后 noteTime 秒，黑块到达触发线，音频播放到 noteTime
+    // 所以：audioStartTime + gameTime = noteTime
+    // 其中 gameTime = noteTime / speedMultiplier
+    // 所以：audioStartTime = noteTime - noteTime / speedMultiplier
+    //                      = noteTime * (1 - 1/speedMultiplier)
     //
-    // 所以音频始终从 0 秒开始播放！
+    // 当 speedMultiplier = 1.0 时，audioStartTime = 0（从头播放）
+    // 当 speedMultiplier = 2.0 时，audioStartTime = noteTime * 0.5（从中间播放）
     
     let audioStartTime = 0;
     if (midiNotes.length > 0) {
         const firstNoteTime = midiNotes[0].time;
         
-        // 黑块到达触发线需要的游戏时间
+        // 计算黑块到达触发线需要的游戏时间
         const gameTimeToTrigger = firstNoteTime / speedMultiplier;
+        
+        // 计算音频开始时间
+        audioStartTime = firstNoteTime - gameTimeToTrigger;
         
         console.log(`🎵 第一个音符时间: ${firstNoteTime.toFixed(2)}秒`);
         console.log(`⏱️ 黑块到达触发线需要: ${gameTimeToTrigger.toFixed(2)}秒游戏时间`);
-        console.log(`🎵 音频从 0 秒开始播放，速度: ${speedMultiplier.toFixed(2)}x`);
-        console.log(`🚀 黑块移动速度：originalBaseSpeed * speedMultiplier = ${(originalBaseSpeed * speedMultiplier).toFixed(4)}`);
+        console.log(`🎵 音频从 ${audioStartTime.toFixed(2)}秒 开始播放`);
         console.log(`✅ 预期：游戏开始后 ${gameTimeToTrigger.toFixed(2)}秒，黑块到达触发线，音频播放到 ${firstNoteTime.toFixed(2)}秒`);
     }
     
-    // 从0秒开始播放背景音乐，使用speedMultiplier倍速
+    // 从计算出的时间开始播放背景音乐
     if (audioEngine && audioEngine.bgmBuffer) {
-        // 重要：在播放音频之前重新设置 gameStartTime，确保同步
-        gameStartTime = Date.now() / 1000;
         audioEngine.playBGM(audioStartTime, speedMultiplier);
         console.log(`🎵 背景音乐开始播放，速度: ${speedMultiplier.toFixed(2)}x`);
-        console.log(`🎮 gameStartTime 已同步: ${gameStartTime.toFixed(2)}`);
     }
     
     console.log('� 游戏启动！方块数量:间', noteObjects.length);
@@ -934,11 +934,12 @@ function createNoteBlock(noteData) {
     const x = (noteData.lane - 2) * LANE_WIDTH;
     // 根据MIDI时间计算初始Z位置
     // 触发线在z=2
-    // 黑块移动速度：originalBaseSpeed * 60 (固定速度，不受speedMultiplier影响)
-    // 黑块应该在 noteData.time 秒后到达触发线（游戏时间）
-    // 移动距离：distance = speed * time = (originalBaseSpeed * 60) * noteData.time
+    // 黑块应该在 noteData.time / speedMultiplier 秒后到达触发线
+    // 黑块移动速度：midiSpeed * 60 = originalBaseSpeed * speedMultiplier * 60 (每秒移动的距离)
+    // 移动距离：distance = speed * time = (originalBaseSpeed * speedMultiplier * 60) * (noteData.time / speedMultiplier)
+    //                                    = originalBaseSpeed * 60 * noteData.time
     // 所以初始位置：z = 2 - distance = 2 - (noteData.time * originalBaseSpeed * 60)
-    // 注意：黑块移动速度固定，只有音频播放速度会变化
+    // 这个公式与 speedMultiplier 无关，因为速度和时间的变化相互抵消了
     const zPosition = 2 - (noteData.time * originalBaseSpeed * 60);
     noteBlock.position.set(x, blockY, zPosition);
     
@@ -1374,8 +1375,7 @@ function updateNoteBlocks() {
     const playerLane = Math.round(currentLane);
     
     // 基于时间的移动速度（每秒移动的距离）
-    // 注意：黑块移动速度需要随speedMultiplier变化，以保持与音频同步
-    const moveSpeed = originalBaseSpeed * speedMultiplier * 60; // 转换为每秒的速度
+    const moveSpeed = midiSpeed * 60; // 转换为每秒的速度
     
     // 定义迷雾边缘（视野范围）
     const fogEdgeZ = -50; // 迷雾边缘的Z坐标
@@ -1582,9 +1582,6 @@ function completeRound() {
 
 // 重新开始一轮（不重置星星和速度）
 async function restartRound() {
-    // 立即暂停游戏，防止黑块在创建过程中提前移动
-    gameRunning = false;
-    
     // 不显示加载界面，因为音频资源已经在内存中
     
     try {
@@ -1600,51 +1597,48 @@ async function restartRound() {
                     note.collided = false;
                 });
                 
-                // 不在这里设置 gameStartTime，等到播放音频前再设置
+                gameStartTime = Date.now() / 1000;
                 isCompletingRound = false;
                 
                 resolve();
             });
         });
         
-        // 注意：黑块移动速度和音频播放速度都随 speedMultiplier 变化
-        console.log(`🎮 新一轮速度：speedMultiplier = ${speedMultiplier.toFixed(2)}x`);
-        console.log(`🎮 黑块移动速度：originalBaseSpeed * speedMultiplier = ${(originalBaseSpeed * speedMultiplier).toFixed(4)}`);
-        
         // 重新创建音符方块（不显示进度）
         await createAllNoteBlocksWithProgress();
         
-        // 重新播放背景音乐（从0秒开始，使用新的速度倍数）
+        // 确保游戏继续运行
+        gameRunning = true;
+        
+        // 更新 midiSpeed 以匹配 speedMultiplier
+        midiSpeed = originalBaseSpeed * speedMultiplier;
+        console.log(`🎮 更新速度：midiSpeed = ${midiSpeed.toFixed(4)}, speedMultiplier = ${speedMultiplier.toFixed(2)}x`);
+        
+        // 重新播放背景音乐（计算提前播放时间）
         if (audioEngine && audioEngine.bgmBuffer) {
             audioEngine.stopBGM();
             
-            // 重要：在播放音频之前重新设置 gameStartTime，确保同步
-            gameStartTime = Date.now() / 1000;
-            
+            let audioStartTime = 0;
             if (midiNotes.length > 0) {
                 const firstNoteTime = midiNotes[0].time;
+                
+                // 计算黑块到达触发线需要的游戏时间
                 const gameTimeToTrigger = firstNoteTime / speedMultiplier;
                 
+                // 计算音频开始时间
+                audioStartTime = firstNoteTime - gameTimeToTrigger;
+                
                 console.log(`🎵 新一轮对齐计算：`);
-                console.log(`   gameStartTime 已重置: ${gameStartTime.toFixed(2)}`);
                 console.log(`   第一个音符时间: ${firstNoteTime.toFixed(2)}秒`);
                 console.log(`   速度倍数: ${speedMultiplier.toFixed(2)}x`);
-                console.log(`   midiSpeed: ${midiSpeed.toFixed(4)}`);
                 console.log(`   黑块到达触发线需要: ${gameTimeToTrigger.toFixed(2)}秒`);
-                console.log(`   音频开始时间: 0 秒`);
+                console.log(`   音频开始时间: ${audioStartTime.toFixed(2)}秒`);
                 console.log(`   音频播放速度: ${speedMultiplier.toFixed(2)}x`);
                 console.log(`   预期：${gameTimeToTrigger.toFixed(2)}秒后，黑块到达触发线，音频播放到 ${firstNoteTime.toFixed(2)}秒`);
             }
             
-            // 延迟12.0秒后播放音频，确保黑块和音频完美对齐
-            await new Promise(resolve => setTimeout(resolve, 12000));
-            
-            // 始终从0秒开始播放，使用当前速度倍数
-            audioEngine.playBGM(0, speedMultiplier);
+            audioEngine.playBGM(audioStartTime, speedMultiplier);
         }
-        
-        // 确保游戏继续运行（在音频播放之后）
-        gameRunning = true;
         
         // 更新UI
         scoreElement.textContent = `⭐ ${starsEarned} | 音符: 0/${totalNotes}`;
@@ -1745,9 +1739,6 @@ function continueGame() {
 
 // 重新开始
 async function restart() {
-    // 立即暂停游戏，防止黑块在创建过程中提前移动
-    gameRunning = false;
-    
     // 显示加载界面
     loadingElement.style.display = 'flex';
     
@@ -1858,10 +1849,22 @@ async function restart() {
         gameRunning = true;
         gameStartTime = Date.now() / 1000;
         
-        // 播放背景音乐（从0秒开始，1.0x速度）
+        // 播放背景音乐（计算提前播放时间）
         if (audioEngine && audioEngine.bgmBuffer) {
-            console.log(`🎵 重新开始：音频从 0 秒开始，速度: 1.0x`);
-            audioEngine.playBGM(0, 1.0);
+            let audioStartTime = 0;
+            if (midiNotes.length > 0) {
+                const firstNoteTime = midiNotes[0].time;
+                
+                // 计算黑块到达触发线需要的游戏时间（速度重置为1.0x）
+                const gameTimeToTrigger = firstNoteTime / 1.0;
+                
+                // 计算音频开始时间
+                audioStartTime = firstNoteTime - gameTimeToTrigger;
+                
+                console.log(`🎵 重新开始：音频从 ${audioStartTime.toFixed(2)}秒 开始`);
+            }
+            
+            audioEngine.playBGM(audioStartTime, 1.0);
         }
         
     } catch (error) {
@@ -1916,7 +1919,7 @@ function animate(currentTime) {
     
     // 如果有MIDI音符，更新音符方块；否则更新普通障碍物
     if (midiNotes.length > 0) {
-        // 黑块移动速度始终使ultiplier 来控制速度，不再逐帧增长
+        // 使用 speedMultiplier 来控制速度，不再逐帧增长
         // midiSpeed 应该始终等于 originalBaseSpeed * speedMultiplier
         midiSpeed = originalBaseSpeed * speedMultiplier;
         
