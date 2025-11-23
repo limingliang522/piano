@@ -1453,9 +1453,13 @@ function updateNoteBlocks() {
             }
         }
         
-        // 检查是否到达触发线（自动触发）
-        if (!noteData.triggered && noteBlock.position.z >= triggerZ - triggerWindow && 
-            noteBlock.position.z <= triggerZ + triggerWindow) {
+        // 检查是否通过触发线（自动触发）
+        // 记录上一帧的位置，检测是否刚刚通过触发线
+        const lastZ = noteBlock.userData.lastZ || -1000;
+        noteBlock.userData.lastZ = noteBlock.position.z;
+        
+        // 如果上一帧在触发线前面，这一帧在触发线后面，说明刚刚通过
+        if (!noteData.triggered && lastZ < triggerZ && noteBlock.position.z >= triggerZ) {
             
             noteData.triggered = true;
             notesTriggered++;
