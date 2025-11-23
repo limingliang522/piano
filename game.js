@@ -751,7 +751,8 @@ function startMIDIGame() {
     
     // 立即启动游戏（方块已经创建完成）
     gameRunning = true;
-    gameStartTime = Date.now() / 1000;
+    // 使用音频时钟作为游戏时间基准，确保完美同步
+    gameStartTime = audioEngine.audioContext.currentTime;
     
     // === 音频和黑块同步系统 ===
     // 核心原则：音频和黑块共用同一个时间源和加速度（speedMultiplier）
@@ -1381,11 +1382,9 @@ function updateNoteBlocks() {
     const triggerWindow = 0.2; // 触发窗口
     const playerLane = Math.round(currentLane);
     
-    // === 统一时间控制系统 ===
-    // 黑块移动速度直接使用 originalBaseSpeed * speedMultiplier
-    // 这与音频播放速度（playbackRate = speedMultiplier）完全一致
-    // 确保音频和黑块使用相同的加速度，实现完美同步
-    const moveSpeed = originalBaseSpeed * speedMultiplier * 60; // 每秒移动的距离
+    // === 统一时间控制系统（使用音频时钟消除累积误差）===
+    // 使用音频时钟计算当前游戏时间，而不是累积 deltaTime
+    const currentGameTime = audioEngine.audioContext.currentTime - gameStartTime;
     
     // 定义迷雾边缘（视野范围）
     const fogEdgeZ = -50; // 迷雾边缘的Z坐标
@@ -1393,7 +1392,17 @@ function updateNoteBlocks() {
     
     for (let i = noteObjects.length - 1; i >= 0; i--) {
         const noteBlock = noteObjects[i];
-        noteBlock.position.z += moveSpeed * deltaTime; // 基于时间移动
+        const noteData = noteBlock.userData.noteData;
+        
+        // 基于音频时钟计算黑块的精确位置（消除累积误差）
+        // 黑块应该在 noteData.time / speedMultiplier 秒后到达触发线
+        // 当前已经过了 currentGameTime 秒
+        // 剩余时间 = noteData.time / speedMultiplier - currentGameTime
+        // 黑块位置 = 触发线位置 - (剩余时间 × 移动速度)
+        const timeToTrigger = noteData.time / speedMultiplier;
+        const remainingTime = timeToTrigger - currentGameTime;
+        const moveSpeed = originalBaseSpeed * speedMultiplier * 60;
+        noteBlock.position.z = triggerZ - (remainingTime * moveSpeed);
         
         // 检查是否进入视野范围（到达迷雾边缘）
         if (!noteBlock.userData.isRendered && noteBlock.position.z >= fogEdgeZ - renderDistance) {
@@ -1403,8 +1412,6 @@ function updateNoteBlocks() {
             scene.add(noteBlock);
             console.log(`🎨 黑块进入视野: z=${noteBlock.position.z.toFixed(2)}`);
         }
-        
-        const noteData = noteBlock.userData.noteData;
         
         // 检查是否与玩家碰撞
         if (!noteData.collided && noteData.lane === playerLane) {
@@ -1607,7 +1614,8 @@ async function restartRound() {
                     note.collided = false;
                 });
                 
-                gameStartTime = Date.now() / 1000;
+                // 使用音频时钟作为游戏时间基准
+                gameStartTime = audioEngine.audioContext.currentTime;
                 isCompletingRound = false;
                 
                 resolve();
@@ -1833,7 +1841,8 @@ async function restart() {
         // 步骤3：重新创建音符方块
         restartLoader.updateProgress(2);
         if (midiNotes.length > 0) {
-            gameStartTime = Date.now() / 1000;
+            // 使用音频时钟作为游戏时间基准
+            gameStartTime = audioEngine.audioContext.currentTime;
             
             // 重新创建所有方块（带进度）
             await createAllNoteBlocksWithProgress((progress) => {
@@ -1857,7 +1866,8 @@ async function restart() {
         
         // 开始游戏
         gameRunning = true;
-        gameStartTime = Date.now() / 1000;
+        // 使用音频时钟作为游戏时间基准
+        gameStartTime = audioEngine.audioContext.currentTime;
         
         // 播放背景音乐（计算提前播放时间）
         if (audioEngine && audioEngine.bgmBuffer) {
@@ -2669,8 +2679,7 @@ async function selectMidi(index) {
                 // 隐藏加载界面
                 loadingElement.style.display = 'none';
                 
-                // 开始游戏
-                gameStartTime = Date.now() / 1000;
+                // 开始游戏（startMIDIGame 会设置 gameStartTime）
                 midiSpeed = originalBaseSpeed;
                 startMIDIGame();
                 
