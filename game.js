@@ -1628,6 +1628,12 @@ async function restartRound() {
                 // 计算音频开始时间
                 audioStartTime = firstNoteTime - gameTimeToTrigger;
                 
+                // 从第二轮开始，每一轮推迟1秒
+                if (starsEarned >= 2) {
+                    audioStartTime += 1.0;
+                    console.log(`⏰ 第 ${starsEarned} 轮：音频开始时间推迟1秒`);
+                }
+                
                 console.log(`🎵 新一轮对齐计算：`);
                 console.log(`   第一个音符时间: ${firstNoteTime.toFixed(2)}秒`);
                 console.log(`   速度倍数: ${speedMultiplier.toFixed(2)}x`);
