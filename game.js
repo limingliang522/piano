@@ -1806,6 +1806,11 @@ function completeGame() {
     
     document.getElementById('finalScore').textContent = `完美通关！🎉`;
     document.getElementById('finalDistance').textContent = `准确率: ${accuracy}% | 触发: ${notesTriggered}/${totalNotes}`;
+    
+    // 保存成绩到云端
+    if (typeof saveGameScore === 'function') {
+        saveGameScore();
+    }
 }
 
 // 游戏结束（碰撞死亡）
@@ -1824,6 +1829,11 @@ function gameOver() {
     
     document.getElementById('finalScore').textContent = `游戏结束！`;
     document.getElementById('finalDistance').textContent = `准确率: ${accuracy}% | 触发: ${notesTriggered}/${totalNotes}`;
+    
+    // 保存成绩到云端
+    if (typeof saveGameScore === 'function') {
+        saveGameScore();
+    }
 }
 
 
