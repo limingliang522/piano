@@ -178,32 +178,9 @@
             margin-bottom: 4px;
         }
 
-        /* 开发模式切换按钮 */
+        /* 开发模式切换按钮（已隐藏） */
         #devModeToggle {
-            position: fixed;
-            bottom: 10px;
-            right: 10px;
-            background: rgba(0, 0, 0, 0.7);
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            border-radius: 8px;
-            padding: 8px 12px;
-            color: #fff;
-            font-size: 11px;
-            cursor: pointer;
-            pointer-events: auto;
-            z-index: 1000;
-            transition: all 0.3s;
-        }
-
-        #devModeToggle:hover {
-            background: rgba(0, 0, 0, 0.9);
-            border-color: rgba(102, 126, 234, 0.6);
-        }
-
-        #devModeToggle.active {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            border-color: rgba(255, 255, 255, 0.4);
+            display: none !important;
         }
 
         #combo {
@@ -1352,8 +1329,8 @@
             </div>
         </div>
 
-        <!-- 开发模式切换按钮 -->
-        <button id="devModeToggle">🔧 开发模式</button>
+        <!-- 开发模式切换按钮（已隐藏） -->
+        <!-- <button id="devModeToggle">🔧 开发模式</button> -->
 
         <!-- 灵动岛式 MIDI 选择器 -->
         <div id="dynamicIsland">
@@ -1372,7 +1349,6 @@
             
             <!-- 认证界面 -->
             <div class="island-auth-content" id="authContent">
-                <div class="auth-welcome">🎹 钢琴跑酷</div>
                 <div class="auth-tabs">
                     <div class="auth-tab active" data-auth-tab="login">登录</div>
                     <div class="auth-tab" data-auth-tab="register">注册</div>

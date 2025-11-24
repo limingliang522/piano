@@ -1732,8 +1732,8 @@ function updateNoteBlocks() {
             noteBlock.material.emissive = new THREE.Color(0xffffff);
             noteBlock.material.emissiveIntensity = 1.0;
             
-            // 创建触发时的光波扩散效果
-            createTriggerWave(noteBlock.position.x, noteBlock.position.z);
+            // 创建触发时的光波扩散效果（已禁用）
+            // createTriggerWave(noteBlock.position.x, noteBlock.position.z);
             
             // 触发效果：放大并淡出
             // 先清除之前的动画（如果存在）
