@@ -1,14 +1,19 @@
 // Three.js 场景设置
 let scene, camera, renderer;
 let player, ground = [];
-let obstacles = [];
-let coins = [];
 let gameRunning = false;
 let score = 0;
-let distance = 0;
-let speed = 0.3;
 let currentLane = 2;
 let targetLane = 2;
+
+// 渲染系统管理器
+let renderManager = null;
+
+// 对象池
+let noteBlockPool = null;
+
+// LOD配置将从render-system.js的全局变量中获取
+// 不需要在这里重新声明
 
 // MIDI 音乐系统
 let midiParser = null;
@@ -17,13 +22,14 @@ let midiNotes = [];
 let noteObjects = [];
 let triggerLine = null;
 let gameStartTime = 0;
+let gamePausedTime = 0; // 游戏暂停时的时间点
+let totalPausedDuration = 0; // 累计暂停的总时长
 let notesTriggered = 0;
 let totalNotes = 0;
 let collisions = 0;
 let midiSpeed = 0.15; // MIDI模式的当前速度（仅用于显示，实际计算使用 originalBaseSpeed * speedMultiplier）
 let originalBaseSpeed = 0.15; // 原始基础速度（永远不变，作为速度计算的基准）
 let speedMultiplier = 1.0; // 速度倍数（音频和黑块共用的唯一加速度源）
-let starsEarned = 0; // 获得的星星数
 let speedIncreaseRate = 0.000005; // 每帧速度增长率（更缓慢）
 let isCompletingRound = false; // 防止重复触发完成
 let lastCollisionBlock = null; // 记录最后碰撞的黑块
@@ -71,7 +77,6 @@ const loadingManager = {
     tips: [
         '💡 点击屏幕跳跃，左右滑动切换轨道',
         '🎵 每首歌曲都有独特的节奏挑战',
-        '⭐ 完成一轮可以获得星星并提升速度',
         '🎹 使用真实钢琴音色，享受极致音质',
         '🎮 支持键盘操作：方向键移动，空格跳跃',
         '🌟 超高黑块需要跳跃躲避',
@@ -144,16 +149,39 @@ const midiList = document.getElementById('midiList');
 let isIslandExpanded = true; // 初始状态为展开
 let wasGameRunningBeforePause = false; // 记录暂停前的游戏状态
 
+// 用户认证状态
+let isAuthenticated = false;
+let currentUser = null;
+
 // 资源加载完成后展开灵动岛
 let resourcesLoaded = false;
+let isFirstLoad = true; // 标记是否首次加载
 function onResourcesLoaded() {
     resourcesLoaded = true;
-    setTimeout(() => {
-        dynamicIsland.classList.add('expanded');
-        if (midiFiles.length > 0) {
-            initMidiList();
-        }
-    }, 500);
+    
+    // 检查认证状态
+    checkAuthStatus();
+    
+    // 更新标题
+    updateIslandTitle();
+    
+    // 只在首次加载时自动展开
+    if (isFirstLoad) {
+        setTimeout(() => {
+            if (!isAuthenticated) {
+                // 未认证，显示认证界面
+                dynamicIsland.classList.add('expanded', 'auth-mode');
+                isIslandExpanded = true;
+            } else {
+                // 已认证，显示音乐选择器
+                dynamicIsland.classList.add('expanded');
+                isIslandExpanded = true;
+                if (midiFiles.length > 0) {
+                    initMidiList();
+                }
+            }
+        }, 500);
+    }
 }
 
 
@@ -182,50 +210,14 @@ let fpsCheckTime = 0;
 let fpsHistory = [];
 let currentFPS = 0;
 
-console.log('🎨 使用固定高画质配置');
-console.log('📊 帧率由浏览器自动适配屏幕刷新率');
 
-// 性能监控工具
-const performanceMonitor = {
-    marks: {},
-    
-    start(label) {
-        this.marks[label] = performance.now();
-    },
-    
-    end(label) {
-        if (this.marks[label]) {
-            const duration = performance.now() - this.marks[label];
-            if (duration > 16) { // 超过一帧的时间（60fps = 16.67ms）
-                console.warn(`⚠️ 性能警告: ${label} 耗时 ${duration.toFixed(2)}ms`);
-            } else {
-                console.log(`✅ ${label} 耗时 ${duration.toFixed(2)}ms`);
-            }
-            delete this.marks[label];
-            return duration;
-        }
-        return 0;
-    },
-    
-    measure(label, fn) {
-        this.start(label);
-        const result = fn();
-        this.end(label);
-        return result;
-    },
-    
-    async measureAsync(label, fn) {
-        this.start(label);
-        const result = await fn();
-        this.end(label);
-        return result;
-    }
-};
+
+
 
 function updateFPS(currentTime) {
     const fps = Math.round(1000 / (currentTime - lastFrameTime));
     fpsHistory.push(fps);
-    if (fpsHistory.length > 50) {
+    if (fpsHistory.length > 120) { // 增加采样数量以更准确地测量高帧率
         fpsHistory.shift();
     }
     
@@ -234,6 +226,8 @@ function updateFPS(currentTime) {
         currentFPS = Math.round(fpsHistory.reduce((a, b) => a + b, 0) / fpsHistory.length);
         fpsElement.textContent = `${currentFPS} FPS`;
         fpsCheckTime = currentTime;
+        
+
     }
 }
 
@@ -281,6 +275,7 @@ function init() {
     // 固定高画质阴影设置
     renderer.shadowMap.enabled = GRAPHICS_CONFIG.shadowsEnabled;
     renderer.shadowMap.type = GRAPHICS_CONFIG.shadowType;
+    renderer.shadowMap.autoUpdate = true; // 确保阴影实时更新以支持高帧率
     
     // 添加光源 - 极简风格
     const ambientLight = new THREE.AmbientLight(0xffffff, 0.3); // 降低环境光
@@ -311,6 +306,61 @@ function init() {
     // 窗口大小调整
     window.addEventListener('resize', onWindowResize);
     
+    // 初始化渲染系统管理器（添加错误处理）
+    try {
+        if (typeof RenderManager !== 'undefined') {
+            renderManager = new RenderManager(scene, camera, renderer);
+            renderManager.initialize();
+            console.log('✅ 渲染管理器初始化成功');
+        } else {
+            console.warn('⚠️ RenderManager未定义，跳过渲染系统初始化');
+        }
+    } catch (error) {
+        console.error('❌ 渲染管理器初始化失败:', error);
+        renderManager = null;
+    }
+    
+    // 初始化对象池
+    try {
+        if (typeof ObjectPool !== 'undefined') {
+            // 记录初始化前的内存状态
+            const memoryBefore = renderer.info.memory;
+            console.log('📊 对象池初始化前的内存状态:', {
+                geometries: memoryBefore.geometries,
+                textures: memoryBefore.textures
+            });
+            
+            noteBlockPool = new ObjectPool(createNoteBlockObject, resetNoteBlockObject, 100);
+            noteBlockPool.warmup(100);
+            
+            // 记录初始化后的内存状态
+            const memoryAfter = renderer.info.memory;
+            console.log('📊 对象池初始化后的内存状态:', {
+                geometries: memoryAfter.geometries,
+                textures: memoryAfter.textures
+            });
+            
+            // 计算内存优化效果
+            const geometryIncrease = memoryAfter.geometries - memoryBefore.geometries;
+            const expectedWithoutSharing = 100 * 2; // 100个对象 * 2个几何体（方块+边缘）
+            const savingsPercent = ((expectedWithoutSharing - geometryIncrease) / expectedWithoutSharing * 100).toFixed(1);
+            
+            console.log('✅ 对象池初始化完成:', noteBlockPool.getStats());
+            console.log('💾 共享几何体优化效果:');
+            console.log(`   - 实际增加: ${geometryIncrease} 个几何体`);
+            console.log(`   - 无共享预期: ${expectedWithoutSharing} 个几何体`);
+            console.log(`   - 节省内存: ${savingsPercent}%`);
+        } else {
+            console.warn('⚠️ ObjectPool未定义，跳过对象池初始化');
+        }
+    } catch (error) {
+        console.error('❌ 对象池初始化失败:', error);
+        noteBlockPool = null;
+    }
+    
+    // 设置WebGL错误处理
+    setupWebGLErrorHandlers();
+    
     // 不在这里初始化MIDI，改为在预加载中初始化
 }
 
@@ -318,20 +368,18 @@ function init() {
 async function getMidiFiles() {
     // 这里手动列出midi文件夹中的文件
     // 因为浏览器无法直接读取文件夹内容
+    console.log('📂 返回MIDI文件列表');
     return [
-        'midi/1.mid'
-        // 在这里添加更多MIDI文件
+        'midi/1.mid',
+        'midi/2.mid'
     ];
 }
 
 // 加载指定的MIDI文件（从缓存或网络）
 async function loadMidiFile(index) {
     try {
-        console.log(`📥 开始加载 MIDI 文件: ${midiFiles[index]}`);
-        
         // 清理旧的音符方块（如果存在）
         if (noteObjects.length > 0) {
-            console.log(`🧹 loadMidiFile: 清理 ${noteObjects.length} 个旧方块`);
             cleanupObjects(noteObjects);
             blocksCreated = false;
         }
@@ -340,12 +388,10 @@ async function loadMidiFile(index) {
         
         // 优先从缓存加载
         if (preloadedMidiData[index]) {
-            console.log('✅ 从缓存加载MIDI');
             notes = preloadedMidiData[index].notes;
             currentMidiName = preloadedMidiData[index].name;
         } else {
             // 缓存未命中，从网络加载
-            console.log('⚠️ 缓存未命中，从网络加载');
             loadingElement.style.display = 'flex';
             
             const fileName = midiFiles[index];
@@ -366,7 +412,6 @@ async function loadMidiFile(index) {
         
         // 加载对应的背景音乐（MP3文件）
         const audioPath = midiFiles[index].replace('.mid', '.mp3');
-        console.log(`🎵 加载背景音乐: ${audioPath}`);
         await audioEngine.loadBGM(audioPath);
         
         return true;
@@ -380,18 +425,23 @@ async function loadMidiFile(index) {
 // 预加载所有资源（进入网站时立即执行）
 async function preloadAllResources() {
     try {
-        console.log('🚀 开始预加载所有资源...');
+        console.log('🚀 开始预加载资源...');
         loadingElement.style.display = 'flex';
         
         // 初始化MIDI解析器和音频引擎
+        console.log('📦 初始化MIDI解析器...');
         midiParser = new MIDIParser();
+        console.log('📦 初始化音频引擎...');
         audioEngine = new AudioEngine();
+        console.log('✅ MIDI解析器和音频引擎初始化完成');
         
         // 获取MIDI文件列表
+        console.log('📂 获取MIDI文件列表...');
         midiFiles = await getMidiFiles();
+        console.log('✅ 找到', midiFiles.length, '个MIDI文件:', midiFiles);
         
         if (midiFiles.length === 0) {
-            console.error('没有找到MIDI文件');
+            console.error('❌ 没有找到MIDI文件');
             loadingManager.complete();
             startNormalGame();
             return;
@@ -399,7 +449,9 @@ async function preloadAllResources() {
         
         // 计算总加载项：30个音色 + 所有MIDI文件
         const totalItems = 30 + midiFiles.length;
+        console.log('📊 总加载项:', totalItems, '(30个音色 +', midiFiles.length, '个MIDI)');
         loadingManager.init(totalItems);
+        console.log('✅ 加载管理器初始化完成');
         
         // 随机选择一个MIDI文件作为默认
         currentMidiIndex = Math.floor(Math.random() * midiFiles.length);
@@ -408,11 +460,14 @@ async function preloadAllResources() {
         await Promise.all([
             // 加载所有MIDI文件
             (async () => {
+                console.log('🎵 开始加载MIDI文件...');
                 loadingManager.updateUI('');
                 for (let i = 0; i < midiFiles.length; i++) {
                     try {
                         const fileName = midiFiles[i];
+                        console.log(`📥 加载MIDI ${i + 1}/${midiFiles.length}: ${fileName}`);
                         const notes = await midiParser.loadMIDI(fileName + '?v=1');
+                        console.log(`✅ MIDI ${i + 1} 加载成功，音符数:`, notes.length);
                         
                         // 缓存MIDI数据
                         preloadedMidiData[i] = {
@@ -422,34 +477,35 @@ async function preloadAllResources() {
                         };
                         
                         loadingManager.increment('');
-                        console.log(`✅ MIDI ${i + 1}/${midiFiles.length} 加载完成`);
                     } catch (error) {
-                        console.error(`MIDI文件 ${i} 加载失败:`, error);
+                        console.error(`❌ MIDI文件 ${i} 加载失败:`, error);
                         loadingManager.increment('');
                     }
                 }
+                console.log('✅ 所有MIDI文件加载完成');
             })(),
             
             // 加载钢琴音色
             (async () => {
                 try {
+                    console.log('🎹 开始加载钢琴音色...');
                     loadingManager.updateUI('');
                     audioEngine.ensureAudioContext();
+                    console.log('✅ 音频上下文已创建');
                     
                     await audioEngine.init((loaded, total) => {
+                        console.log(`🎹 音色加载进度: ${loaded}/${total}`);
                         loadingManager.increment('');
                     });
-                    
-                    console.log('✅ 钢琴音色加载完成');
+                    console.log('✅ 所有钢琴音色加载完成');
                 } catch (error) {
-                    console.error('钢琴音色加载失败:', error);
+                    console.error('❌ 钢琴音色加载失败:', error);
                 }
             })()
         ]);
         
-        // 完成加载（不在这里处理音符数据，延迟到点击开始时）
+        // 完成加载
         loadingManager.complete();
-        console.log('✅ 所有资源预加载完成！');
         
         // 显示播放按钮
         const startButton = document.getElementById('startButton');
@@ -458,7 +514,6 @@ async function preloadAllResources() {
             
             // 等待用户点击开始按钮
             const startGame = async (e) => {
-                console.log('🎮 播放按钮被点击');
                 if (e) e.preventDefault();
                 startButton.removeEventListener('click', startGame);
                 startButton.removeEventListener('touchstart', startGame);
@@ -484,7 +539,6 @@ async function preloadAllResources() {
                     // 步骤1：启动音频引擎
                     gameStartLoader.updateProgress(0, '');
                     await audioEngine.start();
-                    console.log('✅ 音频上下文已启动');
                     
                     // 播放点击音效（音频上下文启动后）
                     if (audioEngine && audioEngine.playClickSound) {
@@ -498,22 +552,17 @@ async function preloadAllResources() {
                     gameStartLoader.updateProgress(1, '');
                     await new Promise(resolve => {
                         requestAnimationFrame(() => {
-                            performanceMonitor.start('处理MIDI音符数据');
-                            
                             if (preloadedMidiData[currentMidiIndex]) {
                                 processMIDINotes(preloadedMidiData[currentMidiIndex].notes);
                                 currentMidiName = preloadedMidiData[currentMidiIndex].name;
                                 updateIslandTitle(currentMidiName);
                             }
-                            
-                            performanceMonitor.end('处理MIDI音符数据');
                             resolve();
                         });
                     });
                     
                     // 加载背景音乐
                     const audioPath = midiFiles[currentMidiIndex].replace('.mid', '.mp3');
-                    console.log(`🎵 加载背景音乐: ${audioPath}`);
                     await audioEngine.loadBGM(audioPath);
                     
                     await new Promise(resolve => setTimeout(resolve, 200));
@@ -561,7 +610,6 @@ async function preloadAllResources() {
         console.error('预加载失败:', error);
         setTimeout(() => {
             loadingManager.complete();
-            startNormalGame();
         }, 2000);
     }
 }
@@ -611,8 +659,6 @@ function assignTallBlocks(notes) {
         const randomValue = seededRandom(seed);
         notes[i].isTall = randomValue < tallProbability;
     }
-    
-    console.log(`超高黑块分配完成：${notes.filter(n => n.isTall).length}/${notes.length}`);
 }
 
 // 确保每个时间窗口最多3条轨道有黑块（使用种子随机算法）
@@ -664,17 +710,12 @@ function ensureMaxThreeLanes(notes) {
             }
         }
     }
-    
-    console.log(`轨道调整完成：调整了 ${adjustCount} 个黑块`);
 }
 
 // 处理MIDI音符
 function processMIDINotes(notes) {
-    console.log(`🎵 处理 ${notes.length} 个 MIDI 音符...`);
-    
     // 清理旧的音符数据（如果存在）
     if (midiNotes.length > 0) {
-        console.log(`🧹 清理旧的 ${midiNotes.length} 个音符数据`);
         midiNotes = [];
     }
     
@@ -707,7 +748,6 @@ function processMIDINotes(notes) {
     // 计算合适的游戏速度
     // 获取实际的 BPM
     const bpm = Math.round(60000000 / midiParser.tempo);
-    console.log(`MIDI Tempo: ${bpm} BPM`);
     
     // 找出最小音符间隔
     const intervals = [];
@@ -734,8 +774,6 @@ function processMIDINotes(notes) {
         // 设置原始基础速度（永远不变，用于计算音符位置）
         originalBaseSpeed = finalSpeed;
         midiSpeed = finalSpeed;
-        
-        console.log(`MIDI速度分析: BPM=${bpm}, 中位间隔=${medianInterval.toFixed(3)}s, 游戏速度=${midiSpeed.toFixed(3)}`);
     }
     
 
@@ -753,6 +791,8 @@ function startMIDIGame() {
     gameRunning = true;
     // 使用音频时钟作为游戏时间基准，确保完美同步
     gameStartTime = audioEngine.audioContext.currentTime;
+    gamePausedTime = 0;
+    totalPausedDuration = 0;
     
     // === 音频和黑块同步系统 ===
     // 核心原则：音频和黑块共用同一个时间源和加速度（speedMultiplier）
@@ -784,27 +824,15 @@ function startMIDIGame() {
         
         // 计算音频开始时间
         audioStartTime = firstNoteTime - gameTimeToTrigger;
-        
-        console.log(`🎵 第一个音符时间: ${firstNoteTime.toFixed(2)}秒`);
-        console.log(`⏱️ 黑块到达触发线需要: ${gameTimeToTrigger.toFixed(2)}秒游戏时间`);
-        console.log(`🎵 音频从 ${audioStartTime.toFixed(2)}秒 开始播放`);
-        console.log(`✅ 预期：游戏开始后 ${gameTimeToTrigger.toFixed(2)}秒，黑块到达触发线，音频播放到 ${firstNoteTime.toFixed(2)}秒`);
     }
     
     // 从计算出的时间开始播放背景音乐
     if (audioEngine && audioEngine.bgmBuffer) {
         audioEngine.playBGM(audioStartTime, speedMultiplier);
-        console.log(`🎵 背景音乐开始播放，速度: ${speedMultiplier.toFixed(2)}x`);
     }
-    
-    console.log('� 游戏启动！方块数量:间', noteObjects.length);
 }
 
-// 开始普通游戏（无MIDI）
-function startNormalGame() {
-    loadingElement.style.display = 'none';
-    gameRunning = true;
-}
+
 
 // 创建所有音符方块（带进度回调的版本）
 async function createAllNoteBlocksWithProgress(progressCallback) {
@@ -819,8 +847,6 @@ async function createAllNoteBlocksWithProgress(progressCallback) {
         console.warn(`清理 ${noteObjects.length} 个旧方块`);
         cleanupObjects(noteObjects);
     }
-    
-    console.log(`✅ 开始创建 ${midiNotes.length} 个音符方块（带进度）`);
     
     const batchSize = 50;
     let currentIndex = 0;
@@ -848,8 +874,14 @@ async function createAllNoteBlocksWithProgress(progressCallback) {
                 requestAnimationFrame(createBatch);
             } else {
                 blocksCreated = true;
-                const totalTime = performance.now() - startTime;
-                console.log(`✅ 创建完成！实际创建了 ${noteObjects.length} 个方块，耗时 ${totalTime.toFixed(2)}ms`);
+                
+                // 验证共享资源使用情况
+                console.log('');
+                console.log('🎯 所有方块创建完成，验证共享资源优化效果...');
+                setTimeout(() => {
+                    verifySharedResourceUsage();
+                }, 100);
+                
                 resolve();
             }
         }
@@ -864,15 +896,42 @@ function createAllNoteBlocks() {
     return createAllNoteBlocksWithProgress(null);
 }
 
-// 共享几何体和边缘材质（避免重复创建，提升性能）
+// ============================================================================
+// 共享资源管理系统 - 优化内存使用
+// ============================================================================
+
+// 共享几何体和材质（避免重复创建，大幅提升性能和降低内存）
 let sharedEdgeMaterial = null;
-let sharedGeometries = {
-    normalBlock: null,
-    tallBlock: null,
-    normalEdges: null,
-    tallEdges: null
+let sharedBlockMaterials = {
+    normal: null,      // 普通方块材质
+    triggered: null,   // 已触发方块材质
+    tall: null         // 超高方块材质（如果需要不同外观）
 };
 
+// LOD共享几何体（三个细节级别）
+let sharedGeometries = {
+    normalBlock: {
+        high: null,
+        medium: null,
+        low: null,
+        highEdges: null,
+        mediumEdges: null,
+        lowEdges: null
+    },
+    tallBlock: {
+        high: null,
+        medium: null,
+        low: null,
+        highEdges: null,
+        mediumEdges: null,
+        lowEdges: null
+    }
+};
+
+/**
+ * 获取共享边缘线材质
+ * 所有方块共用同一个边缘线材质，减少材质数量
+ */
 function getSharedEdgeMaterial() {
     if (!sharedEdgeMaterial) {
         sharedEdgeMaterial = new THREE.LineBasicMaterial({ 
@@ -885,56 +944,305 @@ function getSharedEdgeMaterial() {
     return sharedEdgeMaterial;
 }
 
-// 获取共享几何体（大幅减少内存和创建时间）
-function getSharedGeometry(isTall) {
-    if (isTall) {
-        if (!sharedGeometries.tallBlock) {
-            sharedGeometries.tallBlock = new THREE.BoxGeometry(1.5, 3.0, 1.2);
-            sharedGeometries.tallEdges = new THREE.EdgesGeometry(sharedGeometries.tallBlock);
+/**
+ * 获取共享方块材质
+ * 使用材质实例化技术，所有相同类型的方块共享同一个材质
+ * 通过修改颜色属性来实现不同的视觉效果
+ * @param {string} type - 材质类型：'normal', 'triggered', 'tall'
+ */
+function getSharedBlockMaterial(type = 'normal') {
+    if (!sharedBlockMaterials[type]) {
+        // 根据类型创建不同的基础材质
+        switch (type) {
+            case 'normal':
+                sharedBlockMaterials.normal = new THREE.MeshStandardMaterial({ 
+                    color: 0x1a1a1a,
+                    metalness: 0.9,
+                    roughness: 0.2,
+                    transparent: true,
+                    opacity: 1.0,
+                    emissive: 0x0a0a0a,
+                    emissiveIntensity: 0.2
+                });
+                break;
+            case 'triggered':
+                sharedBlockMaterials.triggered = new THREE.MeshStandardMaterial({ 
+                    color: 0xffffff,
+                    metalness: 0.9,
+                    roughness: 0.2,
+                    transparent: true,
+                    opacity: 1.0,
+                    emissive: 0xffffff,
+                    emissiveIntensity: 0.8
+                });
+                break;
+            case 'tall':
+                // 超高方块使用与普通方块相同的材质
+                sharedBlockMaterials.tall = new THREE.MeshStandardMaterial({ 
+                    color: 0x1a1a1a,
+                    metalness: 0.9,
+                    roughness: 0.2,
+                    transparent: true,
+                    opacity: 1.0,
+                    emissive: 0x0a0a0a,
+                    emissiveIntensity: 0.2
+                });
+                break;
         }
-        return {
-            block: sharedGeometries.tallBlock,
-            edges: sharedGeometries.tallEdges
-        };
-    } else {
-        if (!sharedGeometries.normalBlock) {
-            sharedGeometries.normalBlock = new THREE.BoxGeometry(1.5, 0.4, 1.2);
-            sharedGeometries.normalEdges = new THREE.EdgesGeometry(sharedGeometries.normalBlock);
-        }
-        return {
-            block: sharedGeometries.normalBlock,
-            edges: sharedGeometries.normalEdges
-        };
     }
+    return sharedBlockMaterials[type];
 }
 
-// 创建音符方块（优化版 - 共享几何体，独立材质）
+/**
+ * 清理所有共享资源
+ * 在场景切换或游戏结束时调用
+ */
+function disposeSharedResources() {
+    // 清理共享几何体
+    for (const blockType in sharedGeometries) {
+        const geometries = sharedGeometries[blockType];
+        for (const key in geometries) {
+            if (geometries[key] && geometries[key].dispose) {
+                geometries[key].dispose();
+                geometries[key] = null;
+            }
+        }
+    }
+    
+    // 清理共享材质
+    if (sharedEdgeMaterial) {
+        sharedEdgeMaterial.dispose();
+        sharedEdgeMaterial = null;
+    }
+    
+    for (const key in sharedBlockMaterials) {
+        if (sharedBlockMaterials[key]) {
+            sharedBlockMaterials[key].dispose();
+            sharedBlockMaterials[key] = null;
+        }
+    }
+    
+    console.log('🧹 共享资源已清理');
+}
+
+/**
+ * 验证共享资源的使用情况
+ * 检查所有方块是否正确使用共享几何体和材质
+ */
+function verifySharedResourceUsage() {
+    if (noteObjects.length === 0) {
+        console.log('📊 没有方块对象可供验证');
+        return;
+    }
+    
+    // 统计几何体使用情况
+    const geometryMap = new Map();
+    const materialMap = new Map();
+    const edgeMaterialMap = new Map();
+    
+    noteObjects.forEach(block => {
+        // 统计方块几何体
+        const geomId = block.geometry.uuid;
+        geometryMap.set(geomId, (geometryMap.get(geomId) || 0) + 1);
+        
+        // 统计方块材质
+        const matId = block.material.uuid;
+        materialMap.set(matId, (materialMap.get(matId) || 0) + 1);
+        
+        // 统计边缘线材质
+        if (block.children.length > 0) {
+            const edgeMat = block.children[0].material;
+            const edgeMatId = edgeMat.uuid;
+            edgeMaterialMap.set(edgeMatId, (edgeMaterialMap.get(edgeMatId) || 0) + 1);
+        }
+    });
+    
+    console.log('═══════════════════════════════════════════════════════');
+    console.log('📊 共享资源使用情况验证');
+    console.log('───────────────────────────────────────────────────────');
+    console.log(`总方块数: ${noteObjects.length}`);
+    console.log('');
+    console.log('几何体共享情况:');
+    console.log(`  - 独立几何体数量: ${geometryMap.size}`);
+    console.log(`  - 理想数量（完全共享）: 6 (普通方块3个LOD + 超高方块3个LOD)`);
+    console.log(`  - 共享率: ${((1 - geometryMap.size / noteObjects.length) * 100).toFixed(1)}%`);
+    console.log('');
+    console.log('材质共享情况:');
+    console.log(`  - 独立材质数量: ${materialMap.size}`);
+    console.log(`  - 预期数量: ${noteObjects.length} (每个方块一个材质实例)`);
+    console.log(`  - 说明: 材质使用clone()创建实例，共享shader程序`);
+    console.log('');
+    console.log('边缘线材质共享情况:');
+    console.log(`  - 独立边缘材质数量: ${edgeMaterialMap.size}`);
+    console.log(`  - 理想数量（完全共享）: 1`);
+    console.log(`  - 共享率: ${((1 - edgeMaterialMap.size / noteObjects.length) * 100).toFixed(1)}%`);
+    console.log('');
+    
+    // 计算内存节省
+    const currentMemory = renderer.info.memory;
+    const expectedGeometriesWithoutSharing = noteObjects.length * 2; // 每个方块2个几何体
+    const geometrySavings = expectedGeometriesWithoutSharing - currentMemory.geometries;
+    const savingsPercent = (geometrySavings / expectedGeometriesWithoutSharing * 100).toFixed(1);
+    
+    console.log('内存优化效果:');
+    console.log(`  - 当前几何体总数: ${currentMemory.geometries}`);
+    console.log(`  - 无共享预期: ${expectedGeometriesWithoutSharing}`);
+    console.log(`  - 节省: ${geometrySavings} 个几何体 (${savingsPercent}%)`);
+    console.log('═══════════════════════════════════════════════════════');
+    
+    return {
+        totalBlocks: noteObjects.length,
+        uniqueGeometries: geometryMap.size,
+        uniqueMaterials: materialMap.size,
+        uniqueEdgeMaterials: edgeMaterialMap.size,
+        geometrySavingsPercent: parseFloat(savingsPercent),
+        currentGeometries: currentMemory.geometries,
+        expectedWithoutSharing: expectedGeometriesWithoutSharing
+    };
+}
+
+// 获取共享几何体（支持LOD，大幅减少内存和创建时间）
+function getSharedGeometry(isTall, lodLevel = 'high') {
+    const blockType = isTall ? 'tallBlock' : 'normalBlock';
+    const geometries = sharedGeometries[blockType];
+    
+    // 创建对应LOD级别的几何体（如果不存在）
+    if (!geometries[lodLevel]) {
+        if (isTall) {
+            // 超高方块的LOD几何体
+            switch (lodLevel) {
+                case 'high':
+                    geometries.high = new THREE.BoxGeometry(1.5, 3.0, 1.2, 4, 12, 4);
+                    geometries.highEdges = new THREE.EdgesGeometry(geometries.high);
+                    break;
+                case 'medium':
+                    geometries.medium = new THREE.BoxGeometry(1.5, 3.0, 1.2, 2, 6, 2);
+                    geometries.mediumEdges = new THREE.EdgesGeometry(geometries.medium);
+                    break;
+                case 'low':
+                    geometries.low = new THREE.BoxGeometry(1.5, 3.0, 1.2, 1, 3, 1);
+                    geometries.lowEdges = new THREE.EdgesGeometry(geometries.low);
+                    break;
+            }
+        } else {
+            // 普通方块的LOD几何体
+            switch (lodLevel) {
+                case 'high':
+                    geometries.high = new THREE.BoxGeometry(1.5, 0.4, 1.2, 4, 4, 4);
+                    geometries.highEdges = new THREE.EdgesGeometry(geometries.high);
+                    break;
+                case 'medium':
+                    geometries.medium = new THREE.BoxGeometry(1.5, 0.4, 1.2, 2, 2, 2);
+                    geometries.mediumEdges = new THREE.EdgesGeometry(geometries.medium);
+                    break;
+                case 'low':
+                    geometries.low = new THREE.BoxGeometry(1.5, 0.4, 1.2, 1, 1, 1);
+                    geometries.lowEdges = new THREE.EdgesGeometry(geometries.low);
+                    break;
+            }
+        }
+    }
+    
+    return {
+        block: geometries[lodLevel],
+        edges: geometries[lodLevel + 'Edges']
+    };
+}
+
+/**
+ * 对象池：创建新的音符方块对象
+ * 使用共享几何体和材质实例化，大幅减少内存占用
+ * 
+ * 优化策略：
+ * - 几何体：完全共享，所有方块使用同一个几何体实例
+ * - 材质：使用 clone() 创建材质实例，共享shader程序但允许独立的颜色属性
+ * - 边缘线：完全共享材质，因为边缘线颜色不需要改变
+ */
+function createNoteBlockObject() {
+    // 使用共享几何体（普通方块的高细节级别）
+    const geometries = getSharedGeometry(false, 'high');
+    
+    // 创建材质实例：clone共享材质，这样可以独立修改颜色
+    // 但shader程序仍然是共享的，大幅减少GPU开销
+    const baseMaterial = getSharedBlockMaterial('normal');
+    const material = baseMaterial.clone();
+    
+    const noteBlock = new THREE.Mesh(geometries.block, material);
+    
+    // 添加发光边缘（使用完全共享的边缘材质）
+    const edgesMaterial = getSharedEdgeMaterial();
+    const edges = new THREE.LineSegments(geometries.edges, edgesMaterial);
+    noteBlock.add(edges);
+    
+    noteBlock.castShadow = true;
+    noteBlock.visible = false;
+    
+    return noteBlock;
+}
+
+/**
+ * 对象池：重置音符方块对象
+ * 重置对象状态以便重用，保持材质实例但重置其属性
+ */
+function resetNoteBlockObject(block) {
+    // 清除所有正在运行的动画
+    if (block.userData.scaleInterval) {
+        clearInterval(block.userData.scaleInterval);
+        block.userData.scaleInterval = null;
+    }
+    
+    // 重置位置和旋转
+    block.position.set(0, 0, 0);
+    block.rotation.set(0, 0, 0);
+    block.scale.set(1, 1, 1);
+    
+    // 重置材质属性到初始状态
+    // 保持材质实例不变，只修改属性，避免材质重新创建
+    block.material.color.setHex(0x1a1a1a);
+    block.material.opacity = 1.0;
+    block.material.emissive.setHex(0x0a0a0a);
+    block.material.emissiveIntensity = 0.2;
+    
+    // 重置可见性
+    block.visible = false;
+    
+    // 从场景中移除
+    if (block.parent) {
+        block.parent.remove(block);
+    }
+    
+    // 清空用户数据
+    block.userData = {};
+}
+
+// 创建音符方块（使用对象池）
 function createNoteBlock(noteData) {
+    // 从对象池获取对象
+    let noteBlock;
+    if (noteBlockPool) {
+        noteBlock = noteBlockPool.acquire();
+        if (!noteBlock) {
+            console.warn('对象池已满，创建新对象');
+            noteBlock = createNoteBlockObject();
+        }
+    } else {
+        // 如果对象池未初始化，直接创建
+        noteBlock = createNoteBlockObject();
+    }
+    
     // 使用预先分配的高度
     const isTall = noteData.isTall;
     const blockHeight = isTall ? 3.0 : 0.4;
     const blockY = isTall ? 1.55 : 0.25;
     
-    // 使用共享几何体（减少内存）
+    // 根据是否是超高方块，切换几何体
     const geometries = getSharedGeometry(isTall);
+    noteBlock.geometry = geometries.block;
     
-    // 为每个方块创建独立的材质副本（避免共享材质导致的颜色问题）
-    const material = new THREE.MeshStandardMaterial({ 
-        color: 0x1a1a1a, // 深黑色
-        metalness: 0.9,
-        roughness: 0.2,
-        transparent: true, // 启用透明度，用于触发效果
-        opacity: 1.0, // 初始完全不透明
-        emissive: 0x0a0a0a,
-        emissiveIntensity: 0.2
-    });
-    
-    const noteBlock = new THREE.Mesh(geometries.block, material);
-    
-    // 添加发光边缘（使用共享材质，因为边缘不会改变颜色）
-    const edgesMaterial = getSharedEdgeMaterial();
-    const edges = new THREE.LineSegments(geometries.edges, edgesMaterial);
-    noteBlock.add(edges);
+    // 更新边缘线几何体
+    if (noteBlock.children.length > 0) {
+        noteBlock.children[0].geometry = geometries.edges;
+    }
     
     const x = (noteData.lane - 2) * LANE_WIDTH;
     // === 黑块初始位置计算（基于统一时间控制系统）===
@@ -959,8 +1267,15 @@ function createNoteBlock(noteData) {
         isNote: true,
         isTall: isTall,
         blockHeight: blockHeight,
-        isRendered: false // 标记是否已渲染
+        isRendered: false, // 标记是否已渲染
+        currentLOD: 'high' // 当前LOD级别
     };
+    
+    // 注册到LOD管理器
+    if (renderManager && renderManager.lodManager) {
+        const lodConfig = isTall ? LOD_CONFIG.tallBlock : LOD_CONFIG.normalBlock;
+        renderManager.lodManager.registerObject(noteBlock, lodConfig);
+    }
     
     // 初始状态：不添加到场景中，等待进入视野范围
     // scene.add(noteBlock); // 注释掉，改为按需添加
@@ -1104,63 +1419,6 @@ function updateTrail() {
     }
 }
 
-// 创建障碍物
-function createObstacle() {
-    const lane = Math.floor(Math.random() * LANES);
-    const obstacleType = Math.random();
-    let geometry, height, yPos;
-    
-    // 随机生成高障碍物或低障碍物
-    if (obstacleType < 0.5) {
-        // 高障碍物 - 需要下滑躲避
-        geometry = new THREE.BoxGeometry(1.2, 1.0, 1.2);
-        height = 1.0;
-        yPos = 1.5;
-    } else {
-        // 低障碍物 - 需要跳跃躲避
-        geometry = new THREE.BoxGeometry(1.2, 1.5, 1.2);
-        height = 1.5;
-        yPos = 0.75;
-    }
-    
-    const material = new THREE.MeshStandardMaterial({ color: 0xe74c3c });
-    const obstacle = new THREE.Mesh(geometry, material);
-    
-    const x = (lane - 2) * LANE_WIDTH;
-    obstacle.position.set(x, yPos, -50);
-    obstacle.castShadow = true;
-    obstacle.userData.lane = lane;
-    obstacle.userData.height = height;
-    obstacle.userData.yPos = yPos;
-    
-    scene.add(obstacle);
-    obstacles.push(obstacle);
-}
-
-// 创建金币
-function createCoin() {
-    const lane = Math.floor(Math.random() * LANES);
-    const geometry = new THREE.CylinderGeometry(0.3, 0.3, 0.1, 32);
-    const material = new THREE.MeshStandardMaterial({ 
-        color: 0xffd700,
-        metalness: 0.8,
-        roughness: 0.2
-    });
-    const coin = new THREE.Mesh(geometry, material);
-    
-    const x = (lane - 2) * LANE_WIDTH;
-    // 随机高度的金币
-    const coinHeight = Math.random() < 0.3 ? 2.0 : 0.8;
-    coin.position.set(x, coinHeight, -50);
-    coin.rotation.x = Math.PI / 2;
-    coin.userData.lane = lane;
-    coin.userData.isCoin = true;
-    coin.userData.height = coinHeight;
-    
-    scene.add(coin);
-    coins.push(coin);
-}
-
 // 正确清理 Three.js 对象（防止内存泄漏）
 function disposeObject(obj) {
     if (!obj) return;
@@ -1211,49 +1469,36 @@ function cleanupObjects(objectArray) {
     if (!objectArray || objectArray.length === 0) return;
     
     const count = objectArray.length;
-    for (let i = objectArray.length - 1; i >= 0; i--) {
-        disposeObject(objectArray[i]);
+    
+    // 如果是音符方块数组且对象池已初始化，归还到对象池
+    if (objectArray === noteObjects && noteBlockPool) {
+        console.log(`🔄 归还 ${count} 个对象到对象池`);
+        for (let i = objectArray.length - 1; i >= 0; i--) {
+            const obj = objectArray[i];
+            // 从场景中移除
+            if (obj.parent) {
+                obj.parent.remove(obj);
+            }
+            // 归还到对象池
+            noteBlockPool.release(obj);
+        }
+        console.log('🎱 对象池状态:', noteBlockPool.getStats());
+    } else {
+        // 其他对象直接销毁
+        for (let i = objectArray.length - 1; i >= 0; i--) {
+            disposeObject(objectArray[i]);
+        }
     }
+    
     objectArray.length = 0; // 清空数组
     
     // 如果清理的是音符方块，重置标志
     if (objectArray === noteObjects) {
         blocksCreated = false;
-        console.log(`🧹 清理了 ${count} 个音符方块，重置创建标志`);
     }
 }
 
-// 性能统计（调试用）
-function logPerformanceStats() {
-    if (renderer && renderer.info) {
-        const info = renderer.info;
-        console.log('╔═══════════════════════════════════════╗');
-        console.log('║         🎮 性能统计面板               ║');
-        console.log('╠═══════════════════════════════════════╣');
-        console.log(`║ 画质模式: 固定高画质`);
-        console.log(`║ 当前FPS: ${currentFPS}`);
-        console.log(`║ 像素比: ${renderer.getPixelRatio().toFixed(2)}x`);
-        console.log(`║ 阴影: ✅ PCF柔和阴影`);
-        console.log(`║ 材质: MeshPhysicalMaterial (玻璃质感)`);
-        console.log('╠═══════════════════════════════════════╣');
-        console.log(`║ 渲染调用: ${info.render.calls}`);
-        console.log(`║ 三角形数: ${info.render.triangles.toLocaleString()}`);
-        console.log(`║ 几何体: ${info.memory.geometries}`);
-        console.log(`║ 纹理: ${info.memory.textures}`);
-        console.log(`║ 场景物体: ${scene.children.length}`);
-        console.log(`║ 音符方块: ${noteObjects.length}`);
-        console.log(`║ 拖尾长度: ${GRAPHICS_CONFIG.trailLength}`);
-        console.log(`║ 雾效距离: ${GRAPHICS_CONFIG.fogDistance}`);
-        console.log('╚═══════════════════════════════════════╝');
-    }
-}
 
-// 每30秒输出一次性能统计（可选）
-setInterval(() => {
-    if (gameRunning) {
-        logPerformanceStats();
-    }
-}, 30000);
 
 // 更新玩家位置
 function updatePlayer() {
@@ -1359,21 +1604,11 @@ function jump() {
     }
 }
 
-// 下滑函数（已禁用）
-function roll() {
-    // 下滑功能已取消，只能通过跳跃躲避
-    return;
-}
 
-// 更新地面
+
+// 更新地面（地面不移动，仅保留函数以保持兼容性）
 function updateGround() {
-    const moveSpeed = speed * 60; // 转换为每秒的速度
-    ground.forEach(g => {
-        g.position.z += moveSpeed * deltaTime;
-        if (g.position.z > GROUND_LENGTH) {
-            g.position.z -= GROUND_LENGTH * 3;
-        }
-    });
+    // 地面静止不动
 }
 
 // 更新音符方块
@@ -1383,16 +1618,37 @@ function updateNoteBlocks() {
     const playerLane = Math.round(currentLane);
     
     // === 统一时间控制系统（使用音频时钟消除累积误差）===
-    // 使用音频时钟计算当前游戏时间，而不是累积 deltaTime
-    const currentGameTime = audioEngine.audioContext.currentTime - gameStartTime;
+    // 使用音频时钟计算当前游戏时间，减去暂停的总时长
+    const currentGameTime = audioEngine.audioContext.currentTime - gameStartTime - totalPausedDuration;
     
-    // 定义迷雾边缘（视野范围）
-    const fogEdgeZ = -50; // 迷雾边缘的Z坐标
+    // 定义迷雾边缘（视野范围）- 根据当前雾距离动态计算
+    // 雾效果的 far 值决定了可见范围，fogEdgeZ 应该基于此计算
+    const currentFogFar = scene.fog ? scene.fog.far : 120;
+    const fogEdgeZ = -currentFogFar * 0.4; // 迷雾边缘约为雾距离的40%
     const renderDistance = 10; // 提前渲染的距离（在迷雾边缘前10个单位开始渲染）
+    
+    // 视锥剔除：批量检查所有音符方块的可见性
+    if (renderManager && renderManager.frustumCuller) {
+        renderManager.frustumCuller.cullObjects(noteObjects);
+    }
     
     for (let i = noteObjects.length - 1; i >= 0; i--) {
         const noteBlock = noteObjects[i];
         const noteData = noteBlock.userData.noteData;
+        
+        // LOD几何体切换（如果需要）
+        if (noteBlock.userData.needsLODUpdate) {
+            const isTall = noteBlock.userData.isTall;
+            const lodLevel = noteBlock.userData.currentLOD || 'high';
+            const geometries = getSharedGeometry(isTall, lodLevel);
+            
+            noteBlock.geometry = geometries.block;
+            if (noteBlock.children.length > 0) {
+                noteBlock.children[0].geometry = geometries.edges;
+            }
+            
+            noteBlock.userData.needsLODUpdate = false;
+        }
         
         // 基于音频时钟计算黑块的精确位置（消除累积误差）
         // 黑块应该在 noteData.time / speedMultiplier 秒后到达触发线
@@ -1404,17 +1660,20 @@ function updateNoteBlocks() {
         const moveSpeed = originalBaseSpeed * speedMultiplier * 60;
         noteBlock.position.z = triggerZ - (remainingTime * moveSpeed);
         
+        // 距离阴影剔除：为超过50单位的物体禁用阴影投射
+        const distanceToCamera = Math.abs(noteBlock.position.z - camera.position.z);
+        noteBlock.castShadow = distanceToCamera <= 50;
+        
         // 检查是否进入视野范围（到达迷雾边缘）
         if (!noteBlock.userData.isRendered && noteBlock.position.z >= fogEdgeZ - renderDistance) {
             // 黑块到达迷雾边缘，开始渲染
             noteBlock.userData.isRendered = true;
             noteBlock.visible = true;
             scene.add(noteBlock);
-            console.log(`🎨 黑块进入视野: z=${noteBlock.position.z.toFixed(2)}`);
         }
         
-        // 检查是否与玩家碰撞
-        if (!noteData.collided && noteData.lane === playerLane) {
+        // 检查是否与玩家碰撞（只对可见物体执行）
+        if (!noteData.collided && noteData.lane === playerLane && noteBlock.visible) {
             const distanceToPlayer = Math.abs(noteBlock.position.z - player.position.z);
             
             if (distanceToPlayer < 1.0) {
@@ -1453,13 +1712,13 @@ function updateNoteBlocks() {
             }
         }
         
-        // 检查是否通过触发线（自动触发）
+        // 检查是否通过触发线（自动触发）（只对可见物体执行）
         // 记录上一帧的位置，检测是否刚刚通过触发线
         const lastZ = noteBlock.userData.lastZ || -1000;
         noteBlock.userData.lastZ = noteBlock.position.z;
         
         // 如果上一帧在触发线前面，这一帧在触发线后面，说明刚刚通过
-        if (!noteData.triggered && lastZ < triggerZ && noteBlock.position.z >= triggerZ) {
+        if (!noteData.triggered && lastZ < triggerZ && noteBlock.position.z >= triggerZ && noteBlock.visible) {
             
             noteData.triggered = true;
             notesTriggered++;
@@ -1477,201 +1736,76 @@ function updateNoteBlocks() {
             createTriggerWave(noteBlock.position.x, noteBlock.position.z);
             
             // 触发效果：放大并淡出
+            // 先清除之前的动画（如果存在）
+            if (noteBlock.userData.scaleInterval) {
+                clearInterval(noteBlock.userData.scaleInterval);
+            }
+            
             const originalScale = { x: 1.5, y: 0.4, z: 1.2 };
             let scaleTime = 0;
-            const scaleInterval = setInterval(() => {
+            noteBlock.userData.scaleInterval = setInterval(() => {
                 scaleTime += 0.05;
                 const scale = 1 + scaleTime * 2;
                 noteBlock.scale.set(originalScale.x * scale, originalScale.y * scale, originalScale.z * scale);
                 noteBlock.material.opacity = Math.max(0, 1 - scaleTime * 2);
                 if (scaleTime >= 0.5) {
-                    clearInterval(scaleInterval);
+                    clearInterval(noteBlock.userData.scaleInterval);
+                    noteBlock.userData.scaleInterval = null;
                 }
             }, 50);
         }
         
-        // 移除屏幕外的方块（正确释放内存）
+        // 移除屏幕外的方块（归还到对象池）
         if (noteBlock.position.z > 10) {
-            disposeObject(noteBlock);
+            // 清除正在运行的动画
+            if (noteBlock.userData.scaleInterval) {
+                clearInterval(noteBlock.userData.scaleInterval);
+                noteBlock.userData.scaleInterval = null;
+            }
+            
+            // 从场景中移除
+            if (noteBlock.parent) {
+                noteBlock.parent.remove(noteBlock);
+            }
+            // 归还到对象池
+            if (noteBlockPool) {
+                noteBlockPool.release(noteBlock);
+            } else {
+                disposeObject(noteBlock);
+            }
             noteObjects.splice(i, 1);
         }
     }
     
     // 检查是否所有音符都已处理
     if (noteObjects.length === 0 && notesTriggered > 0 && !isCompletingRound) {
-        // 完成一轮！继续下一轮
+        // 完成游戏！
         isCompletingRound = true;
-        completeRound();
+        completeGame();
     }
 }
 
-// 更新障碍物
-function updateObstacles() {
-    const moveSpeed = speed * 60;
-    for (let i = obstacles.length - 1; i >= 0; i--) {
-        const obstacle = obstacles[i];
-        obstacle.position.z += moveSpeed * deltaTime;
-        obstacle.rotation.y += 0.02 * (deltaTime * 60);
-        
-        if (obstacle.position.z > 5) {
-            disposeObject(obstacle);
-            obstacles.splice(i, 1);
-        }
-    }
-}
-
-// 更新金币
-function updateCoins() {
-    const moveSpeed = speed * 60;
-    for (let i = coins.length - 1; i >= 0; i--) {
-        const coin = coins[i];
-        coin.position.z += moveSpeed * deltaTime;
-        coin.rotation.z += 0.1 * (deltaTime * 60);
-        
-        if (coin.position.z > 5) {
-            disposeObject(coin);
-            coins.splice(i, 1);
-        }
-    }
-}
-
-// 碰撞检测
+// 碰撞检测（仅用于MIDI模式，已在updateNoteBlocks中处理）
 function checkCollision() {
-    const playerLane = Math.round(currentLane);
-    
-    // 检测障碍物碰撞
-    for (let obstacle of obstacles) {
-        if (obstacle.userData.lane === playerLane &&
-            Math.abs(obstacle.position.z - player.position.z) < 1) {
-            
-            // 检查垂直碰撞
-            const obstacleY = obstacle.userData.yPos;
-            const playerTop = player.position.y + (player.scale.y * 0.6);
-            const playerBottom = player.position.y - (player.scale.y * 0.6);
-            
-            // 高障碍物（需要下滑）
-            if (obstacleY > 1.0) {
-                if (playerTop > 1.0 && !isRolling) {
-                    return true;
-                }
-            } 
-            // 低障碍物（需要跳跃）
-            else {
-                if (playerBottom < 1.5 && !isJumping) {
-                    return true;
-                }
-            }
-        }
-    }
-    
-    // 检测金币收集
-    for (let i = coins.length - 1; i >= 0; i--) {
-        const coin = coins[i];
-        if (coin.userData.lane === playerLane &&
-            Math.abs(coin.position.z - player.position.z) < 0.8) {
-            
-            // 检查垂直位置
-            const coinY = coin.userData.height;
-            const playerY = player.position.y;
-            
-            if (Math.abs(playerY - coinY) < 1.5) {
-                disposeObject(coin);
-                coins.splice(i, 1);
-                score += 10;
-                scoreElement.textContent = `分数: ${score}`;
-            }
-        }
-    }
-    
     return false;
 }
 
-// 完成一轮
-function completeRound() {
-    // 获得一颗星
-    starsEarned++;
+// 完成游戏
+function completeGame() {
+    gameRunning = false;
+    gameOverElement.style.display = 'block';
+    instructionsElement.style.display = 'none';
     
-    // 提升速度倍数（音频和黑块共用此加速度）
-    speedMultiplier *= 1.25;
-    
-    // 更新显示用的速度值（实际计算直接使用 originalBaseSpeed * speedMultiplier）
-    midiSpeed = originalBaseSpeed * speedMultiplier;
-    
-    // 直接继续下一轮，不显示提示
-    restartRound();
-}
-
-// 重新开始一轮（不重置星星和速度）
-async function restartRound() {
-    // 不显示加载界面，因为音频资源已经在内存中
-    
-    try {
-        // 清理和重置
-        await new Promise(resolve => {
-            requestAnimationFrame(() => {
-                cleanupObjects(noteObjects);
-                
-                // 重置音符状态
-                notesTriggered = 0;
-                midiNotes.forEach(note => {
-                    note.triggered = false;
-                    note.collided = false;
-                });
-                
-                // 使用音频时钟作为游戏时间基准
-                gameStartTime = audioEngine.audioContext.currentTime;
-                isCompletingRound = false;
-                
-                resolve();
-            });
-        });
-        
-        // 重新创建音符方块（不显示进度）
-        await createAllNoteBlocksWithProgress();
-        
-        // 确保游戏继续运行
-        gameRunning = true;
-        
-        // 更新显示用的速度值（音频和黑块都使用 speedMultiplier 作为唯一加速度源）
-        midiSpeed = originalBaseSpeed * speedMultiplier;
-        console.log(`🎮 统一速度控制：originalBaseSpeed = ${originalBaseSpeed.toFixed(4)}, speedMultiplier = ${speedMultiplier.toFixed(2)}x`);
-        
-        // 重新播放背景音乐（计算提前播放时间）
-        if (audioEngine && audioEngine.bgmBuffer) {
-            audioEngine.stopBGM();
-            
-            let audioStartTime = 0;
-            if (midiNotes.length > 0) {
-                const firstNoteTime = midiNotes[0].time;
-                
-                // 计算黑块到达触发线需要的游戏时间
-                const gameTimeToTrigger = firstNoteTime / speedMultiplier;
-                
-                // 计算音频开始时间
-                audioStartTime = firstNoteTime - gameTimeToTrigger;
-                
-                console.log(`🎵 新一轮对齐计算：`);
-                console.log(`   第一个音符时间: ${firstNoteTime.toFixed(2)}秒`);
-                console.log(`   速度倍数: ${speedMultiplier.toFixed(2)}x`);
-                console.log(`   黑块到达触发线需要: ${gameTimeToTrigger.toFixed(2)}秒`);
-                console.log(`   音频开始时间: ${audioStartTime.toFixed(2)}秒`);
-                console.log(`   音频播放速度: ${speedMultiplier.toFixed(2)}x`);
-                console.log(`   预期：${gameTimeToTrigger.toFixed(2)}秒后，黑块到达触发线，音频播放到 ${firstNoteTime.toFixed(2)}秒`);
-            }
-            
-            audioEngine.playBGM(audioStartTime, speedMultiplier);
-        }
-        
-        // 更新UI
-        scoreElement.textContent = `⭐ ${starsEarned} | 音符: 0/${totalNotes}`;
-        distanceElement.textContent = `速度: ${speedMultiplier.toFixed(2)}x`;
-        
-        console.log(`第 ${starsEarned} 轮开始！创建了 ${noteObjects.length} 个音符方块`);
-        
-    } catch (error) {
-        console.error('重新开始轮次失败:', error);
-        gameRunning = true;
+    // 停止背景音乐
+    if (audioEngine && audioEngine.bgmIsPlaying) {
+        audioEngine.stopBGM();
     }
+    
+    // 计算准确率
+    const accuracy = totalNotes > 0 ? Math.round(((totalNotes - collisions) / totalNotes) * 100) : 100;
+    
+    document.getElementById('finalScore').textContent = `完美通关！🎉`;
+    document.getElementById('finalDistance').textContent = `准确率: ${accuracy}% | 触发: ${notesTriggered}/${totalNotes}`;
 }
 
 // 游戏结束（碰撞死亡）
@@ -1685,79 +1819,14 @@ function gameOver() {
         audioEngine.pauseBGM();
     }
     
-    if (midiNotes.length > 0) {
-        document.getElementById('finalScore').textContent = `游戏结束！`;
-        document.getElementById('finalDistance').textContent = `获得 ${starsEarned} 颗星 ⭐ | 速度: ${speedMultiplier.toFixed(2)}x`;
-    } else {
-        document.getElementById('finalScore').textContent = `最终分数: ${score}`;
-        document.getElementById('finalDistance').textContent = `跑了: ${Math.floor(distance)}m`;
-    }
+    // 计算准确率
+    const accuracy = totalNotes > 0 ? Math.round(((totalNotes - collisions) / totalNotes) * 100) : 0;
+    
+    document.getElementById('finalScore').textContent = `游戏结束！`;
+    document.getElementById('finalDistance').textContent = `准确率: ${accuracy}% | 触发: ${notesTriggered}/${totalNotes}`;
 }
 
-// 继续游戏（把未触发的黑块整体移动到迷雾边缘）
-function continueGame() {
-    if (!lastCollisionBlock) return;
-    
-    gameOverElement.style.display = 'none';
-    gameRunning = true;
-    
-    // 恢复背景音乐
-    if (audioEngine && audioEngine.bgmPauseTime > 0) {
-        audioEngine.resumeBGM();
-    }
-    
-    // 找到所有未触发的黑块
-    const untriggeredBlocks = noteObjects.filter(block => !block.userData.noteData.triggered);
-    
-    if (untriggeredBlocks.length === 0) {
-        console.log('没有未触发的黑块');
-        lastCollisionBlock = null;
-        return;
-    }
-    
-    // 找到最前面的未触发黑块的位置
-    let frontmostZ = untriggeredBlocks[0].position.z;
-    for (let block of untriggeredBlocks) {
-        if (block.position.z > frontmostZ) {
-            frontmostZ = block.position.z;
-        }
-    }
-    
-    // 计算需要移动的距离（移动到迷雾边缘 z=-50）
-    const fogEdgeZ = -50;
-    const moveDistance = fogEdgeZ - frontmostZ;
-    
-    // 整体移动所有未触发的黑块
-    for (let block of untriggeredBlocks) {
-        block.position.z += moveDistance;
-        
-        // 重置状态
-        const noteData = block.userData.noteData;
-        noteData.collided = false;
-        noteData.triggered = false;
-        block.material.color.setHex(0x000000);
-        block.material.emissive.setHex(0x111111);
-        block.material.opacity = 1;
-        block.scale.set(1, 1, 1);
-    }
-    
-    // 删除已触发的黑块
-    for (let i = noteObjects.length - 1; i >= 0; i--) {
-        if (noteObjects[i].userData.noteData.triggered) {
-            scene.remove(noteObjects[i]);
-            noteObjects.splice(i, 1);
-        }
-    }
-    
-    // 重置玩家状态
-    player.position.y = groundY;
-    isJumping = false;
-    verticalVelocity = 0;
-    
-    console.log(`继续游戏：整体移动 ${untriggeredBlocks.length} 个黑块到迷雾边缘，移动距离 ${moveDistance.toFixed(2)}`);
-    
-    lastCollisionBlock = null;
-}
+
 
 // 重新开始
 async function restart() {
@@ -1782,8 +1851,6 @@ async function restart() {
         restartLoader.updateProgress(0);
         await new Promise(resolve => {
             requestAnimationFrame(() => {
-                cleanupObjects(obstacles);
-                cleanupObjects(coins);
                 cleanupObjects(noteObjects);
                 blocksCreated = false;
                 resolve();
@@ -1797,17 +1864,12 @@ async function restart() {
             requestAnimationFrame(() => {
                 // 重置游戏状态
                 score = 0;
-                distance = 0;
-                speed = 0.3;
                 currentLane = 2;
                 targetLane = 2;
-                lastObstacleTime = 0;
-                lastCoinTime = 0;
                 
                 // 重置MIDI状态
                 notesTriggered = 0;
                 collisions = 0;
-                starsEarned = 0;
                 speedMultiplier = 1.0;
                 isCompletingRound = false;
                 midiSpeed = originalBaseSpeed;
@@ -1819,14 +1881,9 @@ async function restart() {
                 });
                 
                 // 重置 UI
-                if (midiNotes.length > 0) {
-                    scoreElement.textContent = `⭐ 0 | 音符: 0/${totalNotes}`;
-                    distanceElement.textContent = `速度: 1.00x`;
-                    accuracyElement.textContent = `剩余: ${totalNotes}`;
-                } else {
-                    scoreElement.textContent = `分数: 0`;
-                    distanceElement.textContent = `距离: 0m`;
-                }
+                scoreElement.textContent = `音符: 0/${totalNotes}`;
+                distanceElement.textContent = `准确率: 100%`;
+                accuracyElement.textContent = `剩余: ${totalNotes}`;
                 comboElement.style.display = 'none';
                 gameOverElement.style.display = 'none';
                 instructionsElement.style.display = 'block';
@@ -1844,17 +1901,17 @@ async function restart() {
         
         // 步骤3：重新创建音符方块
         restartLoader.updateProgress(2);
-        if (midiNotes.length > 0) {
-            // 使用音频时钟作为游戏时间基准
-            gameStartTime = audioEngine.audioContext.currentTime;
-            
-            // 重新创建所有方块（带进度）
-            await createAllNoteBlocksWithProgress((progress) => {
-                const percentage = Math.round(66 + (progress * 34)); // 66%-100%
-                loadingPercentage.textContent = `${percentage}%`;
-                loadingProgressBar.style.width = `${percentage}%`;
-            });
-        }
+        // 使用音频时钟作为游戏时间基准
+        gameStartTime = audioEngine.audioContext.currentTime;
+        gamePausedTime = 0;
+        totalPausedDuration = 0;
+        
+        // 重新创建所有方块（带进度）
+        await createAllNoteBlocksWithProgress((progress) => {
+            const percentage = Math.round(66 + (progress * 34)); // 66%-100%
+            loadingPercentage.textContent = `${percentage}%`;
+            loadingProgressBar.style.width = `${percentage}%`;
+        });
         
         // 完成
         restartLoader.updateProgress(3);
@@ -1872,21 +1929,21 @@ async function restart() {
         gameRunning = true;
         // 使用音频时钟作为游戏时间基准
         gameStartTime = audioEngine.audioContext.currentTime;
+        gamePausedTime = 0;
+        totalPausedDuration = 0;
         
         // 播放背景音乐（计算提前播放时间）
         if (audioEngine && audioEngine.bgmBuffer) {
             let audioStartTime = 0;
-            if (midiNotes.length > 0) {
-                const firstNoteTime = midiNotes[0].time;
-                
-                // 计算黑块到达触发线需要的游戏时间（速度重置为1.0x）
-                const gameTimeToTrigger = firstNoteTime / 1.0;
-                
-                // 计算音频开始时间
-                audioStartTime = firstNoteTime - gameTimeToTrigger;
-                
-                console.log(`🎵 重新开始：音频从 ${audioStartTime.toFixed(2)}秒 开始`);
-            }
+            const firstNoteTime = midiNotes[0].time;
+            
+            // 计算黑块到达触发线需要的游戏时间（速度重置为1.0x）
+            const gameTimeToTrigger = firstNoteTime / 1.0;
+            
+            // 计算音频开始时间
+            audioStartTime = firstNoteTime - gameTimeToTrigger;
+            
+            console.log(`🎵 重新开始：音频从 ${audioStartTime.toFixed(2)}秒 开始`);
             
             audioEngine.playBGM(audioStartTime, 1.0);
         }
@@ -1907,109 +1964,103 @@ function onWindowResize() {
     camera.updateProjectionMatrix();
     renderer.setPixelRatio(GRAPHICS_CONFIG.pixelRatio);
     renderer.setSize(window.innerWidth, window.innerHeight);
+    
+    // 更新后处理系统的渲染目标大小
+    if (renderManager && renderManager.postProcessing) {
+        renderManager.postProcessing.onWindowResize();
+    }
 }
 
 // 游戏主循环
-let lastObstacleTime = 0;
-let lastCoinTime = 0;
 let lastUpdateTime = 0;
 let deltaTime = 0;
 
 function animate(currentTime) {
     requestAnimationFrame(animate);
     
-    // 计算时间差（秒）
+    // 性能监控 - 开始帧计时
+    if (renderManager && renderManager.performanceMonitor) {
+        renderManager.performanceMonitor.beginFrame();
+    }
+    
+    // 计算时间差（秒）- 优化高帧率下的精度
     if (lastUpdateTime === 0) {
         lastUpdateTime = currentTime;
     }
     deltaTime = (currentTime - lastUpdateTime) / 1000; // 转换为秒
+    
+    // 限制deltaTime防止异常值（例如切换标签页后）
+    // 120fps = 8.33ms per frame, 允许最大3倍的波动
+    deltaTime = Math.min(deltaTime, 0.025); // 最大25ms (40fps)
+    
     lastUpdateTime = currentTime;
     
     // 更新FPS统计
     updateFPS(currentTime);
     
-    // 无需帧率检测和画质调整，浏览器自动适配
+    // 120帧模式：无帧率限制，完全依赖浏览器刷新率
     
     lastFrameTime = currentTime;
     
     if (!gameRunning) {
-        renderer.render(scene, camera);
+        // 即使游戏未运行，也更新渲染系统和渲染
+        if (renderManager) {
+            renderManager.update(deltaTime);
+            renderManager.render();
+        } else {
+            renderer.render(scene, camera);
+        }
+        
+        // 性能监控 - 结束帧计时
+        if (renderManager && renderManager.performanceMonitor) {
+            renderManager.performanceMonitor.endFrame();
+        }
         return;
+    }
+    
+    // 更新渲染系统（视锥剔除、LOD等）
+    if (renderManager) {
+        renderManager.update(deltaTime);
     }
     
     // 更新游戏元素
     updatePlayer();
     updateGround();
     
-    // 如果有MIDI音符，更新音符方块；否则更新普通障碍物
+    // 更新MIDI音符方块
     if (midiNotes.length > 0) {
-        // 音频和黑块共用同一个时间源和加速度
-        // 不需要在这里更新 midiSpeed，因为 updateNoteBlocks 直接使用 originalBaseSpeed * speedMultiplier
         updateNoteBlocks();
-    } else {
-        updateObstacles();
-        updateCoins();
     }
     
-    // 只在非MIDI模式下生成障碍物和金币
-    if (midiNotes.length === 0) {
-        const now = Date.now();
-        if (now - lastObstacleTime > 2000) {
-            createObstacle();
-            lastObstacleTime = now;
-        }
-        
-        if (now - lastCoinTime > 1500) {
-            createCoin();
-            lastCoinTime = now;
-        }
-    }
-    
-    // 增加难度
-    if (speed < 0.8) {
-        speed += 0.0001;
-    }
-    
-    // 更新分数和UI
+    // 更新分数和UI（MIDI模式）
     if (midiNotes.length > 0) {
-        // MIDI模式 - 显示星星和实时速度（相对于原始基础速度）
-        const currentSpeedRatio = (midiSpeed / originalBaseSpeed).toFixed(2);
-        scoreElement.textContent = `⭐ ${starsEarned} | 音符: ${notesTriggered}/${totalNotes}`;
-        distanceElement.textContent = `速度: ${currentSpeedRatio}x`;
+        const accuracy = totalNotes > 0 ? Math.round(((totalNotes - collisions) / totalNotes) * 100) : 100;
+        scoreElement.textContent = `音符: ${notesTriggered}/${totalNotes}`;
+        distanceElement.textContent = `准确率: ${accuracy}%`;
         accuracyElement.textContent = `方块: ${noteObjects.length}`;
-        
-        // 异常检测：如果方块数量超过预期，警告
-        if (noteObjects.length > totalNotes * 1.5) {
-            console.error(`❌ 方块数量异常！预期: ${totalNotes}, 实际: ${noteObjects.length}`);
-        }
+    }
+    
+    // 使用渲染管理器渲染
+    if (renderManager) {
+        renderManager.render();
     } else {
-        // 普通模式
-        distance += speed * 2;
-        score += 1;
+        renderer.render(scene, camera);
+    }
+    
+    // 性能监控 - 结束帧计时
+    if (renderManager && renderManager.performanceMonitor) {
+        renderManager.performanceMonitor.endFrame();
         
-        if (Math.floor(distance) % 10 === 0) {
-            scoreElement.textContent = `分数: ${score}`;
-            distanceElement.textContent = `距离: ${Math.floor(distance)}m`;
+        // 更新性能统计UI
+        const stats = renderManager.getPerformanceStats();
+        if (typeof updatePerformanceUI === 'function') {
+            updatePerformanceUI(stats);
         }
     }
-    
-    // 碰撞检测
-    if (checkCollision()) {
-        gameOver();
-        return;
-    }
-    
-    renderer.render(scene, camera);
 }
 
 // 键盘控制
 document.addEventListener('keydown', (e) => {
-    // P 键：查看性能统计（无论游戏是否运行）
-    if (e.key === 'p' || e.key === 'P') {
-        logPerformanceStats();
-        return;
-    }
-    
     if (!gameRunning) return;
     
     if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') {
@@ -2107,161 +2158,9 @@ document.addEventListener('touchend', (e) => {
     }
 }, { passive: false });
 
-// 切换MIDI文件的动画
-let isSwitchingMidi = false;
+// 切换MIDI文件的冷却时间
 let lastSwitchTime = 0;
 const SWITCH_COOLDOWN = 1000; // 1秒冷却时间
-
-// 切换到下一个MIDI文件
-async function switchToNextMidi() {
-    if (midiFiles.length <= 1) return;
-    
-    // 允许在切换过程中再次点击（取消锁定）
-    if (isSwitchingMidi) {
-        console.log('正在切换中，请稍候...');
-        return;
-    }
-    
-    isSwitchingMidi = true;
-    
-    // 切换到下一个文件
-    currentMidiIndex = (currentMidiIndex + 1) % midiFiles.length;
-    
-    // 上滑动画
-    await playSlideAnimation('up');
-    
-    // 加载新的MIDI文件
-    await loadAndStartNewMidi();
-    
-    isSwitchingMidi = false;
-}
-
-// 切换到上一个MIDI文件
-async function switchToPrevMidi() {
-    if (midiFiles.length <= 1) return;
-    
-    // 允许在切换过程中再次点击（取消锁定）
-    if (isSwitchingMidi) {
-        console.log('正在切换中，请稍候...');
-        return;
-    }
-    
-    isSwitchingMidi = true;
-    
-    // 切换到上一个文件
-    currentMidiIndex = (currentMidiIndex - 1 + midiFiles.length) % midiFiles.length;
-    
-    // 下滑动画
-    await playSlideAnimation('down');
-    
-    // 加载新的MIDI文件
-    await loadAndStartNewMidi();
-    
-    isSwitchingMidi = false;
-}
-
-// 播放滑动动画（抖音风格）
-function playSlideAnimation(direction) {
-    return new Promise((resolve) => {
-        const canvas = document.getElementById('gameCanvas');
-        const midiNameElement = document.getElementById('midiName');
-        
-        // 设置动画
-        const translateY = direction === 'up' ? '-100%' : '100%';
-        canvas.style.transform = `translateY(${translateY})`;
-        
-        // 名字淡出
-        midiNameElement.style.opacity = '0';
-        midiNameElement.style.transition = 'opacity 0.2s';
-        
-        // 400ms后动画完成
-        setTimeout(() => {
-            canvas.style.transform = 'translateY(0)';
-            canvas.style.transition = 'none';
-            
-            // 名字淡入
-            setTimeout(() => {
-                midiNameElement.style.opacity = '1';
-                midiNameElement.style.transition = 'opacity 0.3s';
-                resolve();
-            }, 50);
-        }, 400);
-        
-        // 启用过渡
-        setTimeout(() => {
-            canvas.style.transition = 'transform 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94)';
-        }, 10);
-    });
-}
-
-// 加载并开始新的MIDI
-async function loadAndStartNewMidi() {
-    console.log('🔄 加载并开始新 MIDI...');
-    
-    // === 立即清理所有旧数据 ===
-    console.log('🧹 清理旧数据...');
-    cleanupObjects(obstacles);
-    cleanupObjects(coins);
-    cleanupObjects(noteObjects);
-    blocksCreated = false;
-    
-    // 清理旧的 MIDI 数据
-    midiNotes = [];
-    totalNotes = 0;
-    
-    // 清理拖尾效果
-    trailPositions = [];
-    trailSpheres.forEach(sphere => {
-        sphere.material.opacity = 0;
-    });
-    
-    score = 0;
-    distance = 0;
-    notesTriggered = 0;
-    collisions = 0;
-    starsEarned = 0;
-    speedMultiplier = 1.0;
-    isCompletingRound = false;
-    midiSpeed = originalBaseSpeed;
-    
-    player.position.set(0, groundY, 0);
-    player.scale.set(1, 1, 1);
-    isJumping = false;
-    verticalVelocity = 0;
-    currentLane = 2;
-    targetLane = 2;
-    
-    // 输出清理后的内存状态
-    console.log('✅ 清理完成！内存状态:', {
-        几何体: renderer.info.memory.geometries,
-        纹理: renderer.info.memory.textures,
-        场景物体: scene.children.length,
-        音符方块: noteObjects.length,
-        MIDI数据: midiNotes.length
-    });
-    
-    // 等待一帧
-    await new Promise(resolve => requestAnimationFrame(resolve));
-    
-    // 从缓存加载新的MIDI文件（几乎瞬间完成）
-    console.log('📥 从缓存加载 MIDI 文件...');
-    const success = await loadMidiFile(currentMidiIndex);
-    
-    if (success) {
-        // 显示文件名提示
-        comboElement.style.display = 'block';
-        comboElement.textContent = `♪ ${currentMidiName}`;
-        comboElement.style.fontSize = '28px';
-        comboElement.style.color = '#ffd700';
-        
-        // 隐藏游戏结束界面
-        gameOverElement.style.display = 'none';
-        
-        setTimeout(() => {
-            comboElement.style.display = 'none';
-        }, 2000);
-    }
-}
 
 // 阻止浏览器的下拉刷新和其他手势
 document.addEventListener('gesturestart', (e) => {
@@ -2295,6 +2194,200 @@ restartButton.addEventListener('click', handleRestart);
 restartButton.addEventListener('touchend', handleRestart);
 
 // 继续功能已取消
+
+// ============================================================================
+// WebGL上下文丢失处理
+// ============================================================================
+
+/**
+ * 显示错误提示
+ * @param {string} message - 错误消息
+ * @param {string} type - 错误类型 ('error' | 'warning' | 'info')
+ */
+function showError(message, type = 'error') {
+    // 检查是否已存在错误提示
+    let errorElement = document.getElementById('webgl-error');
+    
+    if (!errorElement) {
+        // 创建错误提示元素
+        errorElement = document.createElement('div');
+        errorElement.id = 'webgl-error';
+        errorElement.style.cssText = `
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.95);
+            backdrop-filter: blur(20px);
+            color: white;
+            padding: 30px 40px;
+            border-radius: 16px;
+            font-family: Arial, sans-serif;
+            font-size: 16px;
+            z-index: 10001;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+            max-width: 400px;
+            text-align: center;
+            border: 2px solid rgba(255, 100, 100, 0.5);
+        `;
+        document.body.appendChild(errorElement);
+    }
+    
+    // 根据类型设置边框颜色
+    if (type === 'warning') {
+        errorElement.style.borderColor = 'rgba(255, 200, 100, 0.5)';
+    } else if (type === 'info') {
+        errorElement.style.borderColor = 'rgba(100, 150, 255, 0.5)';
+    } else {
+        errorElement.style.borderColor = 'rgba(255, 100, 100, 0.5)';
+    }
+    
+    // 设置消息内容
+    errorElement.innerHTML = `
+        <div style="font-size: 48px; margin-bottom: 15px;">
+            ${type === 'error' ? '⚠️' : type === 'warning' ? '⚡' : 'ℹ️'}
+        </div>
+        <div style="font-size: 18px; font-weight: bold; margin-bottom: 10px;">
+            ${type === 'error' ? '渲染错误' : type === 'warning' ? '性能警告' : '提示'}
+        </div>
+        <div style="font-size: 14px; color: rgba(255, 255, 255, 0.8); line-height: 1.6;">
+            ${message}
+        </div>
+    `;
+    
+    errorElement.style.display = 'block';
+}
+
+/**
+ * 隐藏错误提示
+ */
+function hideError() {
+    const errorElement = document.getElementById('webgl-error');
+    if (errorElement) {
+        errorElement.style.transition = 'opacity 0.5s';
+        errorElement.style.opacity = '0';
+        setTimeout(() => {
+            if (errorElement.parentNode) {
+                errorElement.parentNode.removeChild(errorElement);
+            }
+        }, 500);
+    }
+}
+
+// WebGL上下文丢失事件处理
+let webglContextLost = false;
+let contextRestoreAttempts = 0;
+const MAX_RESTORE_ATTEMPTS = 3;
+
+/**
+ * WebGL上下文丢失处理
+ */
+function handleWebGLContextLost(event) {
+    event.preventDefault();
+    console.error('❌ WebGL上下文丢失');
+    
+    webglContextLost = true;
+    
+    // 暂停游戏
+    if (gameRunning) {
+        gameRunning = false;
+        
+        // 暂停背景音乐
+        if (audioEngine && audioEngine.bgmIsPlaying) {
+            audioEngine.pauseBGM();
+        }
+    }
+    
+    // 显示错误提示
+    showError('渲染引擎出现问题，正在尝试恢复...', 'warning');
+    
+    // 1秒后尝试恢复
+    setTimeout(() => {
+        if (renderer && renderer.forceContextRestore) {
+            console.log('🔄 尝试恢复WebGL上下文...');
+            contextRestoreAttempts++;
+            renderer.forceContextRestore();
+        }
+    }, 1000);
+}
+
+/**
+ * WebGL上下文恢复处理
+ */
+function handleWebGLContextRestored() {
+    console.log('✅ WebGL上下文已恢复');
+    
+    webglContextLost = false;
+    
+    try {
+        // 重新初始化渲染系统
+        if (renderManager) {
+            console.log('🔄 重新初始化渲染系统...');
+            renderManager.initialize();
+        }
+        
+        // 隐藏错误提示
+        hideError();
+        
+        // 显示成功消息
+        showError('渲染引擎已恢复！游戏将继续...', 'info');
+        
+        setTimeout(() => {
+            hideError();
+            
+            // 恢复游戏（如果之前在运行）
+            if (!gameRunning && midiNotes.length > 0) {
+                // 不自动恢复游戏，让用户手动重新开始
+                console.log('💡 请点击重新开始按钮继续游戏');
+            }
+        }, 2000);
+        
+        // 重置恢复尝试计数
+        contextRestoreAttempts = 0;
+        
+    } catch (error) {
+        console.error('❌ 渲染系统恢复失败:', error);
+        showError('渲染引擎恢复失败，请刷新页面重试。', 'error');
+    }
+}
+
+/**
+ * WebGL上下文创建失败处理
+ */
+function handleWebGLContextCreationError(event) {
+    console.error('❌ WebGL上下文创建失败:', event.statusMessage);
+    
+    showError(
+        'WebGL初始化失败。<br>' +
+        '可能原因：<br>' +
+        '• 浏览器不支持WebGL<br>' +
+        '• 显卡驱动需要更新<br>' +
+        '• 硬件加速被禁用<br><br>' +
+        '请尝试更新浏览器或启用硬件加速。',
+        'error'
+    );
+}
+
+// 在init函数中添加WebGL上下文事件监听器
+function setupWebGLErrorHandlers() {
+    if (!renderer || !renderer.domElement) {
+        console.warn('⚠️ 渲染器未初始化，无法设置WebGL错误处理');
+        return;
+    }
+    
+    const canvas = renderer.domElement;
+    
+    // 监听WebGL上下文丢失事件
+    canvas.addEventListener('webglcontextlost', handleWebGLContextLost, false);
+    
+    // 监听WebGL上下文恢复事件
+    canvas.addEventListener('webglcontextrestored', handleWebGLContextRestored, false);
+    
+    // 监听WebGL上下文创建失败事件
+    canvas.addEventListener('webglcontextcreationerror', handleWebGLContextCreationError, false);
+    
+    console.log('✅ WebGL错误处理已设置');
+}
 
 // ========== 设置功能 ==========
 
@@ -2339,7 +2432,13 @@ setTimeout(() => {
 
 // 更新灵动岛标题
 function updateIslandTitle(name) {
-    islandTitle.textContent = name;
+    if (name) {
+        islandTitle.textContent = name;
+    } else if (isAuthenticated && currentUser) {
+        islandTitle.textContent = `欢迎，${currentUser}`;
+    } else {
+        islandTitle.textContent = '点击登录或注册';
+    }
 }
 
 // 标签页切换功能
@@ -2367,6 +2466,8 @@ function initIslandTabs() {
             // 显示对应内容
             if (targetTab === 'music') {
                 document.getElementById('musicTab').classList.add('active');
+            } else if (targetTab === 'user') {
+                document.getElementById('userTab').classList.add('active');
             } else if (targetTab === 'settings') {
                 document.getElementById('settingsTab').classList.add('active');
             }
@@ -2551,13 +2652,10 @@ async function selectMidi(index) {
     
     // === 第一步：立即清理所有旧数据 ===
     console.log('🧹 步骤1: 清理旧场景对象...');
-    cleanupObjects(obstacles);
-    cleanupObjects(coins);
     cleanupObjects(noteObjects);
     blocksCreated = false;
     
     // 清理旧的 MIDI 数据
-    console.log('🧹 步骤2: 清理旧 MIDI 数据...');
     midiNotes = [];
     totalNotes = 0;
     notesTriggered = 0;
@@ -2571,8 +2669,6 @@ async function selectMidi(index) {
     
     // 重置游戏状态
     score = 0;
-    distance = 0;
-    starsEarned = 0;
     speedMultiplier = 1.0;
     isCompletingRound = false;
     
@@ -2711,6 +2807,14 @@ function toggleIsland() {
         dynamicIsland.classList.remove('expanded');
         isIslandExpanded = false;
         if (!gameRunning && wasGameRunningBeforePause) {
+            // 计算暂停的时长
+            if (gamePausedTime > 0) {
+                const pauseDuration = audioEngine.audioContext.currentTime - gamePausedTime;
+                totalPausedDuration += pauseDuration;
+                console.log(`⏱️ 暂停时长: ${pauseDuration.toFixed(2)}秒，累计: ${totalPausedDuration.toFixed(2)}秒`);
+                gamePausedTime = 0;
+            }
+            
             gameRunning = true;
             // 恢复背景音乐
             if (audioEngine && audioEngine.bgmPauseTime > 0) {
@@ -2723,7 +2827,14 @@ function toggleIsland() {
         dynamicIsland.classList.add('expanded');
         isIslandExpanded = true;
         wasGameRunningBeforePause = gameRunning;
-        gameRunning = false;
+        
+        if (gameRunning) {
+            // 记录暂停时间点
+            gamePausedTime = audioEngine.audioContext.currentTime;
+            gameRunning = false;
+            console.log(`⏸️ 游戏暂停在: ${gamePausedTime.toFixed(2)}秒`);
+        }
+        
         // 暂停背景音乐
         if (audioEngine && audioEngine.bgmIsPlaying) {
             audioEngine.pauseBGM();
@@ -2801,8 +2912,6 @@ window.forceCleanup = function() {
     gameRunning = false;
     
     // 清理所有对象
-    cleanupObjects(obstacles);
-    cleanupObjects(coins);
     cleanupObjects(noteObjects);
     
     // 清理数据
@@ -2832,3 +2941,349 @@ animate(performance.now());
 
 // 立即开始预加载所有资源
 preloadAllResources();
+
+
+// 初始化认证界面
+function initAuthInterface() {
+    const dynamicIsland = document.getElementById('dynamicIsland');
+    const authTabs = document.querySelectorAll('.auth-tab');
+    const loginForm = document.getElementById('loginForm');
+    const registerForm = document.getElementById('registerForm');
+    const loginBtn = document.getElementById('loginBtn');
+    const registerBtn = document.getElementById('registerBtn');
+    const logoutBtn = document.getElementById('logoutBtn');
+    
+    // 认证标签页切换
+    authTabs.forEach(tab => {
+        tab.addEventListener('click', () => {
+            const targetTab = tab.dataset.authTab;
+            
+            // 切换标签激活状态
+            authTabs.forEach(t => t.classList.remove('active'));
+            tab.classList.add('active');
+            
+            // 切换表单显示
+            if (targetTab === 'login') {
+                loginForm.classList.add('active');
+                registerForm.classList.remove('active');
+            } else {
+                registerForm.classList.add('active');
+                loginForm.classList.remove('active');
+            }
+        });
+    });
+    
+    // 登录按钮
+    loginBtn.addEventListener('click', handleLogin);
+    
+    // 注册按钮
+    registerBtn.addEventListener('click', handleRegister);
+    
+    // 退出登录按钮
+    if (logoutBtn) {
+        logoutBtn.addEventListener('click', logout);
+    }
+    
+    // 回车键提交
+    document.getElementById('loginPassword').addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') handleLogin();
+    });
+    
+    document.getElementById('registerPasswordConfirm').addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') handleRegister();
+    });
+}
+
+// 处理登录
+function handleLogin() {
+    const username = document.getElementById('loginUsername').value.trim();
+    const password = document.getElementById('loginPassword').value;
+    const messageEl = document.getElementById('loginMessage');
+    const loginBtn = document.getElementById('loginBtn');
+    
+    // 验证输入
+    if (!username || !password) {
+        showAuthMessage(messageEl, '请输入用户名和密码', 'error');
+        return;
+    }
+    
+    // 禁用按钮
+    loginBtn.disabled = true;
+    
+    // 播放点击音效
+    if (audioEngine && audioEngine.playClickSound) {
+        audioEngine.playClickSound();
+    }
+    
+    // 从本地存储获取用户数据
+    const users = JSON.parse(localStorage.getItem('users') || '{}');
+    
+    if (users[username] && users[username] === password) {
+        // 登录成功 - 不显示成功消息，直接完成认证
+        localStorage.setItem('authToken', username);
+        isAuthenticated = true;
+        currentUser = username;
+        
+        // 立即完成认证
+        completeAuthentication();
+        loginBtn.disabled = false;
+    } else {
+        showAuthMessage(messageEl, '用户名或密码错误', 'error');
+        loginBtn.disabled = false;
+    }
+}
+
+// 处理注册
+function handleRegister() {
+    const username = document.getElementById('registerUsername').value.trim();
+    const password = document.getElementById('registerPassword').value;
+    const passwordConfirm = document.getElementById('registerPasswordConfirm').value;
+    const messageEl = document.getElementById('registerMessage');
+    const registerBtn = document.getElementById('registerBtn');
+    
+    // 验证输入
+    if (!username || !password || !passwordConfirm) {
+        showAuthMessage(messageEl, '请填写所有字段', 'error');
+        return;
+    }
+    
+    if (username.length < 3) {
+        showAuthMessage(messageEl, '用户名至少3个字符', 'error');
+        return;
+    }
+    
+    if (password.length < 6) {
+        showAuthMessage(messageEl, '密码至少6个字符', 'error');
+        return;
+    }
+    
+    if (password !== passwordConfirm) {
+        showAuthMessage(messageEl, '两次密码不一致', 'error');
+        return;
+    }
+    
+    // 禁用按钮
+    registerBtn.disabled = true;
+    
+    // 播放点击音效
+    if (audioEngine && audioEngine.playClickSound) {
+        audioEngine.playClickSound();
+    }
+    
+    // 检查用户名是否已存在
+    const users = JSON.parse(localStorage.getItem('users') || '{}');
+    
+    if (users[username]) {
+        showAuthMessage(messageEl, '用户名已存在', 'error');
+        registerBtn.disabled = false;
+        return;
+    }
+    
+    // 注册成功 - 不显示成功消息，直接完成认证
+    users[username] = password;
+    localStorage.setItem('users', JSON.stringify(users));
+    localStorage.setItem('authToken', username);
+    isAuthenticated = true;
+    currentUser = username;
+    
+    // 立即完成认证
+    completeAuthentication();
+    registerBtn.disabled = false;
+}
+
+// 显示认证消息
+function showAuthMessage(element, message, type) {
+    element.textContent = message;
+    element.className = `auth-message ${type}`;
+}
+
+// 完成认证，切换到正常模式
+function completeAuthentication() {
+    const dynamicIsland = document.getElementById('dynamicIsland');
+    
+    console.log('🔄 开始认证完成流程...');
+    
+    // 标记不是首次加载了
+    isFirstLoad = false;
+    
+    // 立即更新用户信息显示
+    updateUserDisplay();
+    
+    // 立即更新标题显示欢迎信息
+    updateIslandTitle();
+    console.log('✅ 更新欢迎标题');
+    
+    // 清空认证表单的消息
+    const loginMessage = document.getElementById('loginMessage');
+    const registerMessage = document.getElementById('registerMessage');
+    if (loginMessage) loginMessage.textContent = '';
+    if (registerMessage) registerMessage.textContent = '';
+    
+    // 清空输入框
+    const loginUsername = document.getElementById('loginUsername');
+    const loginPassword = document.getElementById('loginPassword');
+    const registerUsername = document.getElementById('registerUsername');
+    const registerPassword = document.getElementById('registerPassword');
+    const registerPasswordConfirm = document.getElementById('registerPasswordConfirm');
+    if (loginUsername) loginUsername.value = '';
+    if (loginPassword) loginPassword.value = '';
+    if (registerUsername) registerUsername.value = '';
+    if (registerPassword) registerPassword.value = '';
+    if (registerPasswordConfirm) registerPasswordConfirm.value = '';
+    
+    // 移除认证模式
+    dynamicIsland.classList.remove('auth-mode');
+    console.log('✅ 移除认证模式');
+    
+    // 先等待一小段时间让认证界面消失
+    setTimeout(() => {
+        // 移除展开状态
+        dynamicIsland.classList.remove('expanded');
+        isIslandExpanded = false;
+        console.log('✅ 收起灵动岛，当前类名:', dynamicIsland.className);
+        
+        // 1秒后自动展开音乐界面
+        setTimeout(() => {
+            console.log('🎵 1秒后，准备展开音乐界面...');
+            
+            // 初始化MIDI列表
+            if (midiFiles.length > 0) {
+                initMidiList();
+            }
+            
+            // 确保显示音乐标签
+            const tabs = document.querySelectorAll('.island-tab');
+            const tabContents = document.querySelectorAll('.island-tab-content');
+            
+            // 移除所有active类
+            tabs.forEach(t => t.classList.remove('active'));
+            tabContents.forEach(tc => tc.classList.remove('active'));
+            
+            // 激活音乐标签
+            if (tabs.length > 0) {
+                tabs[0].classList.add('active'); // 第一个标签是音乐
+            }
+            const musicTab = document.getElementById('musicTab');
+            if (musicTab) {
+                musicTab.classList.add('active');
+            }
+            
+            console.log('✅ 激活音乐标签');
+            
+            // 展开灵动岛并暂停游戏
+            dynamicIsland.classList.add('expanded');
+            isIslandExpanded = true;
+            
+            // 暂停游戏（展开状态）
+            wasGameRunningBeforePause = gameRunning;
+            gameRunning = false;
+            
+            // 暂停背景音乐
+            if (audioEngine && audioEngine.bgmIsPlaying) {
+                audioEngine.pauseBGM();
+                console.log('🎵 展开音乐界面，暂停游戏');
+            }
+            
+            console.log('✅ 展开灵动岛，显示音乐界面（游戏已暂停）');
+        }, 1000);
+    }, 100);
+    
+    console.log('✅ 认证完成，欢迎使用！');
+}
+
+// 更新用户信息显示
+function updateUserDisplay() {
+    const displayUsername = document.getElementById('displayUsername');
+    const logoutBtn = document.getElementById('logoutBtn');
+    const userInfoSection = document.getElementById('userInfoSection');
+    
+    if (isAuthenticated && currentUser) {
+        if (displayUsername) {
+            displayUsername.textContent = currentUser;
+        }
+        if (logoutBtn) {
+            logoutBtn.style.display = 'block';
+            logoutBtn.parentElement.style.display = 'block';
+        }
+    } else {
+        if (displayUsername) {
+            displayUsername.textContent = '未登录';
+        }
+        if (logoutBtn) {
+            logoutBtn.style.display = 'none';
+            logoutBtn.parentElement.style.display = 'none';
+        }
+    }
+}
+
+// 检查认证状态
+function checkAuthStatus() {
+    const authToken = localStorage.getItem('authToken');
+    if (authToken) {
+        isAuthenticated = true;
+        currentUser = authToken;
+        updateUserDisplay();
+        console.log('✅ 用户已登录:', currentUser);
+        return true;
+    }
+    isAuthenticated = false;
+    currentUser = null;
+    updateUserDisplay();
+    console.log('❌ 用户未登录');
+    return false;
+}
+
+// 退出登录
+function logout() {
+    // 播放点击音效
+    if (audioEngine && audioEngine.playClickSound) {
+        audioEngine.playClickSound();
+    }
+    
+    localStorage.removeItem('authToken');
+    isAuthenticated = false;
+    currentUser = null;
+    updateUserDisplay();
+    
+    // 暂停游戏
+    if (gameRunning) {
+        wasGameRunningBeforePause = true;
+        gameRunning = false;
+        if (audioEngine && audioEngine.bgmIsPlaying) {
+            audioEngine.pauseBGM();
+        }
+    }
+    
+    // 清空输入框
+    document.getElementById('loginUsername').value = '';
+    document.getElementById('loginPassword').value = '';
+    document.getElementById('registerUsername').value = '';
+    document.getElementById('registerPassword').value = '';
+    document.getElementById('registerPasswordConfirm').value = '';
+    
+    // 清空消息
+    document.getElementById('loginMessage').textContent = '';
+    document.getElementById('registerMessage').textContent = '';
+    
+    // 切换到登录标签
+    const authTabs = document.querySelectorAll('.auth-tab');
+    authTabs.forEach(t => t.classList.remove('active'));
+    authTabs[0].classList.add('active');
+    document.getElementById('loginForm').classList.add('active');
+    document.getElementById('registerForm').classList.remove('active');
+    
+    // 显示认证界面
+    dynamicIsland.classList.remove('expanded');
+    setTimeout(() => {
+        dynamicIsland.classList.add('expanded', 'auth-mode');
+        isIslandExpanded = true;
+    }, 100);
+    
+    console.log('👋 已退出登录');
+}
+
+// 页面加载时初始化
+window.addEventListener('DOMContentLoaded', () => {
+    initAuthInterface();
+    checkAuthStatus();
+});

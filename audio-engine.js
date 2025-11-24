@@ -14,6 +14,7 @@ class AudioEngine {
         this.bgmPauseTime = 0;
         this.bgmIsPlaying = false;
         this.bgmPlaybackRate = 1.0;
+        this.fadeOutTimer = null; // 渐出定时器
         
         // 专业音频处理链
         this.convolver = null; // 卷积混响
@@ -938,6 +939,17 @@ class AudioEngine {
         // 停止当前播放
         this.stopBGM();
         
+        // 取消之前的渐出定时器
+        if (this.fadeOutTimer) {
+            clearTimeout(this.fadeOutTimer);
+            this.fadeOutTimer = null;
+        }
+        
+        // 先停止当前播放（如果有）
+        if (this.bgmSource) {
+            this.stopBGM();
+        }
+        
         try {
             const ctx = this.audioContext;
             this.bgmSource = ctx.createBufferSource();
@@ -945,7 +957,7 @@ class AudioEngine {
             
             // 创建独立的音量节点，直接连接到输出（不经过音频处理链）
             this.bgmGain = ctx.createGain();
-            this.bgmGain.gain.value = 1.0; // 原始音量
+            this.bgmGain.gain.value = 0; // 从0开始，实现渐入效果
             
             this.bgmSource.connect(this.bgmGain);
             this.bgmGain.connect(ctx.destination); // 直接连接到输出
@@ -961,14 +973,25 @@ class AudioEngine {
             // 从指定位置开始播放
             this.bgmSource.start(ctx.currentTime, startTime);
             
-            console.log(`🎵 背景音乐开始播放，从 ${startTime.toFixed(2)}秒 开始，速度: ${playbackRate.toFixed(2)}x`);
+            // 渐入效果：0.3秒内从0渐入到1.0（缩短渐入时间）
+            const fadeInDuration = 0.3;
+            this.bgmGain.gain.setValueAtTime(0, ctx.currentTime);
+            this.bgmGain.gain.linearRampToValueAtTime(1.0, ctx.currentTime + fadeInDuration);
+            
+            console.log(`🎵 背景音乐开始播放（渐入），从 ${startTime.toFixed(2)}秒 开始，速度: ${playbackRate.toFixed(2)}x`);
         } catch (error) {
             console.error('播放背景音乐失败:', error);
         }
     }
     
-    // 停止背景音乐
+    // 停止背景音乐（立即停止，不带渐出）
     stopBGM() {
+        // 清除渐出定时器
+        if (this.fadeOutTimer) {
+            clearTimeout(this.fadeOutTimer);
+            this.fadeOutTimer = null;
+        }
+        
         if (this.bgmSource) {
             try {
                 this.bgmSource.stop();
@@ -989,21 +1012,68 @@ class AudioEngine {
         this.bgmIsPlaying = false;
     }
     
-    // 暂停背景音乐
+    // 停止背景音乐（带渐出效果）
+    stopBGMWithFadeOut(fadeOutDuration = 0.5) {
+        if (this.bgmIsPlaying && this.bgmSource && this.bgmGain) {
+            const ctx = this.audioContext;
+            const currentGain = this.bgmGain.gain.value;
+            
+            // 渐出效果
+            this.bgmGain.gain.cancelScheduledValues(ctx.currentTime);
+            this.bgmGain.gain.setValueAtTime(currentGain, ctx.currentTime);
+            this.bgmGain.gain.linearRampToValueAtTime(0, ctx.currentTime + fadeOutDuration);
+            
+            // 延迟停止，等待渐出完成
+            setTimeout(() => {
+                this.stopBGM();
+            }, fadeOutDuration * 1000);
+            
+            console.log(`🔇 背景音乐停止（渐出 ${fadeOutDuration}秒）`);
+        }
+    }
+    
+    // 暂停背景音乐（带渐出效果）
     pauseBGM() {
-        if (this.bgmIsPlaying && this.bgmSource) {
+        if (this.bgmIsPlaying && this.bgmSource && this.bgmGain) {
             const ctx = this.audioContext;
             this.bgmPauseTime = ctx.currentTime - this.bgmStartTime;
-            this.stopBGM();
-            console.log(`⏸️ 背景音乐暂停在 ${this.bgmPauseTime.toFixed(2)}秒`);
+            
+            // 取消之前的渐出定时器
+            if (this.fadeOutTimer) {
+                clearTimeout(this.fadeOutTimer);
+                this.fadeOutTimer = null;
+            }
+            
+            // 渐出效果：0.2秒内从当前音量渐出到0（缩短渐出时间）
+            const fadeOutDuration = 0.2;
+            const currentGain = this.bgmGain.gain.value;
+            
+            this.bgmGain.gain.cancelScheduledValues(ctx.currentTime);
+            this.bgmGain.gain.setValueAtTime(currentGain, ctx.currentTime);
+            this.bgmGain.gain.linearRampToValueAtTime(0, ctx.currentTime + fadeOutDuration);
+            
+            // 延迟停止，等待渐出完成
+            this.fadeOutTimer = setTimeout(() => {
+                this.stopBGM();
+                this.fadeOutTimer = null;
+            }, fadeOutDuration * 1000);
+            
+            console.log(`⏸️ 背景音乐暂停在 ${this.bgmPauseTime.toFixed(2)}秒（渐出）`);
         }
     }
     
     // 恢复背景音乐
     resumeBGM() {
+        // 取消之前的渐出定时器
+        if (this.fadeOutTimer) {
+            clearTimeout(this.fadeOutTimer);
+            this.fadeOutTimer = null;
+        }
+        
         if (this.bgmPauseTime > 0) {
-            this.playBGM(this.bgmPauseTime, this.bgmPlaybackRate);
+            const pauseTime = this.bgmPauseTime;
             this.bgmPauseTime = 0;
+            this.playBGM(pauseTime, this.bgmPlaybackRate);
         }
     }
     

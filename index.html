@@ -76,6 +76,136 @@
             display: none;
         }
 
+        /* 性能统计面板 */
+        #performanceStats {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            background: rgba(0, 0, 0, 0.85);
+            backdrop-filter: blur(10px);
+            border-radius: 12px;
+            padding: 12px 16px;
+            color: #fff;
+            font-size: 12px;
+            font-family: 'Courier New', monospace;
+            pointer-events: auto;
+            z-index: 1000;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            min-width: 200px;
+            display: none;
+        }
+
+        #performanceStats.visible {
+            display: block;
+        }
+
+        .perf-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .perf-title {
+            font-weight: bold;
+            font-size: 13px;
+            color: #667eea;
+        }
+
+        .perf-toggle {
+            background: none;
+            border: none;
+            color: #fff;
+            cursor: pointer;
+            font-size: 16px;
+            padding: 0;
+            width: 20px;
+            height: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: transform 0.3s;
+        }
+
+        .perf-toggle:hover {
+            transform: scale(1.2);
+        }
+
+        .perf-content {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .perf-content.collapsed {
+            display: none;
+        }
+
+        .perf-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .perf-label {
+            color: rgba(255, 255, 255, 0.7);
+        }
+
+        .perf-value {
+            font-weight: bold;
+            color: #4ade80;
+        }
+
+        .perf-value.warning {
+            color: #fbbf24;
+        }
+
+        .perf-value.danger {
+            color: #ef4444;
+        }
+
+        .perf-section {
+            margin-top: 8px;
+            padding-top: 8px;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .perf-section-title {
+            font-size: 11px;
+            color: rgba(255, 255, 255, 0.5);
+            margin-bottom: 4px;
+        }
+
+        /* 开发模式切换按钮 */
+        #devModeToggle {
+            position: fixed;
+            bottom: 10px;
+            right: 10px;
+            background: rgba(0, 0, 0, 0.7);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 8px;
+            padding: 8px 12px;
+            color: #fff;
+            font-size: 11px;
+            cursor: pointer;
+            pointer-events: auto;
+            z-index: 1000;
+            transition: all 0.3s;
+        }
+
+        #devModeToggle:hover {
+            background: rgba(0, 0, 0, 0.9);
+            border-color: rgba(102, 126, 234, 0.6);
+        }
+
+        #devModeToggle.active {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-color: rgba(255, 255, 255, 0.4);
+        }
+
         #combo {
             position: absolute;
             top: 50%;
@@ -184,6 +314,164 @@
             display: flex;
         }
 
+        /* 认证界面样式 */
+        .island-auth-content {
+            display: none;
+            width: 100%;
+            height: 100%;
+            flex-direction: column;
+            padding: 15px;
+            overflow: hidden;
+        }
+
+        #dynamicIsland.expanded.auth-mode .island-auth-content {
+            display: flex;
+        }
+
+        #dynamicIsland.expanded.auth-mode .island-expanded-content {
+            display: none;
+        }
+
+        .auth-tabs {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 15px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+            padding-bottom: 8px;
+        }
+
+        .auth-tab {
+            flex: 1;
+            padding: 8px 12px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            color: rgba(255, 255, 255, 0.6);
+            font-size: 14px;
+            font-weight: 600;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .auth-tab:hover {
+            background: rgba(255, 255, 255, 0.15);
+            color: rgba(255, 255, 255, 0.8);
+        }
+
+        .auth-tab.active {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #fff;
+            border-color: rgba(255, 255, 255, 0.3);
+        }
+
+        .auth-form {
+            display: none;
+            flex-direction: column;
+            gap: 10px;
+            flex: 1;
+            justify-content: center;
+        }
+
+        .auth-form.active {
+            display: flex;
+        }
+
+        .auth-input-group {
+            position: relative;
+            display: flex;
+            align-items: center;
+        }
+
+        .auth-input-icon {
+            position: absolute;
+            left: 12px;
+            font-size: 18px;
+            pointer-events: none;
+            z-index: 1;
+        }
+
+        .auth-input {
+            width: 100%;
+            padding: 10px 12px 10px 42px;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 10px;
+            color: #fff;
+            font-size: 14px;
+            outline: none;
+            transition: all 0.3s;
+        }
+
+        .auth-input::placeholder {
+            color: rgba(255, 255, 255, 0.5);
+        }
+
+        .auth-input:focus {
+            background: rgba(255, 255, 255, 0.15);
+            border-color: rgba(102, 126, 234, 0.6);
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.2);
+        }
+
+        .auth-submit-btn {
+            width: 100%;
+            padding: 10px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border: none;
+            border-radius: 10px;
+            color: #fff;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+            margin-top: 2px;
+        }
+
+        .auth-submit-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
+        }
+
+        .auth-submit-btn:active {
+            transform: translateY(0);
+        }
+
+        .auth-submit-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .auth-message {
+            text-align: center;
+            font-size: 12px;
+            min-height: 16px;
+            margin-top: -2px;
+            transition: all 0.3s;
+        }
+
+        .auth-message.success {
+            color: #4ade80;
+        }
+
+        .auth-message.error {
+            color: #f87171;
+        }
+
+        /* 认证界面标题 */
+        .auth-welcome {
+            text-align: center;
+            color: #fff;
+            font-size: 18px;
+            font-weight: 700;
+            margin-bottom: 15px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
         /* 标签页切换 */
         .island-tabs {
             display: flex;
@@ -237,6 +525,15 @@
             z-index: 10; /* 确保激活的页面在最上层 */
         }
 
+        /* 用户页面布局 */
+        #userTab {
+            padding: 10px;
+            overflow-y: auto;
+            overflow-x: hidden;
+            -webkit-overflow-scrolling: touch;
+            background: #000;
+        }
+
         /* 设置页面布局 */
         #settingsTab {
             padding: 10px;
@@ -267,8 +564,8 @@
             margin-bottom: 10px;
         }
 
-        .setting-label span:not(.setting-icon) {
-            display: none; /* 隐藏设置项文字 */
+        .setting-label span:not(.setting-icon):not([style*="color"]) {
+            display: none; /* 隐藏设置项文字，但保留带样式的标题 */
         }
 
         .setting-icon {
@@ -335,6 +632,150 @@
             text-align: right;
         }
 
+        /* 开关按钮样式 */
+        .toggle-switch {
+            position: relative;
+            display: inline-block;
+            width: 50px;
+            height: 26px;
+            flex-shrink: 0;
+        }
+
+        .toggle-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .toggle-slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(255, 255, 255, 0.2);
+            transition: 0.3s;
+            border-radius: 13px;
+        }
+
+        .toggle-slider:before {
+            position: absolute;
+            content: "";
+            height: 20px;
+            width: 20px;
+            left: 3px;
+            bottom: 3px;
+            background-color: white;
+            transition: 0.3s;
+            border-radius: 50%;
+        }
+
+        input:checked + .toggle-slider {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+
+        input:checked + .toggle-slider:before {
+            transform: translateX(24px);
+        }
+
+        /* 画质选择器样式 */
+        .quality-selector {
+            display: flex;
+            gap: 8px;
+            width: 100%;
+        }
+
+        .quality-btn {
+            flex: 1;
+            padding: 8px 12px;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 8px;
+            color: rgba(255, 255, 255, 0.6);
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            outline: none;
+        }
+
+        .quality-btn:hover {
+            background: rgba(255, 255, 255, 0.15);
+            color: rgba(255, 255, 255, 0.8);
+        }
+
+        .quality-btn.active {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #fff;
+            border-color: rgba(255, 255, 255, 0.3);
+        }
+
+        /* 用户信息样式 */
+        .user-info-content {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            width: 100%;
+            padding: 20px 0;
+        }
+
+        .user-name {
+            color: #fff;
+            font-size: 24px;
+            font-weight: 700;
+            text-align: center;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            text-shadow: 0 2px 10px rgba(102, 126, 234, 0.3);
+        }
+
+        /* 用户页面特殊样式 */
+        #userTab .settings-section {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            padding: 10px 0;
+        }
+
+        #userTab .setting-item {
+            background: rgba(255, 255, 255, 0.08);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+        }
+
+        .logout-btn {
+            padding: 6px 16px;
+            background: rgba(239, 68, 68, 0.2);
+            border: 1px solid rgba(239, 68, 68, 0.4);
+            border-radius: 10px;
+            color: #ef4444;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            white-space: nowrap;
+        }
+
+        .logout-btn:hover {
+            background: rgba(239, 68, 68, 0.3);
+            border-color: rgba(239, 68, 68, 0.6);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
+        }
+
+        .logout-btn:active {
+            transform: translateY(0);
+        }
+
+        .logout-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
         .midi-list-container {
             flex: 1;
             overflow-x: auto;
@@ -368,6 +809,7 @@
             overflow: hidden;
             display: flex;
             flex-direction: column;
+            background: #000;
         }
 
         /* 搜索框容器 */
@@ -840,6 +1282,79 @@
         <div id="instructions"></div>
         <div id="midiName"></div>
 
+        <!-- 性能统计面板 -->
+        <div id="performanceStats">
+            <div class="perf-header">
+                <span class="perf-title">📊 性能统计</span>
+                <button class="perf-toggle" id="perfToggle">−</button>
+            </div>
+            <div class="perf-content" id="perfContent">
+                <div class="perf-row">
+                    <span class="perf-label">FPS:</span>
+                    <span class="perf-value" id="perfFPS">60</span>
+                </div>
+                <div class="perf-row">
+                    <span class="perf-label">平均FPS:</span>
+                    <span class="perf-value" id="perfAvgFPS">60</span>
+                </div>
+                <div class="perf-row">
+                    <span class="perf-label">帧时间:</span>
+                    <span class="perf-value" id="perfFrameTime">16.67ms</span>
+                </div>
+                
+                <div class="perf-section">
+                    <div class="perf-section-title">渲染统计</div>
+                    <div class="perf-row">
+                        <span class="perf-label">渲染调用:</span>
+                        <span class="perf-value" id="perfDrawCalls">0</span>
+                    </div>
+                    <div class="perf-row">
+                        <span class="perf-label">三角形:</span>
+                        <span class="perf-value" id="perfTriangles">0</span>
+                    </div>
+                    <div class="perf-row">
+                        <span class="perf-label">几何体:</span>
+                        <span class="perf-value" id="perfGeometries">0</span>
+                    </div>
+                    <div class="perf-row">
+                        <span class="perf-label">纹理:</span>
+                        <span class="perf-value" id="perfTextures">0</span>
+                    </div>
+                </div>
+                
+                <div class="perf-section">
+                    <div class="perf-section-title">内存使用</div>
+                    <div class="perf-row">
+                        <span class="perf-label">总内存:</span>
+                        <span class="perf-value" id="perfMemoryTotal">0 MB</span>
+                    </div>
+                    <div class="perf-row">
+                        <span class="perf-label">已用内存:</span>
+                        <span class="perf-value" id="perfMemoryUsed">0 MB</span>
+                    </div>
+                </div>
+                
+                <div class="perf-section">
+                    <div class="perf-section-title">视锥剔除</div>
+                    <div class="perf-row">
+                        <span class="perf-label">可见/总数:</span>
+                        <span class="perf-value" id="perfCulling">0/0</span>
+                    </div>
+                </div>
+                
+                <div class="perf-section">
+                    <div class="perf-section-title">LOD分布</div>
+                    <div class="perf-row">
+                        <span class="perf-label">高/中/低:</span>
+                        <span class="perf-value" id="perfLOD">0/0/0</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 开发模式切换按钮 -->
+        <button id="devModeToggle">🔧 开发模式</button>
+
         <!-- 灵动岛式 MIDI 选择器 -->
         <div id="dynamicIsland">
             <div class="island-content">
@@ -854,10 +1369,53 @@
                 </div>
                 <div class="island-title" id="islandTitle"></div>
             </div>
+            
+            <!-- 认证界面 -->
+            <div class="island-auth-content" id="authContent">
+                <div class="auth-welcome">🎹 钢琴跑酷</div>
+                <div class="auth-tabs">
+                    <div class="auth-tab active" data-auth-tab="login">登录</div>
+                    <div class="auth-tab" data-auth-tab="register">注册</div>
+                </div>
+                
+                <!-- 登录表单 -->
+                <div class="auth-form active" id="loginForm">
+                    <div class="auth-input-group">
+                        <span class="auth-input-icon">👤</span>
+                        <input type="text" class="auth-input" id="loginUsername" placeholder="用户名" autocomplete="username">
+                    </div>
+                    <div class="auth-input-group">
+                        <span class="auth-input-icon">🔒</span>
+                        <input type="password" class="auth-input" id="loginPassword" placeholder="密码" autocomplete="current-password">
+                    </div>
+                    <button class="auth-submit-btn" id="loginBtn">登录</button>
+                    <div class="auth-message" id="loginMessage"></div>
+                </div>
+                
+                <!-- 注册表单 -->
+                <div class="auth-form" id="registerForm">
+                    <div class="auth-input-group">
+                        <span class="auth-input-icon">👤</span>
+                        <input type="text" class="auth-input" id="registerUsername" placeholder="用户名" autocomplete="username">
+                    </div>
+                    <div class="auth-input-group">
+                        <span class="auth-input-icon">🔒</span>
+                        <input type="password" class="auth-input" id="registerPassword" placeholder="密码" autocomplete="new-password">
+                    </div>
+                    <div class="auth-input-group">
+                        <span class="auth-input-icon">🔒</span>
+                        <input type="password" class="auth-input" id="registerPasswordConfirm" placeholder="确认密码" autocomplete="new-password">
+                    </div>
+                    <button class="auth-submit-btn" id="registerBtn">注册</button>
+                    <div class="auth-message" id="registerMessage"></div>
+                </div>
+            </div>
+            
             <div class="island-expanded-content">
                 <!-- 标签页切换 -->
                 <div class="island-tabs">
                     <div class="island-tab active" data-tab="music">🎧</div>
+                    <div class="island-tab" data-tab="user">👤</div>
                     <div class="island-tab" data-tab="settings">🔧</div>
                 </div>
 
@@ -877,11 +1435,31 @@
                     
                     <!-- 随机选择按钮 -->
                     <div class="random-button-container">
-                        <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px;">
-                            <button id="randomMidiBtn" class="random-midi-button">
-                                🎲
+                        <button id="randomMidiBtn" class="random-midi-button">
+                            🎲
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 用户页面 -->
+                <div class="island-tab-content" id="userTab">
+                    <div class="settings-section">
+                        <!-- 用户信息卡片 -->
+                        <div class="setting-item" id="userInfoSection">
+                            <div class="setting-label">
+                                <span class="setting-icon">👤</span>
+                                <span style="color: #fff; font-size: 16px; font-weight: 600;">用户信息</span>
+                            </div>
+                            <div class="user-info-content">
+                                <div class="user-name" id="displayUsername">未登录</div>
+                            </div>
+                        </div>
+                        
+                        <!-- 退出登录按钮 -->
+                        <div class="setting-item">
+                            <button class="logout-btn" id="logoutBtn" style="width: 100%; padding: 12px;">
+                                🚪 退出登录
                             </button>
-                            <div class="close-hint close-button" style="margin: 0;">✕</div>
                         </div>
                     </div>
                 </div>
@@ -890,27 +1468,467 @@
                 <div class="island-tab-content" id="settingsTab">
                     <!-- 音量控制区域 -->
                     <div class="settings-section">
+                        <!-- 音量控制 -->
                         <div class="setting-item">
                             <div class="setting-label">
                                 <span class="setting-icon">🔊</span>
+                                <span style="color: #fff; font-size: 16px; font-weight: 600;">音量</span>
                             </div>
                             <div class="volume-control">
                                 <input type="range" id="volumeSlider" min="0" max="100" value="100" class="volume-slider">
                                 <span class="volume-value" id="volumeValue">100%</span>
                             </div>
                         </div>
+                        
+                        <!-- 后处理效果开关 -->
+                        <div class="setting-item">
+                            <div class="setting-label">
+                                <span class="setting-icon">✨</span>
+                                <span style="color: #fff; font-size: 16px; font-weight: 600;">后处理效果</span>
+                            </div>
+                            <div class="volume-control">
+                                <label class="toggle-switch">
+                                    <input type="checkbox" id="postProcessingToggle" checked>
+                                    <span class="toggle-slider"></span>
+                                </label>
+                                <span class="volume-value" id="postProcessingStatus">启用</span>
+                            </div>
+                        </div>
+                        
+                        <!-- 泛光效果强度 -->
+                        <div class="setting-item" id="bloomIntensityContainer">
+                            <div class="setting-label">
+                                <span class="setting-icon">💫</span>
+                                <span style="color: #fff; font-size: 16px; font-weight: 600;">泛光强度</span>
+                            </div>
+                            <div class="volume-control">
+                                <input type="range" id="bloomIntensitySlider" min="0" max="100" value="50" class="volume-slider">
+                                <span class="volume-value" id="bloomIntensityValue">0.5</span>
+                            </div>
+                        </div>
+                        
+                        <!-- 自动调整画质开关 -->
+                        <div class="setting-item">
+                            <div class="setting-label">
+                                <span class="setting-icon">🤖</span>
+                                <span style="color: #fff; font-size: 16px; font-weight: 600;">自动调整画质</span>
+                            </div>
+                            <div class="volume-control">
+                                <label class="toggle-switch">
+                                    <input type="checkbox" id="autoQualityToggle" checked>
+                                    <span class="toggle-slider"></span>
+                                </label>
+                                <span class="volume-value" id="autoQualityStatus">启用</span>
+                            </div>
+                        </div>
+                        
+                        <!-- 画质级别选择 -->
+                        <div class="setting-item">
+                            <div class="setting-label">
+                                <span class="setting-icon">🎨</span>
+                                <span style="color: #fff; font-size: 16px; font-weight: 600;">画质级别</span>
+                            </div>
+                            <div class="quality-selector">
+                                <button class="quality-btn" data-quality="low">低</button>
+                                <button class="quality-btn" data-quality="medium">中</button>
+                                <button class="quality-btn active" data-quality="high">高</button>
+                                <button class="quality-btn" data-quality="ultra">超高</button>
+                            </div>
+                        </div>
                     </div>
-                    
-                    <div class="close-hint close-button" style="position: absolute; bottom: 5px; right: 10px; margin: 0; padding: 5px 10px;">✕</div>
                 </div>
             </div>
         </div>
 
     </div>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    <script src="midi-parser.js?v=14.0"></script>
-    <script src="audio-engine.js?v=14.0"></script>
-    <script src="game.js?v=14.0"></script>
+    <!-- Three.js 后处理库 - 暂时注释掉，避免加载问题 -->
+    <!--
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/EffectComposer.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/RenderPass.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/ShaderPass.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/UnrealBloomPass.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/SSAOPass.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/CopyShader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/LuminosityHighPassShader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/SSAOShader.js"></script>
+    -->
+    <script src="midi-parser.js?v=16.7"></script>
+    <script src="audio-engine.js?v=16.7"></script>
+    <script src="render-system.js?v=1.0"></script>
+    <script src="game.js?v=16.7"></script>
+    
+    <script>
+        // 性能统计UI控制
+        let devModeEnabled = false;
+        let perfPanelCollapsed = false;
+        
+        // 开发模式切换
+        document.getElementById('devModeToggle').addEventListener('click', function() {
+            devModeEnabled = !devModeEnabled;
+            this.classList.toggle('active', devModeEnabled);
+            
+            const perfStats = document.getElementById('performanceStats');
+            if (devModeEnabled) {
+                perfStats.classList.add('visible');
+                // 启动性能统计更新
+                startPerformanceMonitoring();
+            } else {
+                perfStats.classList.remove('visible');
+                // 停止性能统计更新
+                stopPerformanceMonitoring();
+            }
+        });
+        
+        // 性能监控定时器
+        let performanceMonitoringInterval = null;
+        
+        // 启动性能监控
+        function startPerformanceMonitoring() {
+            if (performanceMonitoringInterval) return;
+            
+            performanceMonitoringInterval = setInterval(() => {
+                if (typeof renderManager !== 'undefined' && renderManager) {
+                    const stats = renderManager.getPerformanceStats();
+                    updatePerformanceUI(stats);
+                }
+            }, 500); // 每500ms更新一次
+        }
+        
+        // 停止性能监控
+        function stopPerformanceMonitoring() {
+            if (performanceMonitoringInterval) {
+                clearInterval(performanceMonitoringInterval);
+                performanceMonitoringInterval = null;
+            }
+        }
+        
+        // 性能面板折叠/展开
+        document.getElementById('perfToggle').addEventListener('click', function(e) {
+            e.stopPropagation();
+            perfPanelCollapsed = !perfPanelCollapsed;
+            
+            const content = document.getElementById('perfContent');
+            content.classList.toggle('collapsed', perfPanelCollapsed);
+            this.textContent = perfPanelCollapsed ? '+' : '−';
+        });
+        
+        // 更新性能统计显示
+        function updatePerformanceUI(stats) {
+            if (!devModeEnabled || !stats) return;
+            
+            // FPS
+            const fpsEl = document.getElementById('perfFPS');
+            const fps = stats.fps || 0;
+            fpsEl.textContent = Math.round(fps);
+            fpsEl.className = 'perf-value';
+            if (fps < 30) fpsEl.classList.add('danger');
+            else if (fps < 45) fpsEl.classList.add('warning');
+            
+            // 平均FPS
+            const avgFpsEl = document.getElementById('perfAvgFPS');
+            const avgFps = stats.averageFPS || 0;
+            avgFpsEl.textContent = Math.round(avgFps);
+            avgFpsEl.className = 'perf-value';
+            if (avgFps < 30) avgFpsEl.classList.add('danger');
+            else if (avgFps < 45) avgFpsEl.classList.add('warning');
+            
+            // 帧时间
+            const frameTime = fps > 0 ? (1000 / fps).toFixed(2) : '0.00';
+            const frameTimeEl = document.getElementById('perfFrameTime');
+            frameTimeEl.textContent = frameTime + 'ms';
+            frameTimeEl.className = 'perf-value';
+            if (parseFloat(frameTime) > 33) frameTimeEl.classList.add('danger');
+            else if (parseFloat(frameTime) > 22) frameTimeEl.classList.add('warning');
+            
+            // 渲染统计
+            if (stats.renderStats) {
+                const drawCallsEl = document.getElementById('perfDrawCalls');
+                const drawCalls = stats.renderStats.drawCalls || 0;
+                drawCallsEl.textContent = drawCalls;
+                drawCallsEl.className = 'perf-value';
+                if (drawCalls > 200) drawCallsEl.classList.add('warning');
+                if (drawCalls > 500) drawCallsEl.classList.add('danger');
+                
+                document.getElementById('perfTriangles').textContent = (stats.renderStats.triangles || 0).toLocaleString();
+                document.getElementById('perfGeometries').textContent = stats.renderStats.geometries || 0;
+                document.getElementById('perfTextures').textContent = stats.renderStats.textures || 0;
+            }
+            
+            // 内存使用统计
+            if (stats.memoryUsage) {
+                const totalEl = document.getElementById('perfMemoryTotal');
+                const usedEl = document.getElementById('perfMemoryUsed');
+                
+                if (stats.memoryUsage.total) {
+                    totalEl.textContent = (stats.memoryUsage.total / (1024 * 1024)).toFixed(1) + ' MB';
+                }
+                
+                if (stats.memoryUsage.used) {
+                    const usedMB = stats.memoryUsage.used / (1024 * 1024);
+                    usedEl.textContent = usedMB.toFixed(1) + ' MB';
+                    usedEl.className = 'perf-value';
+                    
+                    // 根据使用量设置颜色
+                    if (stats.memoryUsage.total) {
+                        const usagePercent = (stats.memoryUsage.used / stats.memoryUsage.total) * 100;
+                        if (usagePercent > 80) usedEl.classList.add('danger');
+                        else if (usagePercent > 60) usedEl.classList.add('warning');
+                    }
+                }
+            }
+            
+            // 视锥剔除统计
+            if (stats.cullingStats) {
+                const culling = stats.cullingStats;
+                const cullingEl = document.getElementById('perfCulling');
+                cullingEl.textContent = `${culling.visible}/${culling.total}`;
+                cullingEl.className = 'perf-value';
+                
+                // 如果剔除率低于50%，显示警告
+                if (culling.total > 0) {
+                    const cullRate = ((culling.total - culling.visible) / culling.total) * 100;
+                    if (cullRate < 30) cullingEl.classList.add('warning');
+                }
+            }
+            
+            // LOD统计
+            if (stats.lodStats) {
+                const lod = stats.lodStats;
+                document.getElementById('perfLOD').textContent = 
+                    `${lod.high}/${lod.medium}/${lod.low}`;
+            }
+        }
+        
+        // 画质设置管理
+        const QualitySettings = {
+            // 从localStorage加载设置
+            load() {
+                const saved = localStorage.getItem('qualitySettings');
+                if (saved) {
+                    try {
+                        return JSON.parse(saved);
+                    } catch (e) {
+                        console.error('加载画质设置失败:', e);
+                    }
+                }
+                return {
+                    quality: 'high',
+                    autoAdjust: true,
+                    postProcessing: true,
+                    bloomIntensity: 0.5
+                };
+            },
+            
+            // 保存设置到localStorage
+            save(settings) {
+                try {
+                    localStorage.setItem('qualitySettings', JSON.stringify(settings));
+                    console.log('💾 画质设置已保存:', settings);
+                } catch (e) {
+                    console.error('保存画质设置失败:', e);
+                }
+            },
+            
+            // 应用设置到UI
+            applyToUI(settings) {
+                // 更新画质按钮
+                qualityButtons.forEach(btn => {
+                    btn.classList.toggle('active', btn.getAttribute('data-quality') === settings.quality);
+                });
+                
+                // 更新自动调整开关
+                if (autoQualityToggle) {
+                    autoQualityToggle.checked = settings.autoAdjust;
+                    autoQualityStatus.textContent = settings.autoAdjust ? '启用' : '禁用';
+                }
+                
+                // 更新后处理开关
+                if (postProcessingToggle) {
+                    postProcessingToggle.checked = settings.postProcessing;
+                    postProcessingStatus.textContent = settings.postProcessing ? '启用' : '禁用';
+                }
+                
+                // 更新泛光强度
+                if (bloomIntensitySlider && bloomIntensityValue) {
+                    const intensity = settings.bloomIntensity || 0.5;
+                    bloomIntensitySlider.value = intensity * 100;
+                    bloomIntensityValue.textContent = intensity.toFixed(2);
+                }
+                
+                // 显示/隐藏泛光强度控制
+                if (bloomIntensityContainer) {
+                    bloomIntensityContainer.style.display = settings.postProcessing ? 'block' : 'none';
+                }
+            },
+            
+            // 应用设置到渲染管理器
+            applyToRenderer(settings) {
+                if (typeof renderManager === 'undefined' || !renderManager) return;
+                
+                // 设置画质级别
+                if (renderManager.qualityAdapter) {
+                    if (settings.autoAdjust) {
+                        renderManager.qualityAdapter.enableAutoAdjust();
+                    } else {
+                        renderManager.qualityAdapter.setManualQuality(settings.quality);
+                    }
+                }
+                
+                // 设置后处理效果
+                if (renderManager.postProcessing) {
+                    renderManager.postProcessing.setEnabled(settings.postProcessing);
+                    
+                    // 设置泛光强度
+                    if (settings.bloomIntensity !== undefined) {
+                        renderManager.postProcessing.setIntensity('bloom', settings.bloomIntensity);
+                    }
+                }
+            }
+        };
+        
+        // 自动调整画质开关
+        const autoQualityToggle = document.getElementById('autoQualityToggle');
+        const autoQualityStatus = document.getElementById('autoQualityStatus');
+        
+        if (autoQualityToggle) {
+            autoQualityToggle.addEventListener('change', function() {
+                const enabled = this.checked;
+                
+                // 更新状态文字
+                autoQualityStatus.textContent = enabled ? '启用' : '禁用';
+                
+                // 更新渲染管理器
+                if (typeof renderManager !== 'undefined' && renderManager && renderManager.qualityAdapter) {
+                    if (enabled) {
+                        renderManager.qualityAdapter.enableAutoAdjust();
+                        console.log('🤖 自动调整画质已启用');
+                    } else {
+                        // 禁用自动调整时，使用当前选中的画质级别
+                        const activeBtn = document.querySelector('.quality-btn.active');
+                        const quality = activeBtn ? activeBtn.getAttribute('data-quality') : 'high';
+                        renderManager.qualityAdapter.setManualQuality(quality);
+                        console.log('🤖 自动调整画质已禁用，使用手动画质:', quality);
+                    }
+                }
+                
+                // 保存设置
+                const settings = QualitySettings.load();
+                settings.autoAdjust = enabled;
+                QualitySettings.save(settings);
+            });
+        }
+        
+        // 后处理效果开关
+        const postProcessingToggle = document.getElementById('postProcessingToggle');
+        const postProcessingStatus = document.getElementById('postProcessingStatus');
+        const bloomIntensityContainer = document.getElementById('bloomIntensityContainer');
+        
+        if (postProcessingToggle) {
+            postProcessingToggle.addEventListener('change', function() {
+                const enabled = this.checked;
+                
+                // 更新状态文字
+                postProcessingStatus.textContent = enabled ? '启用' : '禁用';
+                
+                // 显示/隐藏泛光强度控制
+                if (bloomIntensityContainer) {
+                    bloomIntensityContainer.style.display = enabled ? 'block' : 'none';
+                }
+                
+                // 更新渲染管理器的后处理设置
+                if (typeof renderManager !== 'undefined' && renderManager && renderManager.postProcessing) {
+                    renderManager.postProcessing.setEnabled(enabled);
+                    console.log('✨ 后处理效果已' + (enabled ? '启用' : '禁用'));
+                }
+                
+                // 保存设置
+                const settings = QualitySettings.load();
+                settings.postProcessing = enabled;
+                QualitySettings.save(settings);
+            });
+        }
+        
+        // 泛光效果强度控制
+        const bloomIntensitySlider = document.getElementById('bloomIntensitySlider');
+        const bloomIntensityValue = document.getElementById('bloomIntensityValue');
+        
+        if (bloomIntensitySlider) {
+            bloomIntensitySlider.addEventListener('input', function() {
+                const intensity = this.value / 100; // 转换为0-1范围
+                
+                // 更新显示值
+                bloomIntensityValue.textContent = intensity.toFixed(2);
+                
+                // 更新渲染管理器的泛光强度
+                if (typeof renderManager !== 'undefined' && renderManager && renderManager.postProcessing) {
+                    renderManager.postProcessing.setIntensity('bloom', intensity);
+                    console.log('💫 泛光强度已设置为:', intensity);
+                }
+                
+                // 保存设置
+                const settings = QualitySettings.load();
+                settings.bloomIntensity = intensity;
+                QualitySettings.save(settings);
+            });
+        }
+        
+        // 画质级别选择
+        const qualityButtons = document.querySelectorAll('.quality-btn');
+        
+        qualityButtons.forEach(btn => {
+            btn.addEventListener('click', function() {
+                const quality = this.getAttribute('data-quality');
+                
+                // 更新按钮状态
+                qualityButtons.forEach(b => b.classList.remove('active'));
+                this.classList.add('active');
+                
+                // 如果启用了自动调整，先禁用它
+                if (autoQualityToggle && autoQualityToggle.checked) {
+                    autoQualityToggle.checked = false;
+                    autoQualityStatus.textContent = '禁用';
+                }
+                
+                // 更新渲染管理器的画质设置
+                if (typeof renderManager !== 'undefined' && renderManager && renderManager.qualityAdapter) {
+                    renderManager.qualityAdapter.setManualQuality(quality);
+                    console.log('🎨 画质级别已设置为:', quality);
+                    
+                    // 根据画质级别自动更新后处理开关状态
+                    const preset = renderManager.qualityAdapter.getCurrentPreset();
+                    if (preset && postProcessingToggle) {
+                        postProcessingToggle.checked = preset.postProcessing;
+                        postProcessingStatus.textContent = preset.postProcessing ? '启用' : '禁用';
+                    }
+                }
+                
+                // 保存设置
+                const settings = QualitySettings.load();
+                settings.quality = quality;
+                settings.autoAdjust = false;
+                QualitySettings.save(settings);
+            });
+        });
+        
+        // 页面加载时恢复保存的设置
+        window.addEventListener('load', function() {
+            const settings = QualitySettings.load();
+            console.log('📂 加载保存的画质设置:', settings);
+            QualitySettings.applyToUI(settings);
+            
+            // 等待渲染管理器初始化后应用设置
+            const applyInterval = setInterval(() => {
+                if (typeof renderManager !== 'undefined' && renderManager) {
+                    QualitySettings.applyToRenderer(settings);
+                    clearInterval(applyInterval);
+                }
+            }, 100);
+            
+            // 10秒后停止尝试
+            setTimeout(() => clearInterval(applyInterval), 10000);
+        });
+    </script>
 </body>
 
 </html>
