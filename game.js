@@ -149,9 +149,9 @@ const midiList = document.getElementById('midiList');
 let isIslandExpanded = true; // 初始状态为展开
 let wasGameRunningBeforePause = false; // 记录暂停前的游戏状态
 
-// 用户认证状态
-let isAuthenticated = false;
-let currentUser = null;
+// 用户认证状态（由 auth-system.js 定义，这里不重复声明）
+// let isAuthenticated = false;
+// let currentUser = null;
 
 // 资源加载完成后展开灵动岛
 let resourcesLoaded = false;

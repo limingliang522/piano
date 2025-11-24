@@ -256,8 +256,10 @@ function updateUIForAuthenticatedUser(user) {
         userNameDisplay.textContent = username;
     }
     
-    // 更新灵动岛标题
-    updateIslandTitle();
+    // 更新灵动岛标题（如果函数存在）
+    if (typeof updateIslandTitle === 'function') {
+        updateIslandTitle();
+    }
     
     // 如果灵动岛处于认证模式，切换到音乐选择模式
     if (dynamicIsland.classList.contains('auth-mode')) {
@@ -286,11 +288,13 @@ function updateUIForAuthenticatedUser(user) {
 function updateUIForUnauthenticatedUser() {
     console.log('ℹ️ 用户未登录');
     
-    // 更新灵动岛标题
-    updateIslandTitle();
+    // 更新灵动岛标题（如果函数存在）
+    if (typeof updateIslandTitle === 'function') {
+        updateIslandTitle();
+    }
     
     // 如果灵动岛展开且不在认证模式，切换到认证模式
-    if (isIslandExpanded && !dynamicIsland.classList.contains('auth-mode')) {
+    if (typeof isIslandExpanded !== 'undefined' && isIslandExpanded && typeof dynamicIsland !== 'undefined' && !dynamicIsland.classList.contains('auth-mode')) {
         dynamicIsland.classList.add('auth-mode');
     }
 }
