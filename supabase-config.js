@@ -5,8 +5,8 @@
 // 3. 替换下面的 YOUR_SUPABASE_URL 和 YOUR_SUPABASE_ANON_KEY
 
 const SUPABASE_CONFIG = {
-    url: 'YOUR_SUPABASE_URL', // 例如：https://xxxxx.supabase.co
-    anonKey: 'YOUR_SUPABASE_ANON_KEY' // 从 Supabase 项目设置中获取
+    url: 'https://sqsesohatfpoxwwykpmq.supabase.co',
+    anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNxc2Vzb2hhdGZwb3h3d3lrcG1xIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjM5NTA2ODIsImV4cCI6MjA3OTUyNjY4Mn0.YsN46f1-JYUGNAv3AGXDxy86tODRHvPFW5JlvauyTmE'
 };
 
 // Supabase 客户端实例
