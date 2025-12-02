@@ -153,6 +153,12 @@ let wasGameRunningBeforePause = false; // 记录暂停前的游戏状态
 // let isAuthenticated = false;
 // let currentUser = null;
 
+// 道具系统和血量系统
+let itemSpawner = null;
+let healthSystem = null;
+let puzzlePieceSystem = null;
+let musicUnlockSystem = null;
+
 // 资源加载完成后展开灵动岛
 let resourcesLoaded = false;
 let isFirstLoad = true; // 标记是否首次加载
@@ -193,12 +199,12 @@ const GROUND_LENGTH = 100;
 // 统一的移动速度（调整这个值可以改变所有移动速度）
 const moveSpeed = 0.50;
 
-// 固定最高画质配置（无限制）
+// 强制最高画质配置（所有设备统一最高）
 const GRAPHICS_CONFIG = {
     shadowsEnabled: true,
     shadowType: THREE.PCFSoftShadowMap,
-    pixelRatio: window.devicePixelRatio, // 使用设备原生像素比，无限制
-    fogDistance: 120,
+    pixelRatio: Math.max(window.devicePixelRatio, 2.0), // 强制至少2倍像素比，高分屏更高
+    fogDistance: 150, // 增加雾距离，看得更远
     trailLength: 12,
     playerSegments: 64, // 提高球体细节
     trailSegments: 32   // 提高拖尾细节
@@ -303,6 +309,29 @@ function init() {
     // 创建玩家
     createPlayer();
     
+    // 初始化道具系统
+    if (typeof ItemSpawner !== 'undefined') {
+        itemSpawner = new ItemSpawner(scene, LANES, LANE_WIDTH);
+        console.log('✅ 道具生成器已初始化');
+    }
+    
+    // 初始化血量系统
+    if (typeof HealthSystem !== 'undefined') {
+        healthSystem = new HealthSystem(100);
+        // 设置死亡回调
+        healthSystem.onDeath = () => {
+            gameOverByHealth();
+        };
+        console.log('✅ 血量系统已初始化');
+    }
+    
+    // 初始化拼图碎片系统
+    if (typeof PuzzlePieceSystem !== 'undefined') {
+        puzzlePieceSystem = new PuzzlePieceSystem();
+        puzzlePieceSystem.updateUI();
+        console.log('✅ 拼图碎片系统已初始化');
+    }
+    
     // 窗口大小调整
     window.addEventListener('resize', onWindowResize);
     
@@ -366,13 +395,43 @@ function init() {
 
 // 获取midi文件夹中的所有MIDI文件
 async function getMidiFiles() {
-    // 这里手动列出midi文件夹中的文件
-    // 因为浏览器无法直接读取文件夹内容
-    console.log('📂 返回MIDI文件列表');
-    return [
-        'midi/1.mid',
-        'midi/2.mid'
-    ];
+    console.log('📂 扫描MIDI文件夹...');
+    
+    const midiFiles = [];
+    let fileIndex = 1;
+    
+    // 尝试加载文件，直到找不到为止
+    while (true) {
+        const filePath = `midi/${fileIndex}.mid`;
+        
+        try {
+            // 尝试发送HEAD请求检查文件是否存在
+            const response = await fetch(filePath, { method: 'HEAD' });
+            
+            if (response.ok) {
+                midiFiles.push(filePath);
+                console.log(`✅ 找到: ${filePath}`);
+                fileIndex++;
+            } else {
+                // 文件不存在，停止扫描
+                break;
+            }
+        } catch (error) {
+            // 请求失败，停止扫描
+            break;
+        }
+    }
+    
+    if (midiFiles.length === 0) {
+        console.warn('⚠️ 未找到MIDI文件，使用默认列表');
+        return [
+            'midi/1.mid',
+            'midi/2.mid'
+        ];
+    }
+    
+    console.log(`📂 找到 ${midiFiles.length} 个MIDI文件:`, midiFiles);
+    return midiFiles;
 }
 
 // 加载指定的MIDI文件（从缓存或网络）
@@ -443,7 +502,6 @@ async function preloadAllResources() {
         if (midiFiles.length === 0) {
             console.error('❌ 没有找到MIDI文件');
             loadingManager.complete();
-            startNormalGame();
             return;
         }
         
@@ -453,8 +511,40 @@ async function preloadAllResources() {
         loadingManager.init(totalItems);
         console.log('✅ 加载管理器初始化完成');
         
-        // 随机选择一个MIDI文件作为默认
-        currentMidiIndex = Math.floor(Math.random() * midiFiles.length);
+        // 初始化音乐解锁系统（需要在选择默认音乐之前）
+        if (typeof MusicUnlockSystem !== 'undefined') {
+            musicUnlockSystem = new MusicUnlockSystem();
+            await musicUnlockSystem.init(midiFiles);
+            console.log('✅ 音乐解锁系统已初始化');
+            
+            // 从已解锁的音乐中随机选择一个作为默认
+            const unlockedMusic = musicUnlockSystem.getUnlockedMusic();
+            if (unlockedMusic.length > 0) {
+                // 随机选择一个已解锁的音乐
+                const randomUnlockedName = unlockedMusic[Math.floor(Math.random() * unlockedMusic.length)];
+                // 找到对应的索引
+                currentMidiIndex = midiFiles.findIndex(file => 
+                    file.split('/').pop().replace('.mid', '') === randomUnlockedName
+                );
+                
+                // 如果找不到，使用第一个已解锁的音乐
+                if (currentMidiIndex === -1) {
+                    const firstUnlockedName = unlockedMusic[0];
+                    currentMidiIndex = midiFiles.findIndex(file => 
+                        file.split('/').pop().replace('.mid', '') === firstUnlockedName
+                    );
+                }
+                
+                console.log(`🎵 默认选择已解锁音乐: ${midiFiles[currentMidiIndex]}`);
+            } else {
+                // 如果没有解锁的音乐（不应该发生），选择第一个
+                currentMidiIndex = 0;
+                console.warn('⚠️ 没有已解锁的音乐，使用第一个');
+            }
+        } else {
+            // 如果音乐解锁系统未定义，随机选择
+            currentMidiIndex = Math.floor(Math.random() * midiFiles.length);
+        }
         
         // 并行加载所有资源
         await Promise.all([
@@ -601,6 +691,32 @@ async function preloadAllResources() {
             
             startButton.addEventListener('click', startGame);
             startButton.addEventListener('touchstart', startGame, { passive: false });
+        }
+        
+        // 强制最高画质（ultra）并禁用自动调整
+        if (renderManager && renderManager.qualityAdapter) {
+            // 禁用自动画质调整
+            renderManager.qualityAdapter.autoAdjust = false;
+            
+            // 设置为最高画质
+            renderManager.qualityAdapter.setManualQuality('ultra');
+            console.log('🎨 强制最高画质（ultra）+ 禁用自动降级');
+            
+            // 更新UI按钮状态
+            const qualityButtons = document.querySelectorAll('.quality-btn');
+            qualityButtons.forEach(btn => {
+                btn.classList.remove('active');
+                if (btn.getAttribute('data-quality') === 'ultra') {
+                    btn.classList.add('active');
+                }
+            });
+            
+            // 禁用自动画质调整开关
+            const autoQualityToggle = document.getElementById('autoQualityToggle');
+            if (autoQualityToggle) {
+                autoQualityToggle.checked = false;
+                autoQualityToggle.disabled = true; // 禁用开关，防止用户修改
+            }
         }
         
         // 触发资源加载完成回调
@@ -779,6 +895,23 @@ function processMIDINotes(notes) {
 
 }
 
+// 更新实时分数显示
+function updateLiveScore() {
+    const liveScoreElement = document.getElementById('liveScore');
+    const liveScoreValue = document.getElementById('liveScoreValue');
+    
+    if (liveScoreElement && liveScoreValue) {
+        liveScoreValue.textContent = score;
+        
+        // 游戏运行时显示，否则隐藏
+        if (gameRunning) {
+            liveScoreElement.classList.add('visible');
+        } else {
+            liveScoreElement.classList.remove('visible');
+        }
+    }
+}
+
 // 开始MIDI游戏（优化版 - 方块已创建，直接启动）
 function startMIDIGame() {
     loadingElement.style.display = 'none';
@@ -786,6 +919,23 @@ function startMIDIGame() {
     // 收起灵动岛
     dynamicIsland.classList.remove('expanded');
     isIslandExpanded = false;
+    
+    // 重置血量系统
+    if (healthSystem) {
+        healthSystem.reset();
+        // 初始化血量UI（如果还没初始化）
+        if (!healthSystem.containerElement) {
+            healthSystem.initUI(player, camera, renderer);
+        }
+    }
+    
+    // 启动道具生成器
+    if (itemSpawner) {
+        itemSpawner.start();
+    }
+    
+    // 显示实时分数
+    updateLiveScore();
     
     // 立即启动游戏（方块已经创建完成）
     gameRunning = true;
@@ -956,36 +1106,36 @@ function getSharedBlockMaterial(type = 'normal') {
         switch (type) {
             case 'normal':
                 sharedBlockMaterials.normal = new THREE.MeshStandardMaterial({ 
-                    color: 0x1a1a1a,
-                    metalness: 0.9,
-                    roughness: 0.2,
+                    color: 0xffffff,  // 白色
+                    metalness: 0.3,
+                    roughness: 0.5,
                     transparent: true,
-                    opacity: 1.0,
-                    emissive: 0x0a0a0a,
-                    emissiveIntensity: 0.2
+                    opacity: 0.7,  // 70%不透明（30%透明）
+                    emissive: 0xffffff,
+                    emissiveIntensity: 0.1
                 });
                 break;
             case 'triggered':
                 sharedBlockMaterials.triggered = new THREE.MeshStandardMaterial({ 
-                    color: 0xffffff,
-                    metalness: 0.9,
-                    roughness: 0.2,
-                    transparent: true,
+                    color: 0xffffff,  // 纯白色
+                    metalness: 0.5,
+                    roughness: 0.3,
+                    transparent: false,  // 不透明
                     opacity: 1.0,
                     emissive: 0xffffff,
-                    emissiveIntensity: 0.8
+                    emissiveIntensity: 0.5
                 });
                 break;
             case 'tall':
                 // 超高方块使用与普通方块相同的材质
                 sharedBlockMaterials.tall = new THREE.MeshStandardMaterial({ 
-                    color: 0x1a1a1a,
-                    metalness: 0.9,
-                    roughness: 0.2,
+                    color: 0xffffff,  // 白色
+                    metalness: 0.3,
+                    roughness: 0.5,
                     transparent: true,
-                    opacity: 1.0,
-                    emissive: 0x0a0a0a,
-                    emissiveIntensity: 0.2
+                    opacity: 0.7,  // 70%不透明（30%透明）
+                    emissive: 0xffffff,
+                    emissiveIntensity: 0.1
                 });
                 break;
         }
@@ -1198,10 +1348,11 @@ function resetNoteBlockObject(block) {
     
     // 重置材质属性到初始状态
     // 保持材质实例不变，只修改属性，避免材质重新创建
-    block.material.color.setHex(0x1a1a1a);
-    block.material.opacity = 1.0;
-    block.material.emissive.setHex(0x0a0a0a);
-    block.material.emissiveIntensity = 0.2;
+    block.material.color.setHex(0xffffff);  // 白色
+    block.material.transparent = true;
+    block.material.opacity = 0.7;  // 70%不透明（30%透明）
+    block.material.emissive.setHex(0xffffff);
+    block.material.emissiveIntensity = 0.1;
     
     // 重置可见性
     block.visible = false;
@@ -1617,6 +1768,23 @@ function updateNoteBlocks() {
     const triggerWindow = 0.2; // 触发窗口
     const playerLane = Math.round(currentLane);
     
+    // 更新道具系统
+    if (itemSpawner && gameRunning) {
+        const currentTime = performance.now();
+        const moveSpeed = originalBaseSpeed * speedMultiplier * 60;
+        itemSpawner.update(currentTime, deltaTime, moveSpeed);
+        
+        // 检查道具碰撞（传入玩家半径0.25）
+        itemSpawner.checkCollision(player.position, currentLane, 0.25, (itemType) => {
+            handleItemCollect(itemType);
+        });
+    }
+    
+    // 更新血量条位置
+    if (healthSystem && healthSystem.containerElement) {
+        healthSystem.updatePosition();
+    }
+    
     // === 统一时间控制系统（使用音频时钟消除累积误差）===
     // 使用音频时钟计算当前游戏时间，减去暂停的总时长
     const currentGameTime = audioEngine.audioContext.currentTime - gameStartTime - totalPausedDuration;
@@ -1693,10 +1861,8 @@ function updateNoteBlocks() {
                     // 碰撞了！
                     noteData.collided = true;
                     collisions++;
-                    // 震动反馈（如果设备支持）
-                    if (navigator.vibrate) {
-                        navigator.vibrate(50); // 震动50毫秒
-                    }
+                    // 碰撞重度震动
+                    triggerVibration([100, 50, 100]); // 震动100ms，停50ms，再震动100ms
                     
                     // 记录碰撞的黑块
                     lastCollisionBlock = noteBlock;
@@ -1722,21 +1888,24 @@ function updateNoteBlocks() {
             
             noteData.triggered = true;
             notesTriggered++;
-            score += 100;
+            // 触发黑块不加分
+            // score += 100;
             
             // 不再播放钢琴音符，背景音乐会自动播放
             // audioEngine.playNote(noteData.note, noteData.duration, noteData.velocity, noteData.lane);
             
-            // 改变颜色表示已触发（白色发光）
+            // 改变颜色表示已触发（纯白色不透明）
             noteBlock.material.color.setHex(0xffffff);
             noteBlock.material.emissive = new THREE.Color(0xffffff);
-            noteBlock.material.emissiveIntensity = 1.0;
+            noteBlock.material.emissiveIntensity = 0.5;
+            noteBlock.material.transparent = false;
+            noteBlock.material.opacity = 1.0;
             
             // 创建触发时的光波扩散效果（已禁用）
             // createTriggerWave(noteBlock.position.x, noteBlock.position.z);
             
-            // 触发效果：放大并淡出
-            // 先清除之前的动画（如果存在）
+            // 触发效果：先变白色，然后放大并淡出
+            // 清除之前的动画（如果存在）
             if (noteBlock.userData.scaleInterval) {
                 clearInterval(noteBlock.userData.scaleInterval);
             }
@@ -1790,11 +1959,113 @@ function checkCollision() {
     return false;
 }
 
+// 震动反馈辅助函数
+function triggerVibration(pattern) {
+    if (navigator.vibrate) {
+        navigator.vibrate(pattern);
+    }
+}
+
+// 道具拾取处理
+function handleItemCollect(itemType) {
+    const config = ItemConfig[itemType];
+    
+    // 处理血量变化
+    if (config.healthChange && healthSystem) {
+        healthSystem.changeHealth(config.healthChange);
+        
+        // 扣血重度震动
+        if (config.healthChange < 0) {
+            triggerVibration([100, 50, 100]); // 震动100ms，停50ms，再震动100ms
+        }
+    }
+    
+    // 处理分数变化
+    if (config.scoreChange) {
+        score += config.scoreChange;
+        
+        // 加分轻微震动
+        if (config.scoreChange > 0) {
+            triggerVibration(30); // 震动30ms
+        }
+        // 扣分重度震动
+        else if (config.scoreChange < 0) {
+            triggerVibration([100, 50, 100]); // 震动100ms，停50ms，再震动100ms
+        }
+    }
+    
+    // 处理拼图碎片
+    if (config.puzzlePieceChange && puzzlePieceSystem) {
+        puzzlePieceSystem.add(config.puzzlePieceChange);
+        
+        // 拾取拼图碎片轻微震动
+        if (config.puzzlePieceChange > 0) {
+            triggerVibration(30); // 震动30ms
+        }
+    }
+    
+    // 显示提示
+    showItemCollectNotification(config);
+    
+    console.log(`✨ 拾取道具: ${config.name}`);
+}
+
+// 显示道具拾取提示
+function showItemCollectNotification(config) {
+    const notification = document.createElement('div');
+    notification.style.cssText = `
+        position: fixed;
+        top: 150px;
+        left: 50%;
+        transform: translateX(-50%);
+        color: white;
+        font-size: 20px;
+        font-weight: 700;
+        z-index: 1000;
+        animation: slideDown 0.3s ease;
+        pointer-events: none;
+        text-shadow: 0 2px 8px rgba(0, 0, 0, 0.8), 0 0 20px rgba(255, 255, 255, 0.5);
+    `;
+    
+    let text = config.emoji;
+    if (config.healthChange) {
+        text += ` ${config.healthChange > 0 ? '+' : ''}${config.healthChange}`;
+    }
+    if (config.scoreChange) {
+        text += ` ${config.scoreChange > 0 ? '+' : ''}${config.scoreChange}`;
+    }
+    if (config.puzzlePieceChange) {
+        text += ` +${config.puzzlePieceChange}`;
+    }
+    
+    notification.textContent = text;
+    document.body.appendChild(notification);
+    
+    // 2秒后移除
+    setTimeout(() => {
+        notification.style.animation = 'slideUp 0.3s ease';
+        setTimeout(() => {
+            if (notification.parentNode) {
+                document.body.removeChild(notification);
+            }
+        }, 300);
+    }, 2000);
+}
+
 // 完成游戏
 function completeGame() {
     gameRunning = false;
     gameOverElement.style.display = 'block';
     instructionsElement.style.display = 'none';
+    
+    // 隐藏实时分数
+    updateLiveScore();
+    
+    // 停止并清理道具
+    if (itemSpawner) {
+        itemSpawner.stop();
+        itemSpawner.clear();
+    }
     
     // 停止背景音乐
     if (audioEngine && audioEngine.bgmIsPlaying) {
@@ -1804,8 +2075,8 @@ function completeGame() {
     // 计算准确率
     const accuracy = totalNotes > 0 ? Math.round(((totalNotes - collisions) / totalNotes) * 100) : 100;
     
-    document.getElementById('finalScore').textContent = `完美通关！🎉`;
-    document.getElementById('finalDistance').textContent = `准确率: ${accuracy}% | 触发: ${notesTriggered}/${totalNotes}`;
+    // 更新游戏结束界面
+    updateGameOverUI('完美通关！🎉', '🎉', accuracy);
     
     // 保存成绩到云端
     if (typeof saveGameScore === 'function') {
@@ -1819,6 +2090,15 @@ function gameOver() {
     gameOverElement.style.display = 'block';
     instructionsElement.style.display = 'none';
     
+    // 隐藏实时分数
+    updateLiveScore();
+    
+    // 停止并清理道具
+    if (itemSpawner) {
+        itemSpawner.stop();
+        itemSpawner.clear();
+    }
+    
     // 暂停背景音乐
     if (audioEngine && audioEngine.bgmIsPlaying) {
         audioEngine.pauseBGM();
@@ -1827,8 +2107,8 @@ function gameOver() {
     // 计算准确率
     const accuracy = totalNotes > 0 ? Math.round(((totalNotes - collisions) / totalNotes) * 100) : 0;
     
-    document.getElementById('finalScore').textContent = `游戏结束！`;
-    document.getElementById('finalDistance').textContent = `准确率: ${accuracy}% | 触发: ${notesTriggered}/${totalNotes}`;
+    // 更新游戏结束界面
+    updateGameOverUI('游戏结束', '💔', accuracy);
     
     // 保存成绩到云端
     if (typeof saveGameScore === 'function') {
@@ -1836,7 +2116,270 @@ function gameOver() {
     }
 }
 
+// 血量耗尽游戏结束
+function gameOverByHealth() {
+    gameRunning = false;
+    gameOverElement.style.display = 'block';
+    instructionsElement.style.display = 'none';
+    
+    // 隐藏实时分数
+    updateLiveScore();
+    
+    // 停止并清理道具
+    if (itemSpawner) {
+        itemSpawner.stop();
+        itemSpawner.clear();
+    }
+    
+    // 暂停背景音乐
+    if (audioEngine && audioEngine.bgmIsPlaying) {
+        audioEngine.pauseBGM();
+    }
+    
+    // 计算准确率
+    const accuracy = totalNotes > 0 ? Math.round(((totalNotes - collisions) / totalNotes) * 100) : 0;
+    
+    // 更新游戏结束界面
+    updateGameOverUI('血量耗尽', '💔', accuracy);
+    
+    // 保存成绩到云端
+    if (typeof saveGameScore === 'function') {
+        saveGameScore();
+    }
+}
 
+// 更新游戏结束界面
+function updateGameOverUI(title, icon, accuracy) {
+    // 更新标题和图标
+    const gameOverTitle = document.getElementById('gameOverTitle');
+    const gameOverIcon = document.getElementById('gameOverIcon');
+    if (gameOverTitle) gameOverTitle.textContent = title;
+    if (gameOverIcon) gameOverIcon.textContent = icon;
+    
+    // 更新分数
+    const finalScoreEl = document.getElementById('finalScore');
+    if (finalScoreEl) finalScoreEl.textContent = score;
+    
+    // 更新触发音符
+    const finalNotesEl = document.getElementById('finalNotes');
+    if (finalNotesEl) finalNotesEl.textContent = `${notesTriggered}/${totalNotes}`;
+    
+    // 更新准确率
+    const finalAccuracyEl = document.getElementById('finalAccuracy');
+    if (finalAccuracyEl) finalAccuracyEl.textContent = `${accuracy}%`;
+    
+    // 更新最大连击
+    const finalComboEl = document.getElementById('finalCombo');
+    if (finalComboEl) finalComboEl.textContent = notesTriggered; // 简化版，使用触发数作为连击
+    
+    // 更新歌曲名称
+    const finalSongNameEl = document.getElementById('finalSongName');
+    if (finalSongNameEl) {
+        finalSongNameEl.textContent = currentMidiName || '未知歌曲';
+    }
+}
+
+// 游戏结束界面点击返回
+gameOverElement.addEventListener('click', async function() {
+    // 播放点击音效
+    if (audioEngine && audioEngine.playClickSound) {
+        audioEngine.playClickSound();
+    }
+    
+    // 隐藏游戏结束界面
+    gameOverElement.style.display = 'none';
+    
+    // 清除所有游戏数据
+    await cleanupGameData();
+    
+    // 显示开始按钮
+    showStartButton();
+});
+
+// 清除所有游戏数据
+async function cleanupGameData() {
+    console.log('🧹 清除游戏数据...');
+    
+    // 停止游戏
+    gameRunning = false;
+    
+    // 停止并清理道具
+    if (itemSpawner) {
+        itemSpawner.stop();
+        itemSpawner.clear();
+    }
+    
+    // 停止背景音乐
+    if (audioEngine) {
+        if (audioEngine.bgmIsPlaying) {
+            audioEngine.stopBGM();
+        }
+        // 停止所有音符
+        audioEngine.stopAllNotes();
+    }
+    
+    // 清理所有音符方块
+    if (noteObjects && noteObjects.length > 0) {
+        cleanupObjects(noteObjects);
+        blocksCreated = false;
+    }
+    
+    // 清理血量UI
+    if (healthSystem && healthSystem.containerElement) {
+        healthSystem.destroy();
+    }
+    
+    // 重置游戏变量
+    score = 0;
+    notesTriggered = 0;
+    totalNotes = 0;
+    collisions = 0;
+    speedMultiplier = 1.0;
+    isCompletingRound = false;
+    lastCollisionBlock = null;
+    
+    // 重置玩家位置
+    if (player) {
+        player.position.set(0, groundY, 0);
+        currentLane = 2;
+        targetLane = 2;
+        isJumping = false;
+        verticalVelocity = 0;
+    }
+    
+    // 清空拖尾
+    trailPositions = [];
+    
+    // 隐藏实时分数
+    if (typeof updateLiveScore === 'function') {
+        updateLiveScore();
+    }
+    
+    console.log('✅ 游戏数据已清除');
+}
+
+// 显示开始按钮
+function showStartButton() {
+    const startButton = document.getElementById('startButton');
+    if (startButton) {
+        startButton.style.display = 'block';
+        console.log('▶️ 开始按钮已显示');
+        
+        // 重新绑定事件监听器（因为之前被移除了）
+        bindStartButtonEvents(startButton);
+    }
+    
+    // 展开灵动岛，显示音乐选择器
+    if (typeof dynamicIsland !== 'undefined') {
+        dynamicIsland.classList.add('expanded');
+        isIslandExpanded = true;
+        
+        // 切换到音乐标签
+        setTimeout(() => {
+            const musicTab = document.querySelector('.island-tab[data-tab="music"]');
+            if (musicTab) musicTab.click();
+        }, 100);
+    }
+}
+
+// 绑定开始按钮事件
+function bindStartButtonEvents(startButton) {
+    // 定义开始游戏函数
+    const startGame = async (e) => {
+        if (e) e.preventDefault();
+        
+        // 移除事件监听器，防止重复点击
+        startButton.removeEventListener('click', startGame);
+        startButton.removeEventListener('touchstart', startGame);
+        startButton.style.display = 'none';
+        
+        // 显示加载界面
+        loadingElement.style.display = 'flex';
+        
+        // 初始化游戏启动加载管理器
+        const gameStartLoader = {
+            total: 3,
+            current: 0,
+            
+            updateProgress(step) {
+                this.current = step;
+                const percentage = Math.round((this.current / this.total) * 100);
+                loadingPercentage.textContent = `${percentage}%`;
+                loadingProgressBar.style.width = `${percentage}%`;
+            }
+        };
+        
+        try {
+            // 步骤1：启动音频引擎
+            gameStartLoader.updateProgress(0);
+            await audioEngine.start();
+            
+            // 播放点击音效
+            if (audioEngine && audioEngine.playClickSound) {
+                audioEngine.playClickSound();
+            }
+            
+            await new Promise(resolve => setTimeout(resolve, 200));
+            
+            // 步骤2：处理音符数据和加载背景音乐
+            gameStartLoader.updateProgress(1);
+            await new Promise(resolve => {
+                requestAnimationFrame(() => {
+                    if (preloadedMidiData[currentMidiIndex]) {
+                        processMIDINotes(preloadedMidiData[currentMidiIndex].notes);
+                        currentMidiName = preloadedMidiData[currentMidiIndex].name;
+                        updateIslandTitle(currentMidiName);
+                    }
+                    resolve();
+                });
+            });
+            
+            // 加载背景音乐
+            const audioPath = midiFiles[currentMidiIndex].replace('.mid', '.mp3');
+            await audioEngine.loadBGM(audioPath);
+            
+            await new Promise(resolve => setTimeout(resolve, 200));
+            
+            // 步骤3：创建游戏场景
+            gameStartLoader.updateProgress(2);
+            
+            // 预先创建所有方块（带进度）
+            await createAllNoteBlocksWithProgress((progress) => {
+                const percentage = Math.round(66 + (progress * 34));
+                loadingPercentage.textContent = `${percentage}%`;
+                loadingProgressBar.style.width = `${percentage}%`;
+            });
+            
+            // 完成
+            gameStartLoader.updateProgress(3);
+            await new Promise(resolve => setTimeout(resolve, 300));
+            
+            // 隐藏加载界面
+            loadingElement.style.display = 'none';
+            
+            // 开始游戏
+            startMIDIGame();
+            
+            // 播放开始音效
+            audioEngine.playStartSound();
+            
+        } catch (error) {
+            console.error('游戏启动失败:', error);
+            setTimeout(() => {
+                loadingElement.style.display = 'none';
+                startButton.style.display = 'block';
+                // 重新绑定事件
+                bindStartButtonEvents(startButton);
+            }, 2000);
+        }
+    };
+    
+    // 绑定事件监听器
+    startButton.addEventListener('click', startGame);
+    startButton.addEventListener('touchstart', startGame, { passive: false });
+    
+    console.log('✅ 开始按钮事件已绑定');
+}
 
 // 重新开始
 async function restart() {
@@ -1904,6 +2447,17 @@ async function restart() {
                 isJumping = false;
                 verticalVelocity = 0;
                 
+                // 重置血量系统
+                if (healthSystem) {
+                    healthSystem.reset();
+                }
+                
+                // 清理道具
+                if (itemSpawner) {
+                    itemSpawner.clear();
+                    itemSpawner.stop();
+                }
+                
                 resolve();
             });
         });
@@ -1933,6 +2487,11 @@ async function restart() {
         // 停止旧的背景音乐
         if (audioEngine) {
             audioEngine.stopBGM();
+        }
+        
+        // 启动道具生成器
+        if (itemSpawner) {
+            itemSpawner.start();
         }
         
         // 开始游戏
@@ -2048,6 +2607,9 @@ function animate(currentTime) {
         scoreElement.textContent = `音符: ${notesTriggered}/${totalNotes}`;
         distanceElement.textContent = `准确率: ${accuracy}%`;
         accuracyElement.textContent = `方块: ${noteObjects.length}`;
+        
+        // 更新实时分数显示
+        updateLiveScore();
     }
     
     // 使用渲染管理器渲染
@@ -2185,25 +2747,7 @@ document.addEventListener('gestureend', (e) => {
     e.preventDefault();
 });
 
-// 重新开始按钮（统一的事件处理）
-function handleRestart(e) {
-    e.preventDefault();
-    e.stopPropagation();
-    
-    // 播放点击音效
-    if (audioEngine && audioEngine.playClickSound) {
-        audioEngine.playClickSound();
-    }
-    
-    // 延迟一点点，让音效播放完
-    setTimeout(() => {
-        restart();
-    }, 50);
-}
-restartButton.addEventListener('click', handleRestart);
-restartButton.addEventListener('touchend', handleRestart);
 
-// 继续功能已取消
 
 // ============================================================================
 // WebGL上下文丢失处理
@@ -2444,10 +2988,14 @@ setTimeout(() => {
 function updateIslandTitle(name) {
     if (name) {
         islandTitle.textContent = name;
-    } else if (isAuthenticated && currentUser) {
-        islandTitle.textContent = `欢迎，${currentUser}`;
     } else {
-        islandTitle.textContent = '点击登录或注册';
+        // 从 auth-system.js 获取认证状态
+        const displayUsername = document.getElementById('displayUsername');
+        if (displayUsername && displayUsername.textContent !== '未登录') {
+            islandTitle.textContent = `欢迎，${displayUsername.textContent}`;
+        } else {
+            islandTitle.textContent = '点击登录或注册';
+        }
     }
 }
 
@@ -2508,6 +3056,8 @@ function initMidiList(filterText = '') {
     // 显示匹配的歌曲
     filteredFiles.forEach((file) => {
         const index = midiFiles.indexOf(file);
+        const musicName = file.split('/').pop().replace('.mid', '');
+        const isUnlocked = musicUnlockSystem ? musicUnlockSystem.isUnlocked(musicName) : true;
         
         const item = document.createElement('div');
         item.className = 'midi-item';
@@ -2517,19 +3067,30 @@ function initMidiList(filterText = '') {
         
         const cover = document.createElement('div');
         cover.className = 'midi-cover';
-        cover.textContent = '🎵';
+        cover.textContent = isUnlocked ? '🎵' : '🔒';
+        
+        // 如果锁定，添加锁定样式
+        if (!isUnlocked) {
+            cover.style.background = 'linear-gradient(135deg, #666 0%, #444 100%)';
+            cover.style.opacity = '0.6';
+        }
         
         const name = document.createElement('div');
         name.className = 'midi-name';
-        name.textContent = file.split('/').pop().replace('.mid', '');
+        name.textContent = musicName;
         
         item.appendChild(cover);
         item.appendChild(name);
         
-        // 点击切换 MIDI
+        // 点击事件
         item.addEventListener('click', (e) => {
             e.stopPropagation();
-            if (index !== currentMidiIndex) {
+            
+            if (!isUnlocked) {
+                // 显示解锁提示
+                showUnlockDialog(musicName, index);
+            } else if (index !== currentMidiIndex) {
+                // 切换音乐
                 selectMidi(index);
             }
         });
@@ -2539,6 +3100,166 @@ function initMidiList(filterText = '') {
     
     // 自动滚动到当前播放的音乐（居中显示）
     scrollToCurrentMidi();
+}
+
+// 显示解锁对话框
+function showUnlockDialog(musicName, musicIndex) {
+    const puzzleCount = puzzlePieceSystem ? puzzlePieceSystem.getCount() : 0;
+    const unlockCost = musicUnlockSystem ? musicUnlockSystem.unlockCost : 25;
+    const canUnlock = puzzleCount >= unlockCost;
+    
+    // 创建遮罩层
+    const overlay = document.createElement('div');
+    overlay.id = 'unlockDialogOverlay';
+    overlay.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.5);
+        z-index: 9999;
+        backdrop-filter: blur(5px);
+    `;
+    
+    // 创建对话框
+    const dialog = document.createElement('div');
+    dialog.id = 'unlockDialog';
+    dialog.style.cssText = `
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        background: rgba(0, 0, 0, 0.95);
+        backdrop-filter: blur(20px);
+        padding: 30px;
+        border-radius: 20px;
+        border: 2px solid rgba(255, 255, 255, 0.3);
+        z-index: 10000;
+        text-align: center;
+        min-width: 300px;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+    `;
+    
+    dialog.innerHTML = `
+        <div style="font-size: 48px; margin-bottom: 15px;">🔒</div>
+        <div style="color: #fff; font-size: 18px; font-weight: 600; margin-bottom: 10px;">${musicName}</div>
+        <div style="color: rgba(255, 255, 255, 0.7); font-size: 14px; margin-bottom: 20px;">
+            需要 ${unlockCost} 个拼图碎片解锁
+        </div>
+        <div style="display: flex; align-items: center; justify-content: center; gap: 8px; margin-bottom: 20px; padding: 12px; background: rgba(255, 255, 255, 0.1); border-radius: 10px;">
+            <span style="font-size: 24px;">🧩</span>
+            <span style="color: #fff; font-size: 16px;">你有:</span>
+            <span style="color: ${canUnlock ? '#4ade80' : '#ef4444'}; font-size: 20px; font-weight: 700;">${puzzleCount}</span>
+        </div>
+        <div style="display: flex; gap: 10px;">
+            <button id="cancelUnlock" style="flex: 1; padding: 12px; background: rgba(255, 255, 255, 0.1); border: 1px solid rgba(255, 255, 255, 0.3); border-radius: 10px; color: #fff; font-size: 14px; font-weight: 600; cursor: pointer;">
+                取消
+            </button>
+            <button id="confirmUnlock" style="flex: 1; padding: 12px; background: ${canUnlock ? 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' : 'rgba(100, 100, 100, 0.5)'}; border: none; border-radius: 10px; color: #fff; font-size: 14px; font-weight: 600; cursor: ${canUnlock ? 'pointer' : 'not-allowed'}; opacity: ${canUnlock ? '1' : '0.5'};">
+                ${canUnlock ? '解锁' : '拼图不足'}
+            </button>
+        </div>
+    `;
+    
+    // 添加到页面
+    document.body.appendChild(overlay);
+    document.body.appendChild(dialog);
+    
+    // 阻止对话框内部点击事件冒泡
+    dialog.addEventListener('click', (e) => {
+        e.stopPropagation();
+    });
+    
+    // 关闭对话框的函数
+    const closeDialog = () => {
+        if (overlay.parentNode) {
+            document.body.removeChild(overlay);
+        }
+        if (dialog.parentNode) {
+            document.body.removeChild(dialog);
+        }
+    };
+    
+    // 点击遮罩层关闭对话框
+    overlay.addEventListener('click', closeDialog);
+    
+    // 取消按钮
+    document.getElementById('cancelUnlock').addEventListener('click', (e) => {
+        e.stopPropagation();
+        closeDialog();
+    });
+    
+    // 解锁按钮
+    if (canUnlock) {
+        document.getElementById('confirmUnlock').addEventListener('click', async (e) => {
+            e.stopPropagation();
+            
+            const result = await musicUnlockSystem.unlock(musicName, puzzlePieceSystem);
+            
+            if (result.success) {
+                // 解锁成功
+                closeDialog();
+                
+                // 显示成功提示
+                showUnlockSuccessNotification(musicName);
+                
+                // 刷新音乐列表
+                initMidiList();
+                
+                // 自动选择刚解锁的音乐
+                setTimeout(() => {
+                    selectMidi(musicIndex);
+                }, 1000);
+            } else {
+                alert(result.error);
+            }
+        });
+    }
+}
+
+// 显示解锁成功提示
+function showUnlockSuccessNotification(musicName) {
+    const notification = document.createElement('div');
+    notification.style.cssText = `
+        position: fixed;
+        top: 100px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: rgba(74, 222, 128, 0.9);
+        backdrop-filter: blur(10px);
+        color: white;
+        padding: 16px 32px;
+        border-radius: 12px;
+        font-size: 16px;
+        font-weight: 600;
+        z-index: 10001;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        animation: slideDown 0.3s ease;
+        pointer-events: none;
+    `;
+    
+    notification.innerHTML = `
+        <div style="display: flex; align-items: center; gap: 10px;">
+            <span style="font-size: 24px;">🎉</span>
+            <div>
+                <div style="font-size: 14px; opacity: 0.9;">解锁成功！</div>
+                <div style="font-size: 16px; font-weight: 700;">${musicName}</div>
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(notification);
+    
+    // 3秒后移除
+    setTimeout(() => {
+        notification.style.animation = 'slideUp 0.3s ease';
+        setTimeout(() => {
+            if (notification.parentNode) {
+                document.body.removeChild(notification);
+            }
+        }, 300);
+    }, 3000);
 }
 
 // 滚动到当前音乐（居中显示）
@@ -2599,19 +3320,39 @@ function initRandomMidiButton() {
     randomBtn.addEventListener('click', (e) => {
         e.stopPropagation(); // 防止关闭灵动岛
         
-        // 随机选择一个不同于当前的音乐
-        if (midiFiles.length <= 1) {
-            console.log('只有一首歌曲，无法随机选择');
+        // 只从已解锁的音乐中随机选择
+        if (!musicUnlockSystem) {
+            console.warn('音乐解锁系统未初始化');
             return;
         }
         
-        let randomIndex;
-        do {
-            randomIndex = Math.floor(Math.random() * midiFiles.length);
-        } while (randomIndex === currentMidiIndex);
+        const unlockedMusic = musicUnlockSystem.getUnlockedMusic();
+        if (unlockedMusic.length <= 1) {
+            console.log('已解锁的歌曲不足，无法随机选择');
+            return;
+        }
         
-        console.log(`🎲 随机选择: ${midiFiles[randomIndex]}`);
-        selectMidi(randomIndex);
+        // 获取当前音乐名称
+        const currentMusicName = midiFiles[currentMidiIndex].split('/').pop().replace('.mid', '');
+        
+        // 从已解锁音乐中随机选择（排除当前音乐）
+        const availableMusic = unlockedMusic.filter(name => name !== currentMusicName);
+        if (availableMusic.length === 0) {
+            console.log('没有其他已解锁的歌曲');
+            return;
+        }
+        
+        const randomMusicName = availableMusic[Math.floor(Math.random() * availableMusic.length)];
+        
+        // 找到对应的索引
+        const randomIndex = midiFiles.findIndex(file => 
+            file.split('/').pop().replace('.mid', '') === randomMusicName
+        );
+        
+        if (randomIndex !== -1) {
+            console.log(`🎲 随机选择: ${randomMusicName}`);
+            selectMidi(randomIndex);
+        }
     });
 }
 
@@ -2670,6 +3411,12 @@ async function selectMidi(index) {
     totalNotes = 0;
     notesTriggered = 0;
     collisions = 0;
+    
+    // 清理道具
+    if (itemSpawner) {
+        itemSpawner.clear();
+        itemSpawner.stop();
+    }
     
     // 清理拖尾效果
     trailPositions = [];
@@ -2867,6 +3614,15 @@ dynamicIsland.addEventListener('click', (e) => {
 
 // 点击空白处关闭（优先级最高）
 document.addEventListener('click', (e) => {
+    // 检查是否点击了解锁对话框或其内部元素
+    const unlockDialog = document.getElementById('unlockDialog');
+    const unlockOverlay = document.getElementById('unlockDialogOverlay');
+    
+    // 如果解锁对话框存在，不处理灵动岛的收起
+    if (unlockDialog || unlockOverlay) {
+        return;
+    }
+    
     if (isIslandExpanded && !dynamicIsland.contains(e.target)) {
         e.preventDefault();
         e.stopPropagation();
@@ -2945,12 +3701,28 @@ window.forceCleanup = function() {
     });
 };
 
-// 启动游戏（先初始化场景，再预加载资源）
-init();
-animate(performance.now());
+// 等待 Supabase 初始化后再启动游戏
+async function startGame() {
+    // 确保 Supabase 已初始化
+    if (typeof initSupabase === 'function') {
+        const supabaseReady = initSupabase();
+        if (!supabaseReady) {
+            console.warn('⚠️ Supabase 未配置，继续以离线模式运行');
+        } else {
+            console.log('✅ Supabase 已就绪');
+        }
+    }
+    
+    // 启动游戏（先初始化场景，再预加载资源）
+    init();
+    animate(performance.now());
+    
+    // 立即开始预加载所有资源
+    await preloadAllResources();
+}
 
-// 立即开始预加载所有资源
-preloadAllResources();
+// 启动游戏
+startGame();
 
 
 // 初始化认证界面
@@ -3004,293 +3776,9 @@ function initAuthInterface() {
     });
 }
 
-// 处理登录
-function handleLogin() {
-    const username = document.getElementById('loginUsername').value.trim();
-    const password = document.getElementById('loginPassword').value;
-    const messageEl = document.getElementById('loginMessage');
-    const loginBtn = document.getElementById('loginBtn');
-    
-    // 验证输入
-    if (!username || !password) {
-        showAuthMessage(messageEl, '请输入用户名和密码', 'error');
-        return;
-    }
-    
-    // 禁用按钮
-    loginBtn.disabled = true;
-    
-    // 播放点击音效
-    if (audioEngine && audioEngine.playClickSound) {
-        audioEngine.playClickSound();
-    }
-    
-    // 从本地存储获取用户数据
-    const users = JSON.parse(localStorage.getItem('users') || '{}');
-    
-    if (users[username] && users[username] === password) {
-        // 登录成功 - 不显示成功消息，直接完成认证
-        localStorage.setItem('authToken', username);
-        isAuthenticated = true;
-        currentUser = username;
-        
-        // 立即完成认证
-        completeAuthentication();
-        loginBtn.disabled = false;
-    } else {
-        showAuthMessage(messageEl, '用户名或密码错误', 'error');
-        loginBtn.disabled = false;
-    }
-}
-
-// 处理注册
-function handleRegister() {
-    const username = document.getElementById('registerUsername').value.trim();
-    const password = document.getElementById('registerPassword').value;
-    const passwordConfirm = document.getElementById('registerPasswordConfirm').value;
-    const messageEl = document.getElementById('registerMessage');
-    const registerBtn = document.getElementById('registerBtn');
-    
-    // 验证输入
-    if (!username || !password || !passwordConfirm) {
-        showAuthMessage(messageEl, '请填写所有字段', 'error');
-        return;
-    }
-    
-    if (username.length < 3) {
-        showAuthMessage(messageEl, '用户名至少3个字符', 'error');
-        return;
-    }
-    
-    if (password.length < 6) {
-        showAuthMessage(messageEl, '密码至少6个字符', 'error');
-        return;
-    }
-    
-    if (password !== passwordConfirm) {
-        showAuthMessage(messageEl, '两次密码不一致', 'error');
-        return;
-    }
-    
-    // 禁用按钮
-    registerBtn.disabled = true;
-    
-    // 播放点击音效
-    if (audioEngine && audioEngine.playClickSound) {
-        audioEngine.playClickSound();
-    }
-    
-    // 检查用户名是否已存在
-    const users = JSON.parse(localStorage.getItem('users') || '{}');
-    
-    if (users[username]) {
-        showAuthMessage(messageEl, '用户名已存在', 'error');
-        registerBtn.disabled = false;
-        return;
-    }
-    
-    // 注册成功 - 不显示成功消息，直接完成认证
-    users[username] = password;
-    localStorage.setItem('users', JSON.stringify(users));
-    localStorage.setItem('authToken', username);
-    isAuthenticated = true;
-    currentUser = username;
-    
-    // 立即完成认证
-    completeAuthentication();
-    registerBtn.disabled = false;
-}
-
-// 显示认证消息
-function showAuthMessage(element, message, type) {
-    element.textContent = message;
-    element.className = `auth-message ${type}`;
-}
-
-// 完成认证，切换到正常模式
-function completeAuthentication() {
-    const dynamicIsland = document.getElementById('dynamicIsland');
-    
-    console.log('🔄 开始认证完成流程...');
-    
-    // 标记不是首次加载了
-    isFirstLoad = false;
-    
-    // 立即更新用户信息显示
-    updateUserDisplay();
-    
-    // 立即更新标题显示欢迎信息
-    updateIslandTitle();
-    console.log('✅ 更新欢迎标题');
-    
-    // 清空认证表单的消息
-    const loginMessage = document.getElementById('loginMessage');
-    const registerMessage = document.getElementById('registerMessage');
-    if (loginMessage) loginMessage.textContent = '';
-    if (registerMessage) registerMessage.textContent = '';
-    
-    // 清空输入框
-    const loginUsername = document.getElementById('loginUsername');
-    const loginPassword = document.getElementById('loginPassword');
-    const registerUsername = document.getElementById('registerUsername');
-    const registerPassword = document.getElementById('registerPassword');
-    const registerPasswordConfirm = document.getElementById('registerPasswordConfirm');
-    if (loginUsername) loginUsername.value = '';
-    if (loginPassword) loginPassword.value = '';
-    if (registerUsername) registerUsername.value = '';
-    if (registerPassword) registerPassword.value = '';
-    if (registerPasswordConfirm) registerPasswordConfirm.value = '';
-    
-    // 移除认证模式
-    dynamicIsland.classList.remove('auth-mode');
-    console.log('✅ 移除认证模式');
-    
-    // 先等待一小段时间让认证界面消失
-    setTimeout(() => {
-        // 移除展开状态
-        dynamicIsland.classList.remove('expanded');
-        isIslandExpanded = false;
-        console.log('✅ 收起灵动岛，当前类名:', dynamicIsland.className);
-        
-        // 1秒后自动展开音乐界面
-        setTimeout(() => {
-            console.log('🎵 1秒后，准备展开音乐界面...');
-            
-            // 初始化MIDI列表
-            if (midiFiles.length > 0) {
-                initMidiList();
-            }
-            
-            // 确保显示音乐标签
-            const tabs = document.querySelectorAll('.island-tab');
-            const tabContents = document.querySelectorAll('.island-tab-content');
-            
-            // 移除所有active类
-            tabs.forEach(t => t.classList.remove('active'));
-            tabContents.forEach(tc => tc.classList.remove('active'));
-            
-            // 激活音乐标签
-            if (tabs.length > 0) {
-                tabs[0].classList.add('active'); // 第一个标签是音乐
-            }
-            const musicTab = document.getElementById('musicTab');
-            if (musicTab) {
-                musicTab.classList.add('active');
-            }
-            
-            console.log('✅ 激活音乐标签');
-            
-            // 展开灵动岛并暂停游戏
-            dynamicIsland.classList.add('expanded');
-            isIslandExpanded = true;
-            
-            // 暂停游戏（展开状态）
-            wasGameRunningBeforePause = gameRunning;
-            gameRunning = false;
-            
-            // 暂停背景音乐
-            if (audioEngine && audioEngine.bgmIsPlaying) {
-                audioEngine.pauseBGM();
-                console.log('🎵 展开音乐界面，暂停游戏');
-            }
-            
-            console.log('✅ 展开灵动岛，显示音乐界面（游戏已暂停）');
-        }, 1000);
-    }, 100);
-    
-    console.log('✅ 认证完成，欢迎使用！');
-}
-
-// 更新用户信息显示
-function updateUserDisplay() {
-    const displayUsername = document.getElementById('displayUsername');
-    const logoutBtn = document.getElementById('logoutBtn');
-    const userInfoSection = document.getElementById('userInfoSection');
-    
-    if (isAuthenticated && currentUser) {
-        if (displayUsername) {
-            displayUsername.textContent = currentUser;
-        }
-        if (logoutBtn) {
-            logoutBtn.style.display = 'block';
-            logoutBtn.parentElement.style.display = 'block';
-        }
-    } else {
-        if (displayUsername) {
-            displayUsername.textContent = '未登录';
-        }
-        if (logoutBtn) {
-            logoutBtn.style.display = 'none';
-            logoutBtn.parentElement.style.display = 'none';
-        }
-    }
-}
-
-// 检查认证状态
-function checkAuthStatus() {
-    const authToken = localStorage.getItem('authToken');
-    if (authToken) {
-        isAuthenticated = true;
-        currentUser = authToken;
-        updateUserDisplay();
-        console.log('✅ 用户已登录:', currentUser);
-        return true;
-    }
-    isAuthenticated = false;
-    currentUser = null;
-    updateUserDisplay();
-    console.log('❌ 用户未登录');
-    return false;
-}
-
-// 退出登录
-function logout() {
-    // 播放点击音效
-    if (audioEngine && audioEngine.playClickSound) {
-        audioEngine.playClickSound();
-    }
-    
-    localStorage.removeItem('authToken');
-    isAuthenticated = false;
-    currentUser = null;
-    updateUserDisplay();
-    
-    // 暂停游戏
-    if (gameRunning) {
-        wasGameRunningBeforePause = true;
-        gameRunning = false;
-        if (audioEngine && audioEngine.bgmIsPlaying) {
-            audioEngine.pauseBGM();
-        }
-    }
-    
-    // 清空输入框
-    document.getElementById('loginUsername').value = '';
-    document.getElementById('loginPassword').value = '';
-    document.getElementById('registerUsername').value = '';
-    document.getElementById('registerPassword').value = '';
-    document.getElementById('registerPasswordConfirm').value = '';
-    
-    // 清空消息
-    document.getElementById('loginMessage').textContent = '';
-    document.getElementById('registerMessage').textContent = '';
-    
-    // 切换到登录标签
-    const authTabs = document.querySelectorAll('.auth-tab');
-    authTabs.forEach(t => t.classList.remove('active'));
-    authTabs[0].classList.add('active');
-    document.getElementById('loginForm').classList.add('active');
-    document.getElementById('registerForm').classList.remove('active');
-    
-    // 显示认证界面
-    dynamicIsland.classList.remove('expanded');
-    setTimeout(() => {
-        dynamicIsland.classList.add('expanded', 'auth-mode');
-        isIslandExpanded = true;
-    }, 100);
-    
-    console.log('👋 已退出登录');
-}
+// 旧的本地存储认证函数已移除
+// 旧的本地存储认证系统已完全移除
+// 现在使用 auth-system.js 中的 Supabase 认证系统
 
 // 页面加载时初始化
 window.addEventListener('DOMContentLoaded', () => {

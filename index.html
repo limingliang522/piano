@@ -19,6 +19,43 @@
             box-sizing: border-box;
         }
 
+        /* 自定义滚动条样式 - 始终可见 */
+        *::-webkit-scrollbar {
+            width: 10px;
+            height: 10px;
+        }
+
+        *::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 5px;
+        }
+
+        *::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.4);
+            border-radius: 5px;
+            border: 2px solid rgba(0, 0, 0, 0.2);
+            transition: background 0.3s;
+        }
+
+        *::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.6);
+        }
+
+        /* Firefox 滚动条样式 - 始终可见 */
+        * {
+            scrollbar-width: auto;
+            scrollbar-color: rgba(255, 255, 255, 0.4) rgba(255, 255, 255, 0.1);
+        }
+
+        /* 确保滚动条始终显示 */
+        *::-webkit-scrollbar-thumb {
+            visibility: visible !important;
+        }
+
+        *::-webkit-scrollbar-track {
+            visibility: visible !important;
+        }
+
         html {
             overflow: hidden;
             position: fixed;
@@ -76,112 +113,7 @@
             display: none;
         }
 
-        /* 性能统计面板 */
-        #performanceStats {
-            position: fixed;
-            top: 10px;
-            right: 10px;
-            background: rgba(0, 0, 0, 0.85);
-            backdrop-filter: blur(10px);
-            border-radius: 12px;
-            padding: 12px 16px;
-            color: #fff;
-            font-size: 12px;
-            font-family: 'Courier New', monospace;
-            pointer-events: auto;
-            z-index: 1000;
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            min-width: 200px;
-            display: none;
-        }
 
-        #performanceStats.visible {
-            display: block;
-        }
-
-        .perf-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 10px;
-            padding-bottom: 8px;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.2);
-        }
-
-        .perf-title {
-            font-weight: bold;
-            font-size: 13px;
-            color: #667eea;
-        }
-
-        .perf-toggle {
-            background: none;
-            border: none;
-            color: #fff;
-            cursor: pointer;
-            font-size: 16px;
-            padding: 0;
-            width: 20px;
-            height: 20px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            transition: transform 0.3s;
-        }
-
-        .perf-toggle:hover {
-            transform: scale(1.2);
-        }
-
-        .perf-content {
-            display: flex;
-            flex-direction: column;
-            gap: 6px;
-        }
-
-        .perf-content.collapsed {
-            display: none;
-        }
-
-        .perf-row {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-
-        .perf-label {
-            color: rgba(255, 255, 255, 0.7);
-        }
-
-        .perf-value {
-            font-weight: bold;
-            color: #4ade80;
-        }
-
-        .perf-value.warning {
-            color: #fbbf24;
-        }
-
-        .perf-value.danger {
-            color: #ef4444;
-        }
-
-        .perf-section {
-            margin-top: 8px;
-            padding-top: 8px;
-            border-top: 1px solid rgba(255, 255, 255, 0.1);
-        }
-
-        .perf-section-title {
-            font-size: 11px;
-            color: rgba(255, 255, 255, 0.5);
-            margin-bottom: 4px;
-        }
-
-        /* 开发模式切换按钮（已隐藏） */
-        #devModeToggle {
-            display: none !important;
-        }
 
         #combo {
             position: absolute;
@@ -198,6 +130,26 @@
 
         #midiName {
             display: none;
+        }
+
+        /* 实时分数显示 */
+        #liveScore {
+            position: fixed;
+            top: 85px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 8px 16px;
+            z-index: 9998;
+            pointer-events: none;
+            display: none;
+            color: #fff;
+            font-size: 18px;
+            font-weight: 700;
+            text-shadow: 0 2px 8px rgba(0, 0, 0, 0.9), 0 0 20px rgba(255, 255, 255, 0.3);
+        }
+
+        #liveScore.visible {
+            display: block;
         }
 
         /* 灵动岛式 MIDI 选择器 */
@@ -279,8 +231,10 @@
             width: 100%;
             height: 100%;
             flex-direction: column;
-            overflow: hidden; /* 防止内容溢出 */
-            position: relative; /* 作为子元素绝对定位的参考 */
+            overflow-y: auto; /* 允许垂直滚动 */
+            overflow-x: hidden;
+            -webkit-overflow-scrolling: touch; /* iOS 平滑滚动 */
+            position: relative;
         }
 
         #dynamicIsland.expanded .island-content {
@@ -297,8 +251,9 @@
             width: 100%;
             height: 100%;
             flex-direction: column;
-            padding: 15px;
-            overflow: hidden;
+            padding: 10px 20px 15px 20px;
+            overflow: hidden; /* 外层不滚动 */
+            box-sizing: border-box;
         }
 
         #dynamicIsland.expanded.auth-mode .island-auth-content {
@@ -312,9 +267,10 @@
         .auth-tabs {
             display: flex;
             gap: 8px;
-            margin-bottom: 15px;
+            margin-bottom: 12px;
             border-bottom: 1px solid rgba(255, 255, 255, 0.2);
             padding-bottom: 8px;
+            flex-shrink: 0; /* 防止标签页被压缩 */
         }
 
         .auth-tab {
@@ -347,7 +303,11 @@
             flex-direction: column;
             gap: 10px;
             flex: 1;
-            justify-content: center;
+            justify-content: flex-start; /* 改为顶部对齐，不居中 */
+            overflow-y: auto; /* 允许表单内容滚动 */
+            overflow-x: hidden;
+            -webkit-overflow-scrolling: touch;
+            padding: 10px 0 20px 0; /* 增加底部内边距 */
         }
 
         .auth-form.active {
@@ -445,8 +405,11 @@
             margin-bottom: 15px;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
+            -moz-background-clip: text;
             background-clip: text;
+            -webkit-text-fill-color: transparent;
+            -moz-text-fill-color: transparent;
+            color: transparent;
         }
 
         /* 标签页切换 */
@@ -488,23 +451,26 @@
             flex-direction: column;
             flex: 1;
             gap: 5px;
-            overflow: hidden; /* 防止内容溢出 */
-            min-height: 0; /* 允许flex子元素缩小 */
-            position: absolute; /* 绝对定位，让两个页面完全重叠 */
-            top: 60px; /* 标签页下方 */
-            left: 0;
-            right: 0;
-            bottom: 0;
+            overflow-y: auto; /* 允许垂直滚动 */
+            overflow-x: hidden;
+            -webkit-overflow-scrolling: touch; /* iOS 平滑滚动 */
+            min-height: 0;
+            position: absolute;
+            top: 55px; /* 标签页下方，减少顶部空间 */
+            left: 5px;
+            right: 5px;
+            bottom: 5px; /* 留出底部空间 */
+            padding: 0;
         }
 
         .island-tab-content.active {
             display: flex;
-            z-index: 10; /* 确保激活的页面在最上层 */
+            z-index: 10;
         }
 
         /* 用户页面布局 */
         #userTab {
-            padding: 10px;
+            padding: 10px 5px;
             overflow-y: auto;
             overflow-x: hidden;
             -webkit-overflow-scrolling: touch;
@@ -513,7 +479,7 @@
 
         /* 设置页面布局 */
         #settingsTab {
-            padding: 10px;
+            padding: 10px 5px;
             overflow-y: auto; /* 允许垂直滚动 */
             overflow-x: hidden;
             -webkit-overflow-scrolling: touch;
@@ -525,6 +491,7 @@
             display: flex;
             flex-direction: column;
             gap: 15px;
+            padding-bottom: 10px; /* 底部留白，确保最后一项可见 */
         }
 
         .setting-item {
@@ -567,6 +534,16 @@
             background: rgba(255, 255, 255, 0.2);
             outline: none;
             -webkit-appearance: none;
+            -moz-appearance: none;
+            appearance: none;
+        }
+        
+        /* Firefox 滑块轨道样式 */
+        .volume-slider::-moz-range-track {
+            height: 6px;
+            border-radius: 3px;
+            background: rgba(255, 255, 255, 0.2);
+            border: none;
         }
 
         .volume-slider::-webkit-slider-thumb {
@@ -705,8 +682,11 @@
             text-align: center;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
+            -moz-background-clip: text;
             background-clip: text;
+            -webkit-text-fill-color: transparent;
+            -moz-text-fill-color: transparent;
+            color: transparent;
             text-shadow: 0 2px 10px rgba(102, 126, 234, 0.3);
         }
 
@@ -715,7 +695,8 @@
             display: flex;
             flex-direction: column;
             gap: 20px;
-            padding: 10px 0;
+            padding: 10px 5px;
+            min-height: min-content; /* 确保内容完整显示 */
         }
 
         #userTab .setting-item {
@@ -753,22 +734,33 @@
             transform: none;
         }
 
+        .account-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+            opacity: 1;
+        }
+
+        .account-btn:active {
+            transform: translateY(0);
+        }
+
+        .account-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
         .midi-list-container {
             flex: 1;
             overflow-x: auto;
             overflow-y: hidden;
             -webkit-overflow-scrolling: touch;
-            scrollbar-width: none;
             padding: 8px 5px 50px 5px;
             background: rgba(255, 255, 255, 0.03);
             border-radius: 8px;
             min-height: 0;
             margin: 0;
             border-top: 1px solid rgba(255, 255, 255, 0.1);
-        }
-
-        .midi-list-container::-webkit-scrollbar {
-            display: none;
         }
 
         .midi-list {
@@ -782,8 +774,9 @@
 
         /* 音乐页面布局 */
         #musicTab {
-            padding: 5px 6px 0 6px;
-            overflow: hidden;
+            padding: 5px 6px;
+            overflow-y: auto; /* 允许滚动 */
+            overflow-x: hidden;
             display: flex;
             flex-direction: column;
             background: #000;
@@ -980,23 +973,137 @@
         #gameOver {
             display: none;
             position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.95);
+            backdrop-filter: blur(20px);
+            z-index: 10000;
+            pointer-events: all;
+            cursor: pointer;
+            animation: fadeIn 0.3s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        .game-over-content {
+            position: absolute;
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
             text-align: center;
-            pointer-events: all;
-            z-index: 1000;
+            width: 90%;
+            max-width: 500px;
+            pointer-events: none;
         }
 
-        #gameOver h1 {
-            display: none;
+        .game-over-icon {
+            font-size: 80px;
+            margin-bottom: 20px;
+            animation: bounce 0.6s ease;
         }
 
-        #gameOver p {
-            display: none;
+        @keyframes bounce {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-20px); }
         }
 
-        .game-button {
+        #gameOverTitle {
+            color: #fff;
+            font-size: clamp(32px, 8vw, 48px);
+            font-weight: 700;
+            margin-bottom: 30px;
+            text-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+        }
+
+        .game-over-stats {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 15px;
+            margin-bottom: 30px;
+        }
+
+        .stat-card {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border: 2px solid rgba(255, 255, 255, 0.2);
+            border-radius: 16px;
+            padding: 20px 15px;
+            transition: all 0.3s;
+        }
+
+        .stat-icon {
+            font-size: 32px;
+            margin-bottom: 10px;
+        }
+
+        .stat-value {
+            color: #fff;
+            font-size: clamp(24px, 6vw, 32px);
+            font-weight: 700;
+            margin-bottom: 5px;
+            text-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+        }
+
+        .stat-label {
+            color: rgba(255, 255, 255, 0.7);
+            font-size: clamp(12px, 3vw, 14px);
+            font-weight: 500;
+        }
+
+        .game-over-song {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            padding: 15px 20px;
+            margin-bottom: 30px;
+        }
+
+        .song-label {
+            color: rgba(255, 255, 255, 0.6);
+            font-size: 14px;
+            margin-right: 10px;
+        }
+
+        .song-name {
+            color: #fff;
+            font-size: 16px;
+            font-weight: 600;
+        }
+
+        .game-over-hint {
+            color: rgba(255, 255, 255, 0.5);
+            font-size: clamp(14px, 3.5vw, 16px);
+            animation: pulse 2s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 0.5; }
+            50% { opacity: 1; }
+        }
+
+        /* 移动端优化 */
+        @media (max-width: 600px) {
+            .game-over-stats {
+                gap: 10px;
+            }
+
+            .stat-card {
+                padding: 15px 10px;
+            }
+
+            .stat-icon {
+                font-size: 24px;
+                margin-bottom: 5px;
+            }
+        }
+
+        /* 旧的游戏按钮样式已废弃 */
+        /* .game-button {
             margin: 0;
             padding: 0;
             width: 80px;
@@ -1022,12 +1129,12 @@
         }
 
         #restart::before {
-            content: '↻';
+            content: '返回主界面';
             display: block;
-            font-size: 44px;
-            line-height: 1;
-            transform: translateY(2px);
-        }
+            font-size: 16px;
+            line-height: 1.5;
+            font-weight: 600;
+        } */
 
 
 
@@ -1140,7 +1247,7 @@
             cursor: pointer;
             box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
             transition: all 0.3s;
-            z-index: 1000;
+            z-index: 50;
             pointer-events: all;
         }
 
@@ -1251,86 +1358,43 @@
         <div id="combo">COMBO: 0</div>
         <div id="accuracy">准确率: 100%</div>
         <div id="gameOver">
-            <h1>游戏结束！</h1>
-            <p id="finalScore">最终分数: 0</p>
-            <p id="finalDistance">跑了: 0m</p>
-            <button id="restart" class="game-button"></button>
+            <div class="game-over-content">
+                <div class="game-over-icon" id="gameOverIcon">🎮</div>
+                <h1 id="gameOverTitle">游戏结束！</h1>
+                
+                <div class="game-over-stats">
+                    <div class="stat-card">
+                        <div class="stat-icon">🎯</div>
+                        <div class="stat-value" id="finalScore">0</div>
+                        <div class="stat-label">分数</div>
+                    </div>
+                    
+                    <div class="stat-card">
+                        <div class="stat-icon">🎵</div>
+                        <div class="stat-value" id="finalNotes">0/0</div>
+                        <div class="stat-label">触发音符</div>
+                    </div>
+                </div>
+                
+                <div class="game-over-song">
+                    <span class="song-label">歌曲：</span>
+                    <span class="song-name" id="finalSongName">未知</span>
+                </div>
+                
+                <div class="game-over-hint">
+                    点击屏幕任意处返回
+                </div>
+            </div>
         </div>
         <div id="instructions"></div>
         <div id="midiName"></div>
 
-        <!-- 性能统计面板 -->
-        <div id="performanceStats">
-            <div class="perf-header">
-                <span class="perf-title">📊 性能统计</span>
-                <button class="perf-toggle" id="perfToggle">−</button>
-            </div>
-            <div class="perf-content" id="perfContent">
-                <div class="perf-row">
-                    <span class="perf-label">FPS:</span>
-                    <span class="perf-value" id="perfFPS">60</span>
-                </div>
-                <div class="perf-row">
-                    <span class="perf-label">平均FPS:</span>
-                    <span class="perf-value" id="perfAvgFPS">60</span>
-                </div>
-                <div class="perf-row">
-                    <span class="perf-label">帧时间:</span>
-                    <span class="perf-value" id="perfFrameTime">16.67ms</span>
-                </div>
-                
-                <div class="perf-section">
-                    <div class="perf-section-title">渲染统计</div>
-                    <div class="perf-row">
-                        <span class="perf-label">渲染调用:</span>
-                        <span class="perf-value" id="perfDrawCalls">0</span>
-                    </div>
-                    <div class="perf-row">
-                        <span class="perf-label">三角形:</span>
-                        <span class="perf-value" id="perfTriangles">0</span>
-                    </div>
-                    <div class="perf-row">
-                        <span class="perf-label">几何体:</span>
-                        <span class="perf-value" id="perfGeometries">0</span>
-                    </div>
-                    <div class="perf-row">
-                        <span class="perf-label">纹理:</span>
-                        <span class="perf-value" id="perfTextures">0</span>
-                    </div>
-                </div>
-                
-                <div class="perf-section">
-                    <div class="perf-section-title">内存使用</div>
-                    <div class="perf-row">
-                        <span class="perf-label">总内存:</span>
-                        <span class="perf-value" id="perfMemoryTotal">0 MB</span>
-                    </div>
-                    <div class="perf-row">
-                        <span class="perf-label">已用内存:</span>
-                        <span class="perf-value" id="perfMemoryUsed">0 MB</span>
-                    </div>
-                </div>
-                
-                <div class="perf-section">
-                    <div class="perf-section-title">视锥剔除</div>
-                    <div class="perf-row">
-                        <span class="perf-label">可见/总数:</span>
-                        <span class="perf-value" id="perfCulling">0/0</span>
-                    </div>
-                </div>
-                
-                <div class="perf-section">
-                    <div class="perf-section-title">LOD分布</div>
-                    <div class="perf-row">
-                        <span class="perf-label">高/中/低:</span>
-                        <span class="perf-value" id="perfLOD">0/0/0</span>
-                    </div>
-                </div>
-            </div>
-        </div>
 
-        <!-- 开发模式切换按钮（已隐藏） -->
-        <!-- <button id="devModeToggle">🔧 开发模式</button> -->
+
+        <!-- 实时分数显示 -->
+        <div id="liveScore">
+            分数: <span id="liveScoreValue">0</span>
+        </div>
 
         <!-- 灵动岛式 MIDI 选择器 -->
         <div id="dynamicIsland">
@@ -1357,32 +1421,36 @@
                 <!-- 登录表单 -->
                 <div class="auth-form active" id="loginForm">
                     <div class="auth-input-group">
-                        <span class="auth-input-icon">👤</span>
-                        <input type="text" class="auth-input" id="loginUsername" placeholder="用户名" autocomplete="username">
+                        <span class="auth-input-icon">📧</span>
+                        <input type="email" class="auth-input" id="loginEmail" placeholder="邮箱" autocomplete="email">
                     </div>
                     <div class="auth-input-group">
                         <span class="auth-input-icon">🔒</span>
                         <input type="password" class="auth-input" id="loginPassword" placeholder="密码" autocomplete="current-password">
                     </div>
-                    <button class="auth-submit-btn" id="loginBtn">登录</button>
+                    <button class="auth-submit-btn" id="loginSubmit">登录</button>
                     <div class="auth-message" id="loginMessage"></div>
                 </div>
                 
                 <!-- 注册表单 -->
                 <div class="auth-form" id="registerForm">
                     <div class="auth-input-group">
+                        <span class="auth-input-icon">📧</span>
+                        <input type="email" class="auth-input" id="registerEmail" placeholder="邮箱" autocomplete="email">
+                    </div>
+                    <div class="auth-input-group">
                         <span class="auth-input-icon">👤</span>
                         <input type="text" class="auth-input" id="registerUsername" placeholder="用户名" autocomplete="username">
                     </div>
                     <div class="auth-input-group">
                         <span class="auth-input-icon">🔒</span>
-                        <input type="password" class="auth-input" id="registerPassword" placeholder="密码" autocomplete="new-password">
+                        <input type="password" class="auth-input" id="registerPassword" placeholder="密码（至少6位）" autocomplete="new-password">
                     </div>
                     <div class="auth-input-group">
                         <span class="auth-input-icon">🔒</span>
                         <input type="password" class="auth-input" id="registerPasswordConfirm" placeholder="确认密码" autocomplete="new-password">
                     </div>
-                    <button class="auth-submit-btn" id="registerBtn">注册</button>
+                    <button class="auth-submit-btn" id="registerSubmit">注册</button>
                     <div class="auth-message" id="registerMessage"></div>
                 </div>
             </div>
@@ -1409,11 +1477,23 @@
                         </div>
                     </div>
                     
-                    <!-- 随机选择按钮 -->
+                    <!-- 底部按钮区域 -->
                     <div class="random-button-container">
                         <button id="randomMidiBtn" class="random-midi-button">
                             🎲
                         </button>
+                        
+                        <!-- 拼图碎片显示（右侧） -->
+                        <div style="position: absolute; right: 10px; bottom: 0; display: flex; align-items: center; gap: 6px;">
+                            <svg width="24" height="24" viewBox="0 0 24 24" style="filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.8));">
+                                <path d="M12 2 L22 7 L22 17 L12 22 L2 17 L2 7 Z M12 8 L12 4 L8 6 L8 10 L12 8 Z M16 10 L16 6 L12 8 L12 12 L16 10 Z" 
+                                      fill="#ffffff" 
+                                      stroke="#aaaaff" 
+                                      stroke-width="1" 
+                                      opacity="0.9"/>
+                            </svg>
+                            <span id="puzzlePieceCount" style="color: #4ade80; font-size: 20px; font-weight: 700; text-shadow: 0 2px 4px rgba(0, 0, 0, 0.8);">0</span>
+                        </div>
                     </div>
                 </div>
 
@@ -1431,10 +1511,61 @@
                             </div>
                         </div>
                         
-                        <!-- 退出登录按钮 -->
-                        <div class="setting-item">
+                        <!-- 未登录提示（默认显示） -->
+                        <div class="setting-item" id="loginPrompt" style="text-align: center; padding: 20px;">
+                            <p style="color: rgba(255, 255, 255, 0.6); font-size: 14px; margin-bottom: 15px;">
+                                登录后可以保存游戏成绩<br>查看排行榜和历史记录
+                            </p>
+                            <button class="auth-submit-btn" id="goToLoginBtn" style="width: 100%; max-width: 200px; margin: 0 auto;">
+                                立即登录
+                            </button>
+                        </div>
+                        
+                        <!-- 用户统计（登录后显示） -->
+                        <div class="setting-item" id="userStatsSection" style="display: none;">
+                            <div class="setting-label">
+                                <span class="setting-icon">📊</span>
+                                <span style="color: #fff; font-size: 16px; font-weight: 600;">游戏统计</span>
+                            </div>
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px;">
+                                <div style="text-align: center; padding: 10px; background: rgba(255, 255, 255, 0.05); border-radius: 8px;">
+                                    <div style="color: rgba(255, 255, 255, 0.6); font-size: 12px;">游戏次数</div>
+                                    <div style="color: #fff; font-size: 20px; font-weight: 700;" id="statTotalGames">0</div>
+                                </div>
+                                <div style="text-align: center; padding: 10px; background: rgba(255, 255, 255, 0.05); border-radius: 8px;">
+                                    <div style="color: rgba(255, 255, 255, 0.6); font-size: 12px;">最高分</div>
+                                    <div style="color: #4ade80; font-size: 20px; font-weight: 700;" id="statBestScore">0</div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- 账号管理（登录后显示） -->
+                        <div class="setting-item" id="accountManagementSection" style="display: none;">
+                            <div class="setting-label">
+                                <span class="setting-icon">⚙️</span>
+                                <span style="color: #fff; font-size: 16px; font-weight: 600;">账号管理</span>
+                            </div>
+                            <div style="display: flex; flex-direction: column; gap: 10px; margin-top: 10px;">
+                                <button class="account-btn" id="changeUsernameBtn" style="width: 100%; padding: 12px; background: rgba(59, 130, 246, 0.8); color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; transition: all 0.3s;">
+                                    ✏️ 更改用户名
+                                </button>
+                                <button class="account-btn" id="deleteAccountBtn" style="width: 100%; padding: 12px; background: rgba(239, 68, 68, 0.8); color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; transition: all 0.3s;">
+                                    🗑️ 注销账号
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <!-- 退出登录按钮（登录后显示） -->
+                        <div class="setting-item" id="logoutSection" style="display: none;">
                             <button class="logout-btn" id="logoutBtn" style="width: 100%; padding: 12px;">
                                 🚪 退出登录
+                            </button>
+                        </div>
+                        
+                        <!-- 管理员工具（仅开发环境） -->
+                        <div class="setting-item" id="adminSection" style="display: none;">
+                            <button class="admin-btn" id="fixDuplicateUsernamesBtn" style="width: 100%; padding: 12px; background: #f59e0b; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: 600;">
+                                🔧 修复重复用户名
                             </button>
                         </div>
                     </div>
@@ -1453,62 +1584,6 @@
                             <div class="volume-control">
                                 <input type="range" id="volumeSlider" min="0" max="100" value="100" class="volume-slider">
                                 <span class="volume-value" id="volumeValue">100%</span>
-                            </div>
-                        </div>
-                        
-                        <!-- 后处理效果开关 -->
-                        <div class="setting-item">
-                            <div class="setting-label">
-                                <span class="setting-icon">✨</span>
-                                <span style="color: #fff; font-size: 16px; font-weight: 600;">后处理效果</span>
-                            </div>
-                            <div class="volume-control">
-                                <label class="toggle-switch">
-                                    <input type="checkbox" id="postProcessingToggle" checked>
-                                    <span class="toggle-slider"></span>
-                                </label>
-                                <span class="volume-value" id="postProcessingStatus">启用</span>
-                            </div>
-                        </div>
-                        
-                        <!-- 泛光效果强度 -->
-                        <div class="setting-item" id="bloomIntensityContainer">
-                            <div class="setting-label">
-                                <span class="setting-icon">💫</span>
-                                <span style="color: #fff; font-size: 16px; font-weight: 600;">泛光强度</span>
-                            </div>
-                            <div class="volume-control">
-                                <input type="range" id="bloomIntensitySlider" min="0" max="100" value="50" class="volume-slider">
-                                <span class="volume-value" id="bloomIntensityValue">0.5</span>
-                            </div>
-                        </div>
-                        
-                        <!-- 自动调整画质开关 -->
-                        <div class="setting-item">
-                            <div class="setting-label">
-                                <span class="setting-icon">🤖</span>
-                                <span style="color: #fff; font-size: 16px; font-weight: 600;">自动调整画质</span>
-                            </div>
-                            <div class="volume-control">
-                                <label class="toggle-switch">
-                                    <input type="checkbox" id="autoQualityToggle" checked>
-                                    <span class="toggle-slider"></span>
-                                </label>
-                                <span class="volume-value" id="autoQualityStatus">启用</span>
-                            </div>
-                        </div>
-                        
-                        <!-- 画质级别选择 -->
-                        <div class="setting-item">
-                            <div class="setting-label">
-                                <span class="setting-icon">🎨</span>
-                                <span style="color: #fff; font-size: 16px; font-weight: 600;">画质级别</span>
-                            </div>
-                            <div class="quality-selector">
-                                <button class="quality-btn" data-quality="low">低</button>
-                                <button class="quality-btn" data-quality="medium">中</button>
-                                <button class="quality-btn active" data-quality="high">高</button>
-                                <button class="quality-btn" data-quality="ultra">超高</button>
                             </div>
                         </div>
                     </div>
@@ -1532,156 +1607,18 @@
     
     <!-- Supabase SDK - 用户系统和数据存储 -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="supabase-config.js?v=1.1"></script>
-    <script src="auth-system.js?v=1.1"></script>
+    <script src="supabase-config.js?v=3.1"></script>
+    <script src="cloud-sync.js?v=1.1"></script>
+    <script src="auth-system.js?v=3.1"></script>
     
-    <script src="midi-parser.js?v=16.7"></script>
-    <script src="audio-engine.js?v=16.7"></script>
-    <script src="render-system.js?v=1.0"></script>
-    <script src="game.js?v=16.8"></script>
+    <script src="midi-parser.js?v=17.1"></script>
+    <script src="audio-engine.js?v=17.1"></script>
+    <script src="render-system.js?v=2.1"></script>
+    <script src="item-system.js?v=3.6"></script>
+    <script src="music-unlock-system.js?v=2.6"></script>
+    <script src="game.js?v=19.9"></script>
     
     <script>
-        // 性能统计UI控制
-        let devModeEnabled = false;
-        let perfPanelCollapsed = false;
-        
-        // 开发模式切换
-        document.getElementById('devModeToggle').addEventListener('click', function() {
-            devModeEnabled = !devModeEnabled;
-            this.classList.toggle('active', devModeEnabled);
-            
-            const perfStats = document.getElementById('performanceStats');
-            if (devModeEnabled) {
-                perfStats.classList.add('visible');
-                // 启动性能统计更新
-                startPerformanceMonitoring();
-            } else {
-                perfStats.classList.remove('visible');
-                // 停止性能统计更新
-                stopPerformanceMonitoring();
-            }
-        });
-        
-        // 性能监控定时器
-        let performanceMonitoringInterval = null;
-        
-        // 启动性能监控
-        function startPerformanceMonitoring() {
-            if (performanceMonitoringInterval) return;
-            
-            performanceMonitoringInterval = setInterval(() => {
-                if (typeof renderManager !== 'undefined' && renderManager) {
-                    const stats = renderManager.getPerformanceStats();
-                    updatePerformanceUI(stats);
-                }
-            }, 500); // 每500ms更新一次
-        }
-        
-        // 停止性能监控
-        function stopPerformanceMonitoring() {
-            if (performanceMonitoringInterval) {
-                clearInterval(performanceMonitoringInterval);
-                performanceMonitoringInterval = null;
-            }
-        }
-        
-        // 性能面板折叠/展开
-        document.getElementById('perfToggle').addEventListener('click', function(e) {
-            e.stopPropagation();
-            perfPanelCollapsed = !perfPanelCollapsed;
-            
-            const content = document.getElementById('perfContent');
-            content.classList.toggle('collapsed', perfPanelCollapsed);
-            this.textContent = perfPanelCollapsed ? '+' : '−';
-        });
-        
-        // 更新性能统计显示
-        function updatePerformanceUI(stats) {
-            if (!devModeEnabled || !stats) return;
-            
-            // FPS
-            const fpsEl = document.getElementById('perfFPS');
-            const fps = stats.fps || 0;
-            fpsEl.textContent = Math.round(fps);
-            fpsEl.className = 'perf-value';
-            if (fps < 30) fpsEl.classList.add('danger');
-            else if (fps < 45) fpsEl.classList.add('warning');
-            
-            // 平均FPS
-            const avgFpsEl = document.getElementById('perfAvgFPS');
-            const avgFps = stats.averageFPS || 0;
-            avgFpsEl.textContent = Math.round(avgFps);
-            avgFpsEl.className = 'perf-value';
-            if (avgFps < 30) avgFpsEl.classList.add('danger');
-            else if (avgFps < 45) avgFpsEl.classList.add('warning');
-            
-            // 帧时间
-            const frameTime = fps > 0 ? (1000 / fps).toFixed(2) : '0.00';
-            const frameTimeEl = document.getElementById('perfFrameTime');
-            frameTimeEl.textContent = frameTime + 'ms';
-            frameTimeEl.className = 'perf-value';
-            if (parseFloat(frameTime) > 33) frameTimeEl.classList.add('danger');
-            else if (parseFloat(frameTime) > 22) frameTimeEl.classList.add('warning');
-            
-            // 渲染统计
-            if (stats.renderStats) {
-                const drawCallsEl = document.getElementById('perfDrawCalls');
-                const drawCalls = stats.renderStats.drawCalls || 0;
-                drawCallsEl.textContent = drawCalls;
-                drawCallsEl.className = 'perf-value';
-                if (drawCalls > 200) drawCallsEl.classList.add('warning');
-                if (drawCalls > 500) drawCallsEl.classList.add('danger');
-                
-                document.getElementById('perfTriangles').textContent = (stats.renderStats.triangles || 0).toLocaleString();
-                document.getElementById('perfGeometries').textContent = stats.renderStats.geometries || 0;
-                document.getElementById('perfTextures').textContent = stats.renderStats.textures || 0;
-            }
-            
-            // 内存使用统计
-            if (stats.memoryUsage) {
-                const totalEl = document.getElementById('perfMemoryTotal');
-                const usedEl = document.getElementById('perfMemoryUsed');
-                
-                if (stats.memoryUsage.total) {
-                    totalEl.textContent = (stats.memoryUsage.total / (1024 * 1024)).toFixed(1) + ' MB';
-                }
-                
-                if (stats.memoryUsage.used) {
-                    const usedMB = stats.memoryUsage.used / (1024 * 1024);
-                    usedEl.textContent = usedMB.toFixed(1) + ' MB';
-                    usedEl.className = 'perf-value';
-                    
-                    // 根据使用量设置颜色
-                    if (stats.memoryUsage.total) {
-                        const usagePercent = (stats.memoryUsage.used / stats.memoryUsage.total) * 100;
-                        if (usagePercent > 80) usedEl.classList.add('danger');
-                        else if (usagePercent > 60) usedEl.classList.add('warning');
-                    }
-                }
-            }
-            
-            // 视锥剔除统计
-            if (stats.cullingStats) {
-                const culling = stats.cullingStats;
-                const cullingEl = document.getElementById('perfCulling');
-                cullingEl.textContent = `${culling.visible}/${culling.total}`;
-                cullingEl.className = 'perf-value';
-                
-                // 如果剔除率低于50%，显示警告
-                if (culling.total > 0) {
-                    const cullRate = ((culling.total - culling.visible) / culling.total) * 100;
-                    if (cullRate < 30) cullingEl.classList.add('warning');
-                }
-            }
-            
-            // LOD统计
-            if (stats.lodStats) {
-                const lod = stats.lodStats;
-                document.getElementById('perfLOD').textContent = 
-                    `${lod.high}/${lod.medium}/${lod.low}`;
-            }
-        }
-        
         // 画质设置管理
         const QualitySettings = {
             // 从localStorage加载设置
@@ -1858,40 +1795,70 @@
         // 画质级别选择
         const qualityButtons = document.querySelectorAll('.quality-btn');
         
-        qualityButtons.forEach(btn => {
-            btn.addEventListener('click', function() {
-                const quality = this.getAttribute('data-quality');
-                
-                // 更新按钮状态
-                qualityButtons.forEach(b => b.classList.remove('active'));
-                this.classList.add('active');
-                
-                // 如果启用了自动调整，先禁用它
-                if (autoQualityToggle && autoQualityToggle.checked) {
-                    autoQualityToggle.checked = false;
-                    autoQualityStatus.textContent = '禁用';
-                }
-                
-                // 更新渲染管理器的画质设置
-                if (typeof renderManager !== 'undefined' && renderManager && renderManager.qualityAdapter) {
-                    renderManager.qualityAdapter.setManualQuality(quality);
-                    console.log('🎨 画质级别已设置为:', quality);
-                    
-                    // 根据画质级别自动更新后处理开关状态
-                    const preset = renderManager.qualityAdapter.getCurrentPreset();
-                    if (preset && postProcessingToggle) {
-                        postProcessingToggle.checked = preset.postProcessing;
-                        postProcessingStatus.textContent = preset.postProcessing ? '启用' : '禁用';
-                    }
-                }
-                
-                // 保存设置
-                const settings = QualitySettings.load();
-                settings.quality = quality;
-                settings.autoAdjust = false;
-                QualitySettings.save(settings);
+        // 初始化画质按钮
+        function initQualityButtons() {
+            const qualityButtons = document.querySelectorAll('.quality-btn');
+            
+            qualityButtons.forEach(btn => {
+                // 移除旧的事件监听器（如果有）
+                const newBtn = btn.cloneNode(true);
+                btn.parentNode.replaceChild(newBtn, btn);
             });
-        });
+            
+            // 重新获取按钮并添加事件监听器
+            const newQualityButtons = document.querySelectorAll('.quality-btn');
+            
+            newQualityButtons.forEach(btn => {
+                btn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    
+                    const quality = this.getAttribute('data-quality');
+                    console.log('🎨 点击画质按钮:', quality);
+                    
+                    // 更新按钮状态
+                    newQualityButtons.forEach(b => b.classList.remove('active'));
+                    this.classList.add('active');
+                    
+                    // 手动调整画质时，禁用自动调整
+                    const autoQualityToggle = document.getElementById('autoQualityToggle');
+                    const autoQualityStatus = document.getElementById('autoQualityStatus');
+                    if (autoQualityToggle && autoQualityToggle.checked) {
+                        autoQualityToggle.checked = false;
+                        if (autoQualityStatus) {
+                            autoQualityStatus.textContent = '禁用';
+                        }
+                    }
+                    
+                    // 更新渲染管理器的画质设置
+                    if (typeof renderManager !== 'undefined' && renderManager && renderManager.qualityAdapter) {
+                        renderManager.qualityAdapter.autoAdjust = false;
+                        renderManager.qualityAdapter.setManualQuality(quality);
+                        console.log('✅ 画质级别已设置为:', quality);
+                        
+                        // 根据画质级别自动更新后处理开关状态
+                        const preset = renderManager.qualityAdapter.getCurrentPreset();
+                        const postProcessingToggle = document.getElementById('postProcessingToggle');
+                        const postProcessingStatus = document.getElementById('postProcessingStatus');
+                        if (preset && postProcessingToggle) {
+                            postProcessingToggle.checked = preset.postProcessing;
+                            if (postProcessingStatus) {
+                                postProcessingStatus.textContent = preset.postProcessing ? '启用' : '禁用';
+                            }
+                        }
+                    } else {
+                        console.warn('⚠️ 渲染管理器未初始化');
+                    }
+                });
+            });
+            
+            console.log('✅ 画质按钮已初始化');
+        }
+        
+        // 延迟初始化画质按钮
+        setTimeout(() => {
+            initQualityButtons();
+        }, 1500);
         
         // 页面加载时恢复保存的设置
         window.addEventListener('load', function() {
@@ -1909,6 +1876,43 @@
             
             // 10秒后停止尝试
             setTimeout(() => clearInterval(applyInterval), 10000);
+            
+            // ========== 初始化云端同步监听器 ==========
+            // 等待所有系统初始化完成后，设置设置同步监听器
+            setTimeout(() => {
+                if (typeof setupSettingsSyncListeners === 'function') {
+                    setupSettingsSyncListeners();
+                    console.log('✅ 云端同步监听器已初始化');
+                }
+            }, 2000);
+            
+            // ========== 键盘弹出检测（移动端优化）==========
+            // 当输入框获得焦点时，隐藏开始按钮，避免遮挡
+            const allInputs = document.querySelectorAll('input[type="text"], input[type="email"], input[type="password"]');
+            const startButton = document.getElementById('startButton');
+            
+            allInputs.forEach(input => {
+                // 输入框获得焦点（键盘弹出）
+                input.addEventListener('focus', () => {
+                    if (startButton) {
+                        startButton.classList.add('keyboard-open');
+                        console.log('⌨️ 键盘弹出，隐藏开始按钮');
+                    }
+                });
+                
+                // 输入框失去焦点（键盘收起）
+                input.addEventListener('blur', () => {
+                    // 延迟恢复，避免快速切换输入框时闪烁
+                    setTimeout(() => {
+                        // 检查是否还有其他输入框处于焦点状态
+                        const hasFocusedInput = Array.from(allInputs).some(inp => inp === document.activeElement);
+                        if (!hasFocusedInput && startButton) {
+                            startButton.classList.remove('keyboard-open');
+                            console.log('⌨️ 键盘收起，显示开始按钮');
+                        }
+                    }, 100);
+                });
+            });
         });
     </script>
 </body>
