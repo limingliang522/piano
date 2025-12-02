@@ -1,7 +1,7 @@
 // Supabase 配置和 API 封装
 const SUPABASE_CONFIG = {
-    url: 'https://sqsesohatfpoxwwykpmq.supabase.co',
-    anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNxc2Vzb2hhdGZwb3h3d3lrcG1xIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjM5NTA2ODIsImV4cCI6MjA3OTUyNjY4Mn0.YsN46f1-JYUGNAv3AGXDxy86tODRHvPFW5JlvauyTmE'
+    url: 'https://odoiplbvwmrfkozkomzq.supabase.co',
+    anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9kb2lwbGJ2d21yZmtvemtvbXpxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQ2NDIzNjAsImV4cCI6MjA4MDIxODM2MH0.QUI1iIiLSAHZ9M9xA3QUX65nQHoPG-t_07K1vDy0cfk'
 };
 
 let supabase = null;
@@ -50,8 +50,9 @@ async function signUp(email, password, username) {
             options: { data: { username }, emailRedirectTo: window.location.origin }
         });
         if (error) throw error;
+        // 初始化拼图碎片（失败不影响注册）
         if (data.user && data.session) {
-            await updatePuzzlePieces(25);
+            try { await updatePuzzlePieces(25); } catch (e) { /* 忽略初始化错误 */ }
         }
         return { success: true, user: data.user, session: data.session };
     } catch (error) {
